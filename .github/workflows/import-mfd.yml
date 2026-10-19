@@ -1,0 +1,40 @@
+name: Import verified MFD source
+on:
+  push:
+    branches: [main]
+    paths: [.github/workflows/import-mfd.yml]
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  import:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      - name: Verify and unpack complete MFD source
+        run: |
+          python3 - <<'PYTHON'
+          import hashlib, tarfile
+          from pathlib import Path
+          p=Path('mfd-source-snapshot.tar.gz')
+          expected='912aafb9d7c0ce40d344cd13791489ef032382c3afef271b794cb86ae65b75a3'
+          assert hashlib.sha256(p.read_bytes()).hexdigest()==expected, 'Snapshot checksum mismatch'
+          with tarfile.open(p,'r:gz') as archive:
+              members=archive.getmembers()
+              assert len(members)==1883, 'Unexpected file count'
+              for member in members:
+                  target=Path(member.name)
+                  assert member.isfile() and not target.is_absolute() and '..' not in target.parts
+                  target.parent.mkdir(parents=True,exist_ok=True)
+                  target.write_bytes(archive.extractfile(member).read())
+                  target.chmod(member.mode & 0o777)
+          print('Restored all 1,883 verified application files.')
+          PYTHON
+      - name: Commit application files
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git rm mfd-source-snapshot.tar.gz
+          git add -A
+          git commit -m 'Import complete MFD app with catalogue and database scripts'
+          git push origin HEAD:main
