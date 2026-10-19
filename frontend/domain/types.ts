@@ -1,0 +1,217 @@
+// Domain models. These are deliberately backend-agnostic so the same shapes can be
+// mapped onto Supabase tables later (see src/adapters/README.md).
+
+export type ID = string;
+export type ISODate = string; // YYYY-MM-DD
+
+// ── Profile & goals ───────────────────────────────────────────────
+export type Sex = 'male' | 'female';
+export type ActivityLevel = 'sedentary' | 'light' | 'moderate' | 'very' | 'extra';
+export type Goal = 'lose' | 'maintain' | 'gain' | 'recomp';
+
+export interface Profile {
+  firstName?: string;
+  lastName?: string;
+  profileId?: string;
+  name: string;
+  age: number;
+  sex: Sex;
+  heightCm: number;
+  weightKg: number;
+  activity: ActivityLevel;
+  goal: Goal;
+  targetWeightKg: number;
+  trainingDaysPerWeek: number;
+}
+
+export interface NutritionTargets {
+  kcal: number;
+  protein: number;
+  carbs: number;
+  fat: number;
+  waterMl: number;
+}
+
+// ── Training ──────────────────────────────────────────────────────
+export type TrackingMode =
+  | 'weight_reps'
+  | 'reps'
+  | 'time'
+  | 'weight_time'
+  | 'distance_time'
+  | 'weight_distance'
+  | 'weighted_bodyweight'
+  | 'assisted_bodyweight'
+  | 'floors_time'
+  | 'steps_time';
+
+export type SetType = 'warmup' | 'normal' | 'failure' | 'drop';
+
+export type ExerciseSource = 'mfd' | 'exercisedb' | 'free-exercise-db' | 'wger' | 'custom';
+
+export interface Exercise {
+  entry?: import('../catalogue/exercise').CatalogueEntry;
+  id: ID;
+  name: string;
+  primaryMuscle: string;
+  secondaryMuscles: string[];
+  equipment: string;
+  source: ExerciseSource;
+  sourceRef: string | null; // id in the source dataset
+  tracking: TrackingMode;
+  mediaUrl: string | null; // null = no media available
+  instructions: string[] | null; // null = no instructions available
+}
+
+export interface SetEntry {
+  id: ID;
+  type: SetType;
+  weightKg: number | null;
+  reps: number | null;
+  timeSec: number | null;
+  distanceKm: number | null;
+  floors?: number | null;
+  steps?: number | null;
+  rpe: number | null;
+  done: boolean;
+}
+
+export interface ExerciseBlock {
+  id: ID;
+  exerciseId: ID;
+  tracking: TrackingMode;
+  restSec: number;
+  note: string;
+  supersetId: string | null;
+  sets: SetEntry[];
+}
+
+export interface Folder {
+  id: ID;
+  name: string;
+  collapsed: boolean;
+  createdAt: number;
+}
+
+export interface Routine {
+  id: ID;
+  name: string;
+  folderId: ID | null;
+  exercises: ExerciseBlock[];
+  createdAt: number;
+  updatedAt: number;
+}
+
+/** Rest timer state is stored as timestamps so it survives navigation and reloads. */
+export interface RestTimer {
+  durationSec: number;
+  endsAt: number | null; // running when not null
+  pausedRemainingSec: number | null; // paused when not null
+}
+
+export interface ActiveWorkout {
+  id: ID;
+  title: string;
+  routineId: ID | null;
+  startedAt: number;
+  exercises: ExerciseBlock[];
+  timers: Record<ID, RestTimer>; // keyed by ExerciseBlock id
+}
+
+export interface Workout {
+  id: ID;
+  title: string;
+  routineId: ID | null;
+  startedAt: number;
+  endedAt: number;
+  exercises: ExerciseBlock[];
+}
+
+// ── Nutrition ─────────────────────────────────────────────────────
+export type Meal = 'breakfast' | 'lunch' | 'dinner' | 'snacks';
+export type RefUnit = 'g' | 'ml' | 'serving';
+export type PortionUnit = 'g' | 'ml' | 'serving';
+
+export interface Food {
+  id: ID;
+  name: string;
+  brand: string | null;
+  barcode: string | null;
+  origin: 'sample' | 'custom';
+  refAmount: number; // nutrition values below are per refAmount of refUnit
+  refUnit: RefUnit;
+  servingSize: number | null; // in g/ml, only meaningful when refUnit is g/ml
+  servingLabel: string | null; // e.g. "1 slice"
+  kcal: number;
+  protein: number;
+  carbs: number;
+  fat: number;
+  // null = not provided on the label (different from a real 0)
+  sugars: number | null;
+  saturates: number | null;
+  fibre: number | null;
+  salt: number | null;
+  ingredients: string | null;
+}
+
+export interface DiaryEntry {
+  id: ID;
+  date: ISODate;
+  meal: Meal;
+  food: Food; // snapshot so history survives edits/deletes
+  amount: number;
+  unit: PortionUnit;
+  createdAt: number;
+}
+
+// ── Body & recovery ───────────────────────────────────────────────
+export interface WeightEntry {
+  id: ID;
+  date: ISODate;
+  kg: number;
+}
+
+export interface CheckIn {
+  id: ID;
+  date: ISODate;
+  sleep: number; // 1–5
+  energy: number;
+  soreness: number;
+  stress: number;
+  note: string;
+}
+
+// ── Coach ─────────────────────────────────────────────────────────
+export interface CoachMessage {
+  id: ID;
+  role: 'user' | 'coach';
+  text: string;
+  sample: boolean;
+  createdAt: number;
+}
+
+export type CoachProvider = 'none' | 'anthropic' | 'openai' | 'custom';
+
+export interface CoachConfig {
+  provider: CoachProvider;
+  model: string;
+  endpoint: string;
+  includeTraining: boolean;
+  includeNutrition: boolean;
+  includeBody: boolean;
+}
+
+// ── Account & settings ────────────────────────────────────────────
+export interface Account {
+  name: string;
+  email: string;
+  mode: 'demo' | 'device';
+  createdAt: number;
+}
+
+export interface Settings {
+  weightUnit: 'kg' | 'lb';
+  energyUnit: 'kcal' | 'kJ';
+  defaultRestSec: number;
+  coach: CoachConfig;
+}

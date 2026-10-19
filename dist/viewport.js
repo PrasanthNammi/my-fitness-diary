@@ -1,0 +1,2 @@
+/* Reserve the full measured bottom navigation height in the document flow. */
+(function(){const nav=document.getElementById('mobile-nav');if(!nav)return;function sync(){const height=nav.getBoundingClientRect().height;document.documentElement.style.setProperty('--bottom-nav-clearance',height?Math.ceil(height)+24+'px':'24px')}if(typeof ResizeObserver!=='undefined')new ResizeObserver(sync).observe(nav);window.addEventListener('resize',sync,{passive:true});window.visualViewport?.addEventListener('resize',sync,{passive:true});sync()})();

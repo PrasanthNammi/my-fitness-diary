@@ -1,0 +1,34 @@
+const assert=require('node:assert/strict'),fs=require('fs'),path=require('path'),os=require('os'),vm=require('vm'),esbuild=require('esbuild');
+const temp=fs.mkdtempSync(path.join(os.tmpdir(),'mfd-catalogue-test-'));
+try{
+ esbuild.buildSync({stdin:{contents:`export * from './frontend/catalogue/runtime';export * from './frontend/catalogue/hevyMatcher';export * from './frontend/adapters/compat';export * from './frontend/domain/records';export * from './frontend/domain/training';`,resolveDir:process.cwd(),loader:'ts'},bundle:true,platform:'node',format:'cjs',outfile:path.join(temp,'api.cjs')});
+ const api=require(path.join(temp,'api.cjs'));let requests=[];
+ global.fetch=async url=>{requests.push(url);return{ok:true,json:async()=>JSON.parse(fs.readFileSync('dist'+url,'utf8'))}};
+ (async()=>{
+  await Promise.all([api.loadMfdCatalogue(),api.loadMfdCatalogue()]);assert.equal(requests.length,3);const cat=api.getCatalogue();assert.equal(cat.all().length,1064);assert.equal(new Set(cat.all().map(e=>e.id)).size,1064);
+  for(const query of ['db bench','rdl','pullup','ohp','kb swing'])assert(cat.search(query).length,query);
+  const bench=cat.get('bench_press_barbell');assert(bench);assert(cat.family(bench.id).length>1);
+  for(const e of cat.all())for(const ref of [...e.alternatives,...e.easier,...e.harder])assert(cat.get(ref),ref);
+  const row={exercise:'Bench Press (Barbell)',kg:80,reps:8,type:'normal',group:0,set:1,done:true,duration_seconds:null,distance_meters:null,sourceSetIndex:1,notes:'Original',id:'s1'};
+  const raw={profile:{name:'Tester',age:30,onboarded:true,cal:2000,protein:120,carbs:230,fat:60,days:3},sessions:[{id:'w1',name:'Upper',date:'2026-10-01',started:1000,finished:2000,hevyRows:[{original:'preserved'}],sets:[row]}],routines:[{id:'r1',name:'Upper A',exercises:[{name:row.exercise,sets:1,reps:8,kg:80,rest:90,setDetails:[row]}]}],active:{id:'a1',name:'Active',date:'2026-10-02',started:3000,sets:[{...row,id:'a-set',done:false}],rest:{0:{duration:90,end:9000}}},meals:[],weights:[],checkins:[],chat:[],mfdExercises:[],folders:[]};
+  const migrated=api.migrateExerciseIds(raw);assert.notEqual(migrated,raw);assert.equal(migrated.sessions[0].sets[0].catalogId,bench.id);assert.deepEqual(migrated.sessions[0].hevyRows,raw.sessions[0].hevyRows);assert.equal(raw.sessions[0].sets[0].catalogId,undefined);for(const key of Object.keys(row))assert.deepEqual(migrated.sessions[0].sets[0][key],row[key]);assert.equal(api.migrateExerciseIds(migrated),migrated);
+  const stale={...raw,routines:[{...raw.routines[0],source:'hevy',exercises:[{...raw.routines[0].exercises[0],catalogId:'shared-stale',setDetails:[{...row,catalogId:'shared-stale'}]}]}]};const repaired=api.migrateExerciseIds(stale);assert.equal(repaired.routines[0].exercises[0].catalogId,bench.id);assert.equal(repaired.routines[0].exercises[0].setDetails[0].catalogId,bench.id);assert.equal(api.toDB({state:repaired,user:{email:'test@example.test'},ready:true},{exercises:[],foods:[]}).routines[0].exercises[0].exerciseId,bench.id);
+  const db=api.toDB({state:migrated,user:{email:'test@example.test'},ready:true},{exercises:[],foods:[]});assert.equal(db.workouts[0].exercises[0].exerciseId,bench.id);const round=api.fromDB(db,migrated);assert.equal(round.routines[0].exercises[0].catalogId,bench.id);assert.deepEqual(round.sessions[0].hevyRows,raw.sessions[0].hevyRows);assert.equal(round.active.rest[0].end,9000);assert(!round.mfdExercises.some(e=>e.source==='mfd'));
+  // Custom identity survives refresh, even if its display name equals a canonical exercise.
+  const privateEx={...api.mapEntry(bench),id:'custom:mine',source:'custom'};const own={...raw,mfdExercises:[privateEx],sessions:[{...raw.sessions[0],sets:[{...row,catalogId:privateEx.id}]}]};assert.equal(api.toDB({state:own,user:{email:'test@example.test'},ready:true},{exercises:[],foods:[]}).workouts[0].exercises[0].exerciseId,privateEx.id);
+  for(const mode of ['weighted_bodyweight','assisted_bodyweight','floors_time','steps_time'])assert(api.trackingFields(mode).length===2);
+  const special={...migrated,active:{...migrated.active,sets:[{...row,catalogId:'stair_machine',tracking:'floors_time',floors:23,steps:456,duration_seconds:300}]}};const sd=api.toDB({state:special,user:{email:'test@example.test'},ready:true},{exercises:[],foods:[]});assert.equal(sd.active.exercises[0].sets[0].floors,23);const sr=api.fromDB(sd,special,new Set(['active']));assert.equal(sr.active.sets[0].steps,456);assert.equal(sr.active.sets[0].duration_seconds,300);
+  const set=(id,kg,reps,done=true,type='normal')=>({id,weightKg:kg,reps,done,type,timeSec:null,distanceKm:null,rpe:null});
+  const block=(id,sets,tracking='weight_reps')=>({id,exerciseId:bench.id,tracking,sets,restSec:90,note:'',supersetId:null});
+  const history=[{id:'h',title:'Past',startedAt:1000,endedAt:2000,exercises:[block('b',[set('old',80,8),set('warm',200,10,true,'warmup')])]}];
+  const active={id:'active',startedAt:3000,title:'Now',routineId:null,timers:{},exercises:[block('a',[set('tie',80,8),set('best',82.5,8),set('pending',100,10,false),set('warm2',250,1,true,'warmup')])]};const earned=api.activeRecords(history,active);assert(!earned.has('tie'));assert(earned.get('best').some(r=>r.metric==='weight'));assert(!earned.has('pending'));assert(!earned.has('warm2'));assert.equal(api.activeRecords(history,active),earned);assert.equal(api.exerciseStats(history),api.exerciseStats(history));
+  const assisted=block('assist',[set('assisted',100,10)],'assisted_bodyweight');assert.equal(api.workingVolume([assisted]),0);assert(!('estimate' in api.setMetrics(assisted,assisted.sets[0])));assert(!('weight' in api.setMetrics(assisted,assisted.sets[0])));
+  const weighted=block('weighted',[set('added',10,5)],'weighted_bodyweight');assert.equal(api.workingVolume([weighted]),50);assert.equal(api.setMetrics(weighted,weighted.sets[0]).estimate,api.e1rm(10,5));
+  // Provider aliases join one identity, while distinct equipment variations remain separate.
+  assert.equal(api.resolveExercise({exercise:'Bench Press (Barbell)'}),bench.id);assert.notEqual(api.resolveExercise({exercise:'Bench Press (Dumbbell)'}),bench.id);
+  const map=JSON.parse(fs.readFileSync('dist/catalogue/hevy_map.json'));const matcher=new api.HevyMatcher(cat.all(),map);assert.equal(matcher.match('An imaginary unique movement').mfdId,null);
+  const files=fs.readdirSync('dist/catalogue');assert(!files.includes('user_hevy_links.json'));assert(!files.includes('src'));
+  for(const ex of cat.all())for(const image of ex.media.images)assert(fs.existsSync('dist/catalogue/app_media/'+image.path));
+  console.log('PASS unified IDs, search, families, reference/media integrity, private custom identity, lossless migration, extended tracking, records and cached indexes');
+ })().catch(e=>{console.error(e);process.exitCode=1}).finally(()=>fs.rmSync(temp,{recursive:true,force:true}));
+}catch(e){fs.rmSync(temp,{recursive:true,force:true});throw e}

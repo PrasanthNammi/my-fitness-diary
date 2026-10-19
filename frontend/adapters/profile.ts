@@ -1,0 +1,7 @@
+import {client,engine} from './engine';
+import type {Profile} from '../domain/types';
+export function splitName(name:string){const [firstName='',...rest]=name.trim().split(/\s+/);return {firstName,lastName:rest.join(' ')}}
+export function validProfileId(value:string){return /^[a-z0-9._]{3,24}$/.test(value)}
+export async function getIdentity(){const uid=engine()?.peek().user?.id;if(!uid)return null;const {data,error}=await client().from('mfd_profiles').select('username,display_name').eq('user_id',uid).maybeSingle();if(error)throw error;return data;}
+export async function checkProfileId(value:string){if(!validProfileId(value))throw Error('Use 3–24 lowercase letters, numbers, dots or underscores.');const {data,error}=await client().from('mfd_profiles').select('user_id').eq('username',value).maybeSingle();if(error)throw error;if(data&&data.user_id!==engine().peek().user.id)throw Error('Profile ID is taken.');}
+export async function saveIdentity(p:Profile){await checkProfileId(p.profileId||'');const existing=await getIdentity(),values={username:p.profileId,display_name:p.name};const result=existing?await client().from('mfd_profiles').update(values).eq('user_id',engine().peek().user.id).select('username').single():await client().from('mfd_profiles').insert(values).select('username').single();if(result.error)throw Error(result.error.code==='23505'?'Profile ID is taken.':result.error.message);}

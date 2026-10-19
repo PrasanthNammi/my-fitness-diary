@@ -1,0 +1,13 @@
+insert into storage.buckets(id,name,public,file_size_limit,allowed_mime_types) values('mfd-avatars','mfd-avatars',false,1048576,array['image/jpeg']),('mfd-workout-photos','mfd-workout-photos',false,2097152,array['image/jpeg']) on conflict(id) do nothing;
+create table public.mfd_workout_photos(owner_id uuid not null default auth.uid(),workout_id text not null,path text not null unique,primary key(owner_id,workout_id),foreign key(owner_id,workout_id) references public.mfd_social_workouts(owner_id,workout_id) on delete cascade,check(split_part(path,'/',1)=owner_id::text));
+alter table public.mfd_workout_photos enable row level security;revoke all on public.mfd_workout_photos from anon,authenticated;grant select,delete on public.mfd_workout_photos to authenticated;grant insert(workout_id,path),update(path) on public.mfd_workout_photos to authenticated;
+create policy workout_photo_read on public.mfd_workout_photos for select to authenticated using(owner_id=(select auth.uid()) or public.mfd_are_friends(owner_id,(select auth.uid())));
+create policy workout_photo_create on public.mfd_workout_photos for insert to authenticated with check(owner_id=(select auth.uid()));
+create policy workout_photo_update on public.mfd_workout_photos for update to authenticated using(owner_id=(select auth.uid())) with check(owner_id=(select auth.uid()));
+create policy workout_photo_delete on public.mfd_workout_photos for delete to authenticated using(owner_id=(select auth.uid()));
+create policy avatar_read on storage.objects for select to authenticated using(bucket_id='mfd-avatars' and ((storage.foldername(name))[1]=(select auth.uid())::text or exists(select 1 from public.mfd_profiles p where p.avatar_path=name)));
+create policy avatar_insert on storage.objects for insert to authenticated with check(bucket_id='mfd-avatars' and (storage.foldername(name))[1]=(select auth.uid())::text);
+create policy avatar_remove on storage.objects for delete to authenticated using(bucket_id='mfd-avatars' and (storage.foldername(name))[1]=(select auth.uid())::text);
+create policy social_photo_read on storage.objects for select to authenticated using(bucket_id='mfd-workout-photos' and ((storage.foldername(name))[1]=(select auth.uid())::text or exists(select 1 from public.mfd_workout_photos p where p.path=name and public.mfd_are_friends(p.owner_id,(select auth.uid())))));
+create policy social_photo_insert on storage.objects for insert to authenticated with check(bucket_id='mfd-workout-photos' and (storage.foldername(name))[1]=(select auth.uid())::text);
+create policy social_photo_remove on storage.objects for delete to authenticated using(bucket_id='mfd-workout-photos' and (storage.foldername(name))[1]=(select auth.uid())::text);
