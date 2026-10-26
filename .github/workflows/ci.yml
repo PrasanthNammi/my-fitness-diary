@@ -15,10 +15,8 @@ jobs:
           cache: npm
       - name: Install client dependencies
         run: npm ci
-      - name: Set up pnpm
-        run: corepack enable
       - name: Install Worker dependencies
-        run: corepack pnpm --dir hosting install --frozen-lockfile
+        run: npx --yes pnpm@11.25.0 --dir hosting install --frozen-lockfile
       - name: Restore retained media
         run: |
           if test -d dist; then cp -an dist/. public/; fi
