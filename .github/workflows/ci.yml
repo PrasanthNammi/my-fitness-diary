@@ -1,0 +1,35 @@
+name: MFD code checks
+on:
+  pull_request:
+  push:
+    branches: [main, mfd-v53-code-only]
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.13.1'
+          cache: npm
+      - name: Install client dependencies
+        run: npm ci
+      - name: Set up pnpm
+        run: corepack enable
+      - name: Install Worker dependencies
+        run: corepack pnpm --dir hosting install --frozen-lockfile
+      - name: Restore retained media
+        run: |
+          if test -d dist; then cp -an dist/. public/; fi
+      - name: Check TypeScript
+        run: npx tsc -p frontend/tsconfig.json --noEmit
+      - name: Run regression tests
+        run: |
+          npm run test:performance
+          node tests/nutrition-preferences.cjs
+          node tests/workout-clock.cjs
+          node tests/food-actions.cjs
+          node tests/food-summary.cjs
+      - name: Build production bundle
+        run: npm run build
