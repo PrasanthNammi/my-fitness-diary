@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 1000" role="img" aria-label="Neutral front and back anatomy">
+<defs><linearGradient id="skin" x2=".15" y2="1"><stop stop-color="#e6e9e8"/><stop offset="1" stop-color="#c8d0ce"/></linearGradient>
+<g id="figure" fill="url(#skin)" stroke="#aab6b2" stroke-width="2.5" stroke-linejoin="round">
+<path d="M-25 116 Q-37 104 -32 76 Q-30 48 0 42 Q30 48 32 76 Q37 104 25 116 L17 143 L-17 143Z"/>
+<path d="M-20 140 Q-54 145 -70 181 L-63 264 Q-52 317 -44 385 L-55 443 Q-48 484 -27 515 L27 515 Q48 484 55 443 L44 385 Q52 317 63 264 L70 181 Q54 145 20 140Z"/>
+<path d="M-67 173 Q-96 170 -108 203 L-118 290 L-130 375 L-151 442 Q-158 469 -147 479 L-132 469 L-111 425 L-86 361 L-70 298 L-55 230Z"/>
+<path d="M67 173 Q96 170 108 203 L118 290 L130 375 L151 442 Q158 469 147 479 L132 469 L111 425 L86 361 L70 298 L55 230Z"/>
+<path d="M-26 506 Q-54 534 -49 608 L-54 702 L-45 801 L-49 858 Q-53 890 -63 918 L-61 934 L-17 934 Q-7 926 -15 909 L-22 856 L-11 767 L-6 675 L0 576 L6 675 L11 767 L22 856 L15 909 Q7 926 17 934 L61 934 L63 918 Q53 890 49 858 L45 801 L54 702 L49 608 Q54 534 26 506Z"/>
+</g></defs>
+<use href="#figure" transform="translate(310 0)"/><use href="#figure" transform="translate(687 0)"/>
+<g fill="none" stroke="#a6b2ae" stroke-width="1.5" opacity=".6">
+<path d="M310 151 V385 M265 224 Q310 248 355 224 M275 275 Q310 292 345 275 M278 330 Q310 346 342 330 M310 385 L310 500"/>
+<path d="M687 151 V385 M642 224 Q687 248 732 224 M652 275 Q687 292 722 275 M655 330 Q687 346 719 330 M687 385 L687 500"/>
+</g></svg>
