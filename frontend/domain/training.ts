@@ -126,3 +126,33 @@ export const pauseTimer = (t: RestTimer, now: number): RestTimer => ({
 export const resetTimer = (t: RestTimer): RestTimer => ({ ...t, endsAt: null, pausedRemainingSec: null });
 
 export function weightHeading(mode:TrackingMode,unit:string){return mode==='weighted_bodyweight'?`+ ${unit}`:mode==='assisted_bodyweight'?`− ${unit}`:unit}
+
+/** Never relabel completed work as a different exercise. Replacement has fresh set IDs. */
+export function replaceExerciseBlock(list: ExerciseBlock[], id: string, replacement: ExerciseBlock, active: boolean): ExerciseBlock[] {
+  return list.flatMap(block => {
+    if (block.id !== id) return [block];
+    const completed = active ? block.sets.filter(s => s.done) : [];
+    const next = { ...replacement, supersetId: block.supersetId };
+    return completed.length ? [{ ...block, sets: completed }, next] : [next];
+  });
+}
+
+/** Planned values stay outside actual values until explicitly logged. */
+export function prepareActiveSet(s: SetEntry): SetEntry {
+  if (s.done || s.suggested !== undefined) return s;
+  const suggested = Object.fromEntries(['weightKg','reps','timeSec','distanceKm','floors','steps'].map(f => [f, s[f as Field] ?? null]));
+  return { ...s, suggested, weightKg: null, reps: null, timeSec: null, distanceKm: null, floors: null, steps: null };
+}
+export function prepareActiveBlock(b: ExerciseBlock): ExerciseBlock {
+  const sets = b.sets.map(prepareActiveSet);
+  return sets.every((s,i) => s === b.sets[i]) ? b : { ...b, sets };
+}
+export function logSetValues(s: SetEntry, tracking: TrackingMode, previous?: SetEntry | null): SetEntry | null {
+  const next = { ...s };
+  for (const f of trackingFields(tracking)) {
+    const value = s[f] ?? s.suggested?.[f] ?? previous?.[f] ?? null;
+    if (value === null || !Number.isFinite(value) || value < 0 || (f !== 'weightKg' && value === 0) || (['reps','floors','steps'].includes(f) && !Number.isInteger(value))) return null;
+    next[f] = value;
+  }
+  return { ...next, done: true };
+}

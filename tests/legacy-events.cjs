@@ -1,0 +1,10 @@
+const fs=require('fs'),vm=require('vm'),assert=require('assert'),ts=require('typescript');
+let observed,cleanup;const context={crypto:require('crypto').webcrypto,setTimeout:fn=>{cleanup=fn;return 1},document:{documentElement:{},querySelectorAll:()=>[]},MutationObserver:class{constructor(fn){observed=fn}observe(){}}};vm.createContext(context);vm.runInContext(fs.readFileSync('public/legacy/events.js','utf8'),context);
+function element(id,type='click'){const attrs=[{name:'data-mfd-on'+type,value:id}],events={};return {nodeType:1,attributes:attrs,querySelectorAll:()=>[],removeAttribute(name){attrs.splice(attrs.findIndex(a=>a.name===name),1)},addEventListener(name,fn){events[name]=fn},events,value:'42'}}
+let thisValue,prevented=false,stopped=false;const id=context.mfdOn(function(event){thisValue=this.value;return false});const node=element(id);observed([{addedNodes:[node]}]);node.events.click.call(node,{preventDefault(){prevented=true},stopPropagation(){stopped=true}});assert.equal(thisValue,'42');assert(prevented&&stopped);assert.equal(node.attributes.length,0);assert.throws(()=>context.mfdOn('alert(1)'));
+const stale=element(id);context.mfdHydrate(stale);assert(!stale.events.click);cleanup();
+// Exercise helper handlers must preserve input values and row identities.
+const source=fs.readFileSync('public/legacy/compact.js','utf8'),ast=ts.createSourceFile('compact.js',source,99,true);const fn=ast.statements.find(n=>ts.isFunctionDeclaration(n)&&n.name.text==='compactInput');const actions=[];let result;Object.assign(context,{mfdOn:f=>{actions.push(f);return actions.length-1},esc:String,compactUpdateSet:(...a)=>result=a,compactRoutineValue:(...a)=>result=a});vm.runInContext(fn.getText(ast),context);
+context.compactInput({kg:10},2,['kg','kg',0,2000,.5]);actions.pop().call({value:'25'});assert.deepEqual(result,[2,'kg','25']);
+context.compactInput({kg:10},2,['kg','kg',0,2000,.5],3);actions.pop().call({value:'30'});assert.deepEqual(result,[3,2,'kg','30']);
+console.log('PASS event hydration, this/event/default behavior, consumed registrations and workout/routine input actions');

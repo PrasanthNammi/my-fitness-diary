@@ -1,0 +1,15 @@
+const assert=require('assert/strict'),esbuild=require('esbuild'),os=require('os'),path=require('path');
+const output=path.join(os.tmpdir(),'mfd-workout-limit.cjs');
+esbuild.buildSync({stdin:{contents:`export * from './frontend/domain/workoutLimit';export * from './frontend/data/repositories';export * from './frontend/data/store';`,loader:'ts',resolveDir:process.cwd()},bundle:true,loader:{'.svg':'text'},platform:'node',format:'cjs',outfile:output});
+const base=1700000000000,limit=200*60*1000;
+const raw=()=>({profile:{},sessions:[],routines:[],folders:[],active:{id:'session',name:'Push',started:base,routineId:'routine',sets:[{id:'done',exercise:'Bench',group:0,set:1,kg:50,reps:10,done:true},{id:'untouched',exercise:'Bench',group:0,set:2,kg:50,reps:10,done:false},{id:'other',exercise:'Shoulder',group:1,set:1,kg:20,reps:10,done:false}]},meals:[],weights:[],checkins:[],water:{}});
+let canonical=raw(),version=0,callbacks=[];
+const bridge={peek:()=>({state:canonical,ready:true,version,dataVersion:version,user:{id:'test',email:'test@example.invalid'}}),catalogue:()=>({exercises:[],foods:[]}),subscribe(fn){callbacks.push(fn);return()=>{}},set(next){canonical=next;version++;callbacks.forEach(fn=>fn())}};
+global.document={getElementById:()=>({contentWindow:{MFDBridge:bridge}})};global.window={addEventListener(){}};
+const api=require(output);assert.equal(api.MAX_WORKOUT_MS,limit);assert.equal(api.workouts.expire(base+limit-1),null);assert(canonical.active);
+const result=api.workouts.expire(base+limit);assert(result.workout);assert.equal(canonical.active,null);assert.equal(canonical.sessions.length,1);assert.equal(canonical.sessions[0].finished,base+limit);assert.equal(canonical.sessions[0].sets.length,1);assert.equal(canonical.sessions[0].sets[0].id,'done');assert.equal(api.workouts.expire(base+limit),null);assert.equal(canonical.sessions.length,1);
+bridge.set(raw());api.workouts.expire(base+2725*60*1000);assert.equal(canonical.sessions[0].finished-base,limit);
+bridge.set({...raw(),active:{...raw().active,sets:raw().active.sets.map(s=>({...s,done:false}))}});assert.equal(api.workouts.expire(base+limit).workout,null);assert.equal(canonical.active,null);assert.equal(canonical.sessions.length,0);
+bridge.set(raw());assert.equal(api.workouts.expire(base+limit,'different-session'),null);assert(canonical.active);
+const realNow=Date.now;try{Date.now=()=>base+limit+1000;api.workouts.toggleDone(api.getDB().active.exercises[0].id,'untouched');assert.equal(canonical.active,null);assert.equal(canonical.sessions[0].sets.length,1);bridge.set(raw());api.workouts.mutate(a=>{throw Error('Expired workout must not accept edits')});assert.equal(canonical.active,null);bridge.set(raw());const saved=api.workouts.finish();assert.equal(saved.endedAt,base+limit);bridge.set(raw());Date.now=()=>base+60000;assert.equal(api.workouts.finish().endedAt,base+60000);}finally{Date.now=realNow;}
+console.log('PASS exact 200-minute cutoff, overdue reopen, completed-only history, empty expiry, idempotence, stale session guard, blocked overdue edits and capped manual finish');

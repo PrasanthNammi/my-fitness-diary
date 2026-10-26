@@ -87,6 +87,13 @@ function CellInput({
   );
 }
 
+
+function suggestedText(field: Field, value: number | null, unit: 'kg' | 'lb'): string {
+  if (value == null) return field === 'timeSec' ? 'm:ss' : '–';
+  if (field === 'weightKg') return String(round1(kgTo(value, unit)));
+  return field === 'timeSec' ? mss(value) : String(value);
+}
+
 function prevParts(s: SetEntry | null, fields: Field[], unit: 'kg' | 'lb'): { text: string; full: string } {
   if (!s) return { text: '—', full: 'No previous value' };
   const val = (f: Field) => {
@@ -124,6 +131,7 @@ export interface BlockProps {
   weightUnit: 'kg' | 'lb';
   onChange: (b: ExerciseBlock) => void;
   onRemove: () => void;
+  onReplace: () => void;
   onMove: (dir: -1 | 1) => void;
   onSuperset: () => void;
   onUnsuperset: () => void;
@@ -151,10 +159,10 @@ export function ExerciseBlockView(p: BlockProps) {
 
   const patchSet = (id: string, patch: Partial<SetEntry>) =>
     p.onChange({ ...block, sets: block.sets.map((s) => (s.id === id ? { ...s, ...patch } : s)) });
-  const removeSet = (id: string) => p.onChange({ ...block, sets: block.sets.filter((s) => s.id !== id) });
+  const removeSet = (id: string) => block.sets.length === 1 ? p.onRemove() : p.onChange({ ...block, sets: block.sets.filter((s) => s.id !== id) });
   const addSet = () => {
     const last = block.sets[block.sets.length - 1];
-    p.onChange({ ...block, sets: [...block.sets, newSet('normal', last ? { weightKg: last.weightKg, reps: last.reps, timeSec: last.timeSec, distanceKm: last.distanceKm, floors:last.floors, steps:last.steps } : undefined)] });
+    p.onChange({ ...block, sets: [...block.sets, newSet('normal', last ? { weightKg: last.weightKg ?? last.suggested?.weightKg, reps: last.reps ?? last.suggested?.reps, timeSec: last.timeSec ?? last.suggested?.timeSec, distanceKm: last.distanceKm ?? last.suggested?.distanceKm, floors:last.floors ?? last.suggested?.floors, steps:last.steps ?? last.suggested?.steps } : undefined)] });
   };
 
   const tState = timerState(p.timer, p.now ?? 0);
@@ -164,6 +172,7 @@ export function ExerciseBlockView(p: BlockProps) {
     : tState === 'done' ? 'Done' : mss(remaining);
 
   const menu: MenuAction[] = [
+    { label: 'Replace exercise', icon: Repeat, onSelect: p.onReplace },
     { label: 'Exercise details', icon: Info, onSelect: () => setDetailOpen(true) },
     { label: block.note ? 'Edit note' : 'Add note', icon: NotebookPen, onSelect: () => setNoteOpen(true) },
     { label: 'Tracking type', icon: Ruler, onSelect: () => setTrackOpen(true) },
@@ -222,7 +231,7 @@ export function ExerciseBlockView(p: BlockProps) {
         block.note && <p className="ex-note-read">{block.note}</p>
       )}
 
-      <div className={`sets${active ? '' : ' editor'}${colsClass}`} role="table" aria-label={`Sets for ${name}`}>
+      <div className={`sets${active ? ' active' : ' editor'}${colsClass}`} role="table" aria-label={`Sets for ${name}`}>
         <div className="set-row head" role="row">
           <span role="columnheader">Set</span>
           {active && <span role="columnheader">Previous</span>}
@@ -230,6 +239,7 @@ export function ExerciseBlockView(p: BlockProps) {
             <span role="columnheader" key={f}>{f==='weightKg'?weightHeading(block.tracking,weightUnit):HEAD[f](weightUnit)}</span>
           ))}
           <span role="columnheader">{active ? <Check size={14} aria-label="Done" /> : <span className="sr-only">Remove</span>}</span>
+          {active && <span className="sr-only" role="columnheader">Delete</span>}
         </div>
         {block.sets.map((s, i) => {
           const prev = active && p.history ? findPrevious(p.history, block.exerciseId, s.type, ordinalWithinType(block.sets, i)) : null;
@@ -266,7 +276,7 @@ export function ExerciseBlockView(p: BlockProps) {
                   value={s[f]??null}
                   unit={weightUnit}
                   label={`Set ${label} ${HEAD[f](weightUnit)}`}
-                  placeholder={f === 'timeSec' ? 'm:ss' : '–'}
+                  placeholder={active ? suggestedText(f, s.suggested?.[f] ?? prev?.[f] ?? null, weightUnit) : f === 'timeSec' ? 'm:ss' : '–'}
                   onCommit={(v) => patchSet(s.id, { [f]: v })}
                 />
               ))}
@@ -280,10 +290,11 @@ export function ExerciseBlockView(p: BlockProps) {
                   <span><Check /></span>
                 </button>
               ) : (
-                <button className="remove-btn" aria-label={`Remove set ${label}`} onClick={() => removeSet(s.id)} disabled={block.sets.length === 1}>
+                <button className="remove-btn" aria-label={`Delete set ${label}`} onClick={() => removeSet(s.id)}>
                   <X />
                 </button>
               )}
+              {active && <button className="remove-btn" aria-label={`Delete set ${label}`} onClick={() => removeSet(s.id)}><X /></button>}
             </div>
           );
         })}

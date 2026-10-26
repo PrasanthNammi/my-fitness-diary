@@ -1,3 +1,6 @@
+import { MuscleStats } from './screens/progress/MuscleStats';
+import { useWorkoutLimit } from './lib/useWorkoutLimit';
+import { RoutineOverview } from './screens/training/RoutineOverview';
 import {SyncStatus} from './components/SyncStatus';
 import { useEffect } from 'react';
 import { BarChart3, CalendarDays, Dumbbell, Settings, UtensilsCrossed, ChevronUp } from 'lucide-react';
@@ -50,12 +53,14 @@ function Routes({ route }: { route: string[] }) {
     case 'training':
       if (b === 'routine' && c === 'new') return <RoutineEditor key={`new-${d}`} routineId={null} folderId={d && d !== 'root' ? d : null} />;
       if (b === 'routine' && c === 'edit' && d) return <RoutineEditor key={d} routineId={d} folderId={null} />;
+      if (b === 'routine' && c === 'view' && d) return <RoutineOverview key={d} routineId={d} />;
       return <TrainingHome />;
     case 'workout':
       return <ActiveWorkoutScreen />;
     case 'food':
       return <FoodScreen />;
     case 'progress':
+      if (b === 'muscles') return <MuscleStats view={c} />;
       if (b === 'session' && c) return <SessionDetail id={c} />;
       return <EngineSurface screen="progress"/>;
     case 'friends':return <FriendsScreen username={b==='u'?c:undefined}/>;
@@ -69,7 +74,9 @@ function Routes({ route }: { route: string[] }) {
 }
 
 export function App() {
+  useWorkoutLimit();
   const signedIn = useDB((d) => d.signedIn && !!d.account);
+  const accountKey = useDB((d) => d.account?.email);
   const profile = useDB((d) => d.profile);
   const active = useDB((d) => !!d.active);
   const route = useRoute();
@@ -111,7 +118,7 @@ export function App() {
       </nav>
       <header className="global-header"><img className="header-logo" src="/legacy/logo.svg" width="86" height="44" alt="My Fitness Diary"/><SyncStatus/><button className="icon-btn" aria-label="Settings" title="Settings" onClick={()=>navigate('/settings')}><Settings/></button></header>
       <main className={`main${focused ? ' no-nav' : ''}${showResume && !focused ? ' has-resume' : ''}`}>
-        <Routes route={route} />
+        <Routes key={accountKey} route={route} />
       </main>
       {showResume && !focused && <ResumeBar />}
       {!focused && <nav className="bottom-nav" aria-label="Main">{navItems()}</nav>}

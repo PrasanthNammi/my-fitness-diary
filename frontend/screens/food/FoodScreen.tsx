@@ -1,7 +1,10 @@
+import {NutritionSummary} from './NutritionSummary';
+import {foodSummary} from '../../domain/foodSummary';
+import {ChartNoAxesColumnIncreasing,ChevronUp,ChevronDown,ChevronRight,X} from 'lucide-react';
 import {engine,openTool} from '../../adapters/engine';
 import {foodIn} from '../../adapters/compat';
 import {Camera,Flag} from 'lucide-react';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Pencil, Plus, ScanBarcode, Search, SearchX, Star, Trash2, UtensilsCrossed } from 'lucide-react';
 import type { DiaryEntry, Food, Meal, PortionUnit } from '../../domain/types';
 import { allowedUnits } from '../../domain/nutrition';
@@ -26,88 +29,41 @@ function portionText(e: DiaryEntry) {
 
 export function FoodScreen() {
   const date = useSelectedDate();
-  const { byMeal, total } = useDay(date);
-  const targets = useTargets();
-  const eU = useDB((d) => d.settings.energyUnit);
-  const [pickerMeal, setPickerMeal] = useState<Meal | null>(null);
-  const [editing, setEditing] = useState<DiaryEntry | null>(null);
-  const t = targets?.targets;
-
-  return (
-    <>
-      <TopBar title="Food" />
-      <div className="screen">
-        <DateStrip date={date} />
-        {t && (
-          <div className="card card-pad" style={{ marginTop: 12 }}>
-            <div className="stat-grid" style={{ gridTemplateColumns: 'repeat(4, minmax(0,1fr))' }}>
-              <div className="stat"><div className="k">{eU}</div><div className="v">{fmtInt(energyValue(total.kcal, eU))}</div><div className="xs muted">of {fmtInt(energyValue(t.kcal, eU))}</div></div>
-              <div className="stat"><div className="k">Protein</div><div className="v">{Math.round(total.protein)}</div><div className="xs muted">of {t.protein} g</div></div>
-              <div className="stat"><div className="k">Carbs</div><div className="v">{Math.round(total.carbs)}</div><div className="xs muted">of {t.carbs} g</div></div>
-              <div className="stat"><div className="k">Fat</div><div className="v">{Math.round(total.fat)}</div><div className="xs muted">of {t.fat} g</div></div>
-            </div>
-          </div>
-        )}
-
-        {MEALS.map((m) => {
-          const list = byMeal[m.id];
-          const kcal = list.reduce((n, e) => n + entryNutrients(e).kcal, 0);
-          return (
-            <section key={m.id} className="list meal" aria-label={m.label}>
-              <div className="meal-head">
-                <span className="t">{m.label}</span>
-                <span className="k">{list.length ? `${fmtInt(energyValue(kcal, eU))} ${eU}` : ''}</span>
-              </div>
-              {list.map((e) => {
-                const n = entryNutrients(e);
-                return (
-                  <button key={e.id} className="entry" onClick={() => setEditing(e)}>
-                    <div className="grow">
-                      <div className="row-title ellipsis">{e.food.name}</div>
-                      <div className="row-sub ellipsis">{portionText(e)} · P {fmtNum(n.protein, 0)} · C {fmtNum(n.carbs, 0)} · F {fmtNum(n.fat, 0)}</div>
-                    </div>
-                    <span className="kc">{fmtInt(energyValue(n.kcal, eU))}</span>
-                  </button>
-                );
-              })}
-              <div className="meal-foot">
-                <button className="btn btn-link" onClick={() => setPickerMeal(m.id)}><Plus size={18} /> Add Food</button>
-              </div>
-            </section>
-          );
-        })}
-      </div>
-
-      <FoodPicker meal={pickerMeal} date={date} onClose={() => setPickerMeal(null)} />
-      <PortionEditor
-        open={!!editing}
-        onClose={() => setEditing(null)}
-        food={editing?.food ?? null}
-        initial={editing ? { amount: editing.amount, unit: editing.unit, meal: editing.meal } : null}
-        submitLabel="Update entry"
-        onSubmit={(v) => {
-          if (!editing) return;
-          diary.updateEntry(editing.id, v);
-          toast('Entry updated');
-          setEditing(null);
-        }}
-        onDelete={() => {
-          if (!editing) return;
-          diary.remove(editing.id);
-          toast('Entry removed');
-          setEditing(null);
-        }}
-      />
-    </>
-  );
+  const { byMeal, total, fibre } = useDay(date);
+  const t = useTargets()?.targets;
+  const eU = useDB(d=>d.settings.energyUnit);
+  const [pickerMeal,setPickerMeal]=useState<Meal|null>(null),[editing,setEditing]=useState<DiaryEntry|null>(null);
+  const [expanded,setExpanded]=useState<Set<Meal>>(()=>new Set(['breakfast'])),[summary,setSummary]=useState(false);
+  const [feedback,setFeedback]=useState<{text:string;entry:DiaryEntry;kind:'add'|'remove'}|null>(null);
+  useEffect(()=>setFeedback(null),[date]);
+  function remove(entry:DiaryEntry){diary.remove(entry.id);setFeedback({text:`Removed ${entry.food.name}`,entry,kind:'remove'})}
+  function added(entry:DiaryEntry){setExpanded(old=>new Set([...old,entry.meal]));setFeedback({text:`Added ${entry.food.name} to ${MEALS.find(m=>m.id===entry.meal)?.label}`,entry,kind:'add'})}
+  const macroCells=(values:{protein:number;carbs:number;fat:number;fibre:number|null})=><div className="food-macro-grid">{([['Protein',values.protein],['Carbs',values.carbs],['Fats',values.fat],['Fibre',values.fibre]] as const).map(([name,value])=><span key={name}><small>{name}</small><strong>{value==null?'—':fmtNum(value,1)}</strong></span>)}</div>;
+  return <div className="food-log-page">
+    <TopBar title="Food" actions={<button className="food-summary-link" onClick={()=>setSummary(true)}><ChartNoAxesColumnIncreasing size={16}/> Summary</button>}/>
+    <div className="screen food-log-screen"><DateStrip date={date}/>
+    {feedback&&<div className="food-feedback" role="status"><span>{feedback.text}</span><button onClick={()=>{if(feedback.kind==='add')diary.remove(feedback.entry.id);else diary.restore(feedback.entry);setFeedback(null)}}>Undo</button><button className="icon-btn" aria-label="Dismiss confirmation" onClick={()=>setFeedback(null)}><X size={16}/></button></div>}
+    <div className="food-section-label">Your meals</div>
+    {MEALS.map(m=>{const list=byMeal[m.id],values=foodSummary(list).values,open=expanded.has(m.id);return <section key={m.id} className="food-meal" aria-label={m.label}>
+      <div className="food-meal-header"><button className="food-meal-toggle" aria-expanded={open} aria-controls={`meal-${m.id}`} onClick={()=>setExpanded(old=>{const next=new Set(old);next.has(m.id)?next.delete(m.id):next.add(m.id);return next})}><span className="food-meal-title">{m.label}{open?<ChevronUp size={16}/>:<ChevronDown size={16}/>}</span><span className="food-meal-energy">{fmtInt(energyValue(values.kcal.value??0,eU))} {eU} · {list.length} {list.length===1?'food':'foods'}</span></button><button className="icon-btn food-meal-add" aria-label={`Add food to ${m.label}`} onClick={()=>setPickerMeal(m.id)}><Plus size={20}/></button></div>
+      {macroCells({protein:values.protein.value??0,carbs:values.carbs.value??0,fat:values.fat.value??0,fibre:values.fibre.value})}
+      <div id={`meal-${m.id}`} hidden={!open}>{list.map(entry=>{const n=entryNutrients(entry);return <div className="food-log-entry" key={entry.id}><button className="food-entry-edit" onClick={()=>setEditing(entry)} aria-label={`Edit ${entry.food.name}`}><span className="food-entry-name">{entry.food.name}</span><span className="food-entry-portion">{portionText(entry)} · {fmtInt(energyValue(n.kcal,eU))} {eU}</span><span className="food-entry-values">{[n.protein,n.carbs,n.fat,n.fibre].map((v,i)=><span key={i}>{v==null?'—':fmtNum(v,1)} <small>{['protein','carbs','fats','fibre'][i]}</small></span>)}</span></button><button className="icon-btn food-entry-remove" aria-label={`Remove ${entry.food.name}`} onClick={()=>remove(entry)}><X size={17}/></button></div>})}{!list.length&&<p className="food-empty-meal">No foods logged</p>}</div>
+    </section>})}
+    <section className="food-daily-summary" aria-label="Daily nutrition totals"><div className="food-total-grid">{([[eU,energyValue(total.kcal,eU),t?energyValue(t.kcal,eU):null],['Protein',total.protein,t?.protein],['Carbs',total.carbs,t?.carbs],['Fats',total.fat,t?.fat]] as const).map(([name,value,goal])=><div key={name}><div className="food-meter"><span style={{width:`${goal?Math.min(100,value/goal*100):0}%`}}/></div><span>{name}</span><strong>{fmtInt(value)}</strong>{goal!=null&&<small>/ {fmtInt(goal)}{name===eU?'':' g'}</small>}</div>)}</div><div className="food-summary-footer"><span>Fibre {fibre.grams==null?'—':`${fmtNum(fibre.grams,1)} g`}{fibre.missing>0?' · some values missing':''}</span><button onClick={()=>setSummary(true)}>All nutrients <ChevronRight size={14}/></button></div></section>
+    </div>
+    <FoodPicker meal={pickerMeal} date={date} onClose={()=>setPickerMeal(null)} onAdded={added}/>
+    <NutritionSummary open={summary} onClose={()=>setSummary(false)} date={date}/>
+    <PortionEditor open={!!editing} onClose={()=>setEditing(null)} food={editing?.food??null} initial={editing?{amount:editing.amount,unit:editing.unit,meal:editing.meal}:null} submitLabel="Update entry" onSubmit={v=>{if(!editing)return;diary.updateEntry(editing.id,v);toast('Entry updated');setEditing(null)}} onDelete={()=>{if(!editing)return;remove(editing);setEditing(null)}}/>
+  </div>;
 }
 
 type Tab = 'all' | 'favourites' | 'mine';
 
-function FoodPicker({ meal, date, onClose }: { meal: Meal | null; date: string; onClose: () => void }) {
+function FoodPicker({ meal, date, onClose, onAdded }: { meal: Meal | null; date: string; onClose: () => void; onAdded: (entry: DiaryEntry)=>void }) {
   const custom = useDB((d) => d.customFoods);
   const favIds = useDB((d) => d.favouriteFoodIds);
   const entries = useDB((d) => d.diary);
+  const savedFavourites = useDB(d=>d.settings.favouriteFoods);
   const [q, setQ] = useState('');const [remote,setRemote]=useState<Food[]>([]);const [lastSearch,setLastSearch]=useState(0);async function searchOnline(){if(q.trim().length<3||Date.now()-lastSearch<6500)return;setLastSearch(Date.now());try{setRemote((await engine().searchFood(q)).filter((p:any)=>!p.incomplete).map(foodIn))}catch{toast('Offline')}}
   const [tab, setTab] = useState<Tab>('all');
   const [chosen, setChosen] = useState<Food | null>(null);
@@ -117,7 +73,7 @@ function FoodPicker({ meal, date, onClose }: { meal: Meal | null; date: string; 
   const open = meal !== null;
   const mealLabel = MEALS.find((m) => m.id === meal)?.label ?? '';
 
-  const all = useMemo(() => [...custom,...remote.filter(p=>!custom.some(x=>x.barcode&&x.barcode===p.barcode))], [custom,remote]);
+  const all = useMemo(() => [...new Map([...(savedFavourites??[]),...entries.map(e=>e.food),...remote,...custom].map(f=>[f.id,f])).values()], [custom,remote,savedFavourites,entries]);
   const recent = useMemo(() => {
     const seen = new Set<string>();
     const out: Food[] = [];
@@ -152,7 +108,7 @@ function FoodPicker({ meal, date, onClose }: { meal: Meal | null; date: string; 
           <span className="nm ellipsis">{f.name}</span>
           <span className="mt ellipsis">{f.brand ?? (f.origin === 'custom' ? 'My food' : 'Generic')} · {refText(f)}</span>
         </button>
-        <button className="icon-btn" aria-pressed={fav} aria-label={fav ? `Remove ${f.name} from favourites` : `Add ${f.name} to favourites`} onClick={() => foods.toggleFavourite(f.id)}>
+        <button className="icon-btn" aria-pressed={fav} aria-label={fav ? `Remove ${f.name} from favourites` : `Add ${f.name} to favourites`} onClick={() => foods.toggleFavourite(f.id, f)}>
           <Star fill={fav ? '#e0a800' : 'none'} color={fav ? '#b8860b' : 'currentColor'} />
         </button>
         {f.origin === 'custom' && (!(f as any).sharedId||(f as any).creatorId===engine()?.peek().user?.id) && (
@@ -222,7 +178,8 @@ function FoodPicker({ meal, date, onClose }: { meal: Meal | null; date: string; 
         submitLabel="Add entry"
         onSubmit={(v) => {
           if (!chosen) return;
-          diary.add(date, v.meal, chosen, v.amount, v.unit);
+          const entry = diary.add(date, v.meal, chosen, v.amount, v.unit);
+          onAdded(entry);
           toast(`Added to ${MEALS.find((m) => m.id === v.meal)?.label}`);
           setChosen(null);
           close();

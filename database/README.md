@@ -7,7 +7,7 @@ The initial cloud storage unit is a complete versioned workspace JSON document. 
 
 `public.forma_workspaces`: user_id UUID primary key references auth.users, payload JSONB (object, at most 8 MB), revision BIGINT, updated_at TIMESTAMPTZ.
 
-All four row-level security policies compare auth.uid() with user_id. Anonymous roles have no table grants. `forma_save_workspace(document, expected_revision)` is SECURITY INVOKER with an empty search_path. It derives user_id from auth.uid(), and rejects stale revisions with SQLSTATE 40001. It is executable only by authenticated users. The browser contains only the publishable key. No service role credentials or LLM keys are present.
+All four row-level security policies compare auth.uid() with user_id. Anonymous roles have no table grants. `forma_save_workspace(document, expected_revision)` is SECURITY INVOKER with an empty search_path. It derives user_id from auth.uid(), and rejects stale revisions with SQLSTATE PT409 (HTTP 409; never 40001, which triggers PostgREST transaction retries). It is executable only by authenticated users. The browser contains only the publishable key. No service role credentials or LLM keys are present.
 
 Verified using two synthetic users inside a rolled-back SQL transaction: owner read, other-user read/update denial, and stale-save rejection. No test accounts remain. Supabase security advisor reported no findings.
 

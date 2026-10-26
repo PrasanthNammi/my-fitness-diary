@@ -1,0 +1,11 @@
+const assert=require('assert/strict'),esbuild=require('esbuild'),path=require('path'),os=require('os');
+const output=path.join(os.tmpdir(),'mfd-routine-overview.cjs');esbuild.buildSync({entryPoints:['frontend/domain/routineStats.ts'],bundle:true,platform:'node',format:'cjs',outfile:output});
+const {routineSessions,lastExerciseSession,routineTrend}=require(output);
+const routine={id:'push',name:'Push'},b=(id,done=true,kg=50,reps=10)=>({id,exerciseId:id,tracking:'weight_reps',sets:[{id:id+'-set',done,type:'normal',weightKg:kg,reps}]}),w=(id,routineId,title,startedAt,exercises)=>({id,routineId,title,startedAt,exercises});
+const history=[w('latest','push','Renamed',300,[b('bench'),b('shoulder',false)]),w('legacy',null,'Push',100,[b('bench',true,40)]),w('unrelated','pull','Push',400,[b('row')]),w('empty','push','Push',500,[b('bench',false)])];
+assert.deepEqual(routineSessions(routine,history).map(w=>w.id),['legacy','latest']);
+assert.equal(lastExerciseSession('bench',history).workout.id,'latest');assert.equal(lastExerciseSession('shoulder',history),null);
+const trend=routineTrend(routineSessions(routine,history));assert.deepEqual(trend.points,[{x:100,y:400},{x:300,y:500}]);assert.equal(trend.label,'Training volume');
+const bodyweight=w('bodyweight','push','Push',600,[{...b('pushups'),tracking:'reps',sets:[{done:true,type:'normal',reps:15}]}]);assert.equal(routineTrend([bodyweight]).unit,'sets');assert.equal(routineTrend([bodyweight]).points[0].y,1);assert.deepEqual(routineTrend([]).points,[]);
+assert.deepEqual(history.map(w=>w.id),['latest','legacy','unrelated','empty']);
+console.log('PASS routine identity and legacy matching, chronological trend, completed-only sets, latest exercise history, empty history, non-weighted fallback and immutable history');

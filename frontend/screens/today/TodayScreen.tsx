@@ -28,7 +28,7 @@ function Ring({ value, max }: { value: number; max: number }) {
 export function TodayScreen() {
   const date = useSelectedDate();
   const targets = useTargets();
-  const { total, entries } = useDay(date);
+  const { total, entries, fibre } = useDay(date);
   const water = useDB((d) => d.water[date] ?? 0);
   const active = useDB((d) => d.active);
   const allWorkouts = useDB((d) => d.workouts);
@@ -98,6 +98,7 @@ export function TodayScreen() {
                 </div>
               ))}
             </div>
+            <div className="row-between" style={{marginTop:12}}><span className="muted small">Fibre</span><span className="strong tnum">{fibre.grams === null ? '— · missing food data' : `${Number(fibre.grams.toFixed(1))} g${fibre.missing ? ' · incomplete' : ''}`} </span></div>
             <button className="btn btn-ghost btn-sm btn-block" style={{ marginTop: 8 }} onClick={() => navigate('/food')}>
               Open food diary <ChevronRight />
             </button>

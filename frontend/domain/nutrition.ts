@@ -58,7 +58,7 @@ export function calculateTargets(p: Profile): TargetBreakdown {
   const protein = Math.round(p.weightKg * goal.proteinPerKg);
   const fat = Math.round((kcal * goal.fatShare) / KCAL_PER_G.fat);
   const carbs = Math.max(0, Math.round((kcal - protein * KCAL_PER_G.protein - fat * KCAL_PER_G.fat) / KCAL_PER_G.carbs));
-  const waterMl = Math.round((p.weightKg * 35) / 50) * 50;
+  const waterMl = Number.isFinite(p.waterGoalMl) && p.waterGoalMl! >= 250 && p.waterGoalMl! <= 10000 ? p.waterGoalMl! : 2500;
 
   return {
     targets: { kcal, protein, carbs, fat, waterMl },
@@ -129,3 +129,9 @@ export function sumNutrients(list: Nutrients[]): Nutrients {
 export const KJ_PER_KCAL = 4.184;
 export const kjToKcal = (kj: number) => kj / KJ_PER_KCAL;
 export const kcalToKj = (kcal: number) => kcal * KJ_PER_KCAL;
+
+/** Sum reported fibre without treating unreported nutrition as zero. */
+export function fibreSummary(list: Nutrients[]) {
+  const known = list.filter(n => n.fibre !== null && Number.isFinite(n.fibre));
+  return { grams: known.length || !list.length ? known.reduce((sum,n)=>sum+n.fibre!,0) : null, missing: list.length-known.length };
+}

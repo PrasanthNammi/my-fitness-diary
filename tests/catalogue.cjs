@@ -3,7 +3,7 @@ const temp=fs.mkdtempSync(path.join(os.tmpdir(),'mfd-catalogue-test-'));
 try{
  esbuild.buildSync({stdin:{contents:`export * from './frontend/catalogue/runtime';export * from './frontend/catalogue/hevyMatcher';export * from './frontend/adapters/compat';export * from './frontend/domain/records';export * from './frontend/domain/training';`,resolveDir:process.cwd(),loader:'ts'},bundle:true,platform:'node',format:'cjs',outfile:path.join(temp,'api.cjs')});
  const api=require(path.join(temp,'api.cjs'));let requests=[];
- global.fetch=async url=>{requests.push(url);return{ok:true,json:async()=>JSON.parse(fs.readFileSync('dist'+url,'utf8'))}};
+ global.fetch=async url=>{requests.push(url);return{ok:true,json:async()=>JSON.parse(fs.readFileSync('public'+url,'utf8'))}};
  (async()=>{
   await Promise.all([api.loadMfdCatalogue(),api.loadMfdCatalogue()]);assert.equal(requests.length,3);const cat=api.getCatalogue();assert.equal(cat.all().length,1064);assert.equal(new Set(cat.all().map(e=>e.id)).size,1064);
   for(const query of ['db bench','rdl','pullup','ohp','kb swing'])assert(cat.search(query).length,query);
@@ -13,6 +13,8 @@ try{
   const raw={profile:{name:'Tester',age:30,onboarded:true,cal:2000,protein:120,carbs:230,fat:60,days:3},sessions:[{id:'w1',name:'Upper',date:'2026-10-01',started:1000,finished:2000,hevyRows:[{original:'preserved'}],sets:[row]}],routines:[{id:'r1',name:'Upper A',exercises:[{name:row.exercise,sets:1,reps:8,kg:80,rest:90,setDetails:[row]}]}],active:{id:'a1',name:'Active',date:'2026-10-02',started:3000,sets:[{...row,id:'a-set',done:false}],rest:{0:{duration:90,end:9000}}},meals:[],weights:[],checkins:[],chat:[],mfdExercises:[],folders:[]};
   const migrated=api.migrateExerciseIds(raw);assert.notEqual(migrated,raw);assert.equal(migrated.sessions[0].sets[0].catalogId,bench.id);assert.deepEqual(migrated.sessions[0].hevyRows,raw.sessions[0].hevyRows);assert.equal(raw.sessions[0].sets[0].catalogId,undefined);for(const key of Object.keys(row))assert.deepEqual(migrated.sessions[0].sets[0][key],row[key]);assert.equal(api.migrateExerciseIds(migrated),migrated);
   const stale={...raw,routines:[{...raw.routines[0],source:'hevy',exercises:[{...raw.routines[0].exercises[0],catalogId:'shared-stale',setDetails:[{...row,catalogId:'shared-stale'}]}]}]};const repaired=api.migrateExerciseIds(stale);assert.equal(repaired.routines[0].exercises[0].catalogId,bench.id);assert.equal(repaired.routines[0].exercises[0].setDetails[0].catalogId,bench.id);assert.equal(api.toDB({state:repaired,user:{email:'test@example.test'},ready:true},{exercises:[],foods:[]}).routines[0].exercises[0].exerciseId,bench.id);
+  const calfRow={...row,exercise:'Seated Calf Raise',catalogId:'seated_calf_raise',catalogSource:'MFD',tracking:'reps',kg:45};const calves={...raw,sessions:[{...raw.sessions[0],sets:[calfRow]}],routines:[{...raw.routines[0],exercises:[{name:'Seated Calf Raise',catalogId:'seated_calf_raise',catalogSource:'MFD',tracking:'reps',sets:1,setDetails:[calfRow]}]}],active:{...raw.active,sets:[calfRow]}};
+  const fixedCalves=api.migrateExerciseIds(calves);for(const value of [fixedCalves.sessions[0].sets[0],fixedCalves.routines[0].exercises[0],fixedCalves.routines[0].exercises[0].setDetails[0],fixedCalves.active.sets[0]])assert.equal(value.tracking,'weight_reps');assert.equal(fixedCalves.sessions[0].sets[0].kg,45);assert.deepEqual(fixedCalves.sessions[0].hevyRows,calves.sessions[0].hevyRows);assert.equal(calfRow.tracking,'reps');assert.equal(api.migrateExerciseIds(fixedCalves),fixedCalves);
   const db=api.toDB({state:migrated,user:{email:'test@example.test'},ready:true},{exercises:[],foods:[]});assert.equal(db.workouts[0].exercises[0].exerciseId,bench.id);const round=api.fromDB(db,migrated);assert.equal(round.routines[0].exercises[0].catalogId,bench.id);assert.deepEqual(round.sessions[0].hevyRows,raw.sessions[0].hevyRows);assert.equal(round.active.rest[0].end,9000);assert(!round.mfdExercises.some(e=>e.source==='mfd'));
   // Custom identity survives refresh, even if its display name equals a canonical exercise.
   const privateEx={...api.mapEntry(bench),id:'custom:mine',source:'custom'};const own={...raw,mfdExercises:[privateEx],sessions:[{...raw.sessions[0],sets:[{...row,catalogId:privateEx.id}]}]};assert.equal(api.toDB({state:own,user:{email:'test@example.test'},ready:true},{exercises:[],foods:[]}).workouts[0].exercises[0].exerciseId,privateEx.id);
@@ -26,9 +28,9 @@ try{
   const weighted=block('weighted',[set('added',10,5)],'weighted_bodyweight');assert.equal(api.workingVolume([weighted]),50);assert.equal(api.setMetrics(weighted,weighted.sets[0]).estimate,api.e1rm(10,5));
   // Provider aliases join one identity, while distinct equipment variations remain separate.
   assert.equal(api.resolveExercise({exercise:'Bench Press (Barbell)'}),bench.id);assert.notEqual(api.resolveExercise({exercise:'Bench Press (Dumbbell)'}),bench.id);
-  const map=JSON.parse(fs.readFileSync('dist/catalogue/hevy_map.json'));const matcher=new api.HevyMatcher(cat.all(),map);assert.equal(matcher.match('An imaginary unique movement').mfdId,null);
-  const files=fs.readdirSync('dist/catalogue');assert(!files.includes('user_hevy_links.json'));assert(!files.includes('src'));
-  for(const ex of cat.all())for(const image of ex.media.images)assert(fs.existsSync('dist/catalogue/app_media/'+image.path));
+  const map=JSON.parse(fs.readFileSync('public/catalogue/hevy_map.json'));const matcher=new api.HevyMatcher(cat.all(),map);assert.equal(matcher.match('An imaginary unique movement').mfdId,null);
+  const files=fs.readdirSync('public/catalogue');assert(!files.includes('user_hevy_links.json'));assert(!files.includes('src'));
+  for(const ex of cat.all())for(const image of ex.media.images)assert(fs.existsSync('public/catalogue/app_media/'+image.path));
   console.log('PASS unified IDs, search, families, reference/media integrity, private custom identity, lossless migration, extended tracking, records and cached indexes');
  })().catch(e=>{console.error(e);process.exitCode=1}).finally(()=>fs.rmSync(temp,{recursive:true,force:true}));
 }catch(e){fs.rmSync(temp,{recursive:true,force:true});throw e}

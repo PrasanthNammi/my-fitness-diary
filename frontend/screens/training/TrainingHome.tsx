@@ -125,10 +125,10 @@ function RoutineCard({ r, folders, onStart }: { r: Routine; folders: Folder[]; o
   return (
     <div className="card routine-card">
       <div className="row" style={{ alignItems: 'flex-start' }}>
-        <div className="grow">
+        <button className="routine-open grow" aria-label={`View ${r.name}`} onClick={() => navigate(`/training/routine/view/${r.id}`)}>
           <div className="name ellipsis">{r.name}</div>
           <div className="meta">{blockSummary(r.exercises)}</div>
-        </div>
+        </button>
         <OverflowMenu
           small
           title={r.name}
@@ -141,7 +141,7 @@ function RoutineCard({ r, folders, onStart }: { r: Routine; folders: Folder[]; o
           ]}
         />
       </div>
-      {preview && <div className="preview">{preview}</div>}
+      {preview && <button className="routine-open preview" aria-label={`View exercises in ${r.name}`} onClick={() => navigate(`/training/routine/view/${r.id}`)}>{preview}</button>}
       <button className="btn btn-primary btn-sm btn-block" style={{ marginTop: 10 }} onClick={onStart}>
         <Play /> Start Workout
       </button>

@@ -66,22 +66,26 @@ function ProfileSettings() {
   const profile = useDB((d) => d.profile);
   const unit = useDB((d) => d.settings.weightUnit);
   const [d, setD] = useState<ProfileDraft>(() => draftFromProfile(profile, '', unit));
+  const [water, setWater] = useState(String((profile?.waterGoalMl ?? 2500)/1000));
+  const waterMl = Number(water)*1000;
+  const waterError = !water.trim() || !Number.isFinite(waterMl) || waterMl<250 || waterMl>10000 ? 'Enter 0.25–10 litres.' : null;
   const [show, setShow] = useState(false);
   const [busy,setBusy]=useState(false),[saveError,setSaveError]=useState('');
   useEffect(()=>{let active=true;getIdentity().then(p=>{if(active&&p)setD(d=>({...d,profileId:p.username}))}).catch(e=>{if(active)setSaveError(e.message)});return()=>{active=false}},[]);
   const errors = validateDraft(d, unit);
-  const valid = Object.values(errors).every((e) => !e);
+  const valid = Object.values(errors).every((e) => !e) && !waterError;
   return (
     <>
       <TopBar title="Profile" back="/settings" bordered />
       <div className="screen" style={{ paddingTop: 12 }}>
         {saveError&&<p role="alert">{saveError}</p>}
         <ProfileFields d={d} set={(p) => setD((x) => ({ ...x, ...p }))} unit={unit} errors={errors} show={show} groups={['about', 'body', 'activity', 'goal', 'training']} />
+        <Field label="Daily water goal" htmlFor="profile-water" error={show ? waterError : null} hint="Litres per day"><input id="profile-water" className="input" type="number" inputMode="decimal" min="0.25" max="10" step="0.05" value={water} onChange={e=>setWater(e.target.value)} /></Field>
         {show && !valid && <div style={{ marginTop: 12 }}><Notice tone="error">Check the highlighted fields.</Notice></div>}
         <button className="btn btn-primary btn-block" style={{ marginTop: 16 }} disabled={busy} onClick={async () => {
           setShow(true);
           if (!valid) return;
-          const p = profileFromDraft(d, unit);
+          const p = {...profileFromDraft(d, unit),waterGoalMl:Math.round(waterMl)};
           setBusy(true);setSaveError('');try{await profileRepo.save(p);
           if (profile && p.weightKg !== profile.weightKg) body.logWeight(todayISO(), p.weightKg);
           toast('Profile saved · targets updated');
@@ -123,7 +127,7 @@ function TargetDetails() {
           {row('4. Protein', `${calc.proteinPerKg} g × ${profile.weightKg} kg`)}
           {row('5. Fat', `${Math.round(calc.fatShare * 100)}% of calories ÷ 9`)}
           {row('6. Carbohydrate', 'Remaining calories ÷ 4')}
-          {row('Water', '35 ml × body weight')}
+          {row('Water', 'Your daily goal · editable in Profile')}
         </div>
         <p className="xs muted" style={{ margin: 0 }}>
           These are estimates. Individual needs vary; adjust your profile if your weight trend doesn’t match your goal over a few weeks.
