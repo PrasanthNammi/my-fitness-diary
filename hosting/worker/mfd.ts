@@ -15,7 +15,11 @@ function expiresSoon(token:string){try{return JSON.parse(atob(token.split('.')[1
 async function readBody(request:Request,limit=MAX_BODY){if(Number(request.headers.get('content-length'))>limit)throw new HttpError(413,'Request too large');if(!request.body)return new Uint8Array();const reader=request.body.getReader(),chunks:Uint8Array[]=[];let size=0;for(;;){const {value,done}=await reader.read();if(done)break;size+=value.length;if(size>limit){await reader.cancel();throw new HttpError(413,'Request too large')}chunks.push(value)}const out=new Uint8Array(size);let offset=0;for(const chunk of chunks){out.set(chunk,offset);offset+=chunk.length}return out}
 async function readJSON(request:Request){if(!request.headers.get('content-type')?.startsWith('application/json'))throw new HttpError(415,'JSON required');try{return JSON.parse(new TextDecoder().decode(await readBody(request,16384)))}catch(e){if(e instanceof HttpError)throw e;throw new HttpError(400,'Invalid JSON')}}
 export async function handleMfd(request:Request,deps:Deps){
- const url=new URL(request.url),origin=deps.origin||ORIGIN,setCookies:string[]=[];
+ const url=new URL(request.url);
+ // Only an explicit loopback host may use a local redirect/CSRF origin.
+ // Public deployments retain their fixed, trusted production origin.
+ const loopback=['localhost','127.0.0.1','[::1]'].includes(url.hostname);
+ const origin=deps.origin||(loopback?url.origin:ORIGIN),setCookies:string[]=[];
  const api=url.pathname.startsWith('/api/');
  function clearSession(){setCookies.push(cookie(ACCESS,'',0),cookie(REFRESH,'',0))}
  function saveSession(data:any){if(!data?.access_token||!data.refresh_token||!data.user?.id)throw new HttpError(502,'Invalid authentication response');setCookies.push(cookie(ACCESS,data.access_token),cookie(REFRESH,data.refresh_token));return data.access_token as string}
