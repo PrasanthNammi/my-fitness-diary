@@ -7,7 +7,8 @@
     "build:client": "esbuild src/supabase-client.js --bundle --minify --format=iife --platform=browser --outfile=public/legacy/vendor/supabase.js",
     "build:barcode": "esbuild src/barcode-client.js --bundle --minify --format=iife --platform=browser --outfile=public/legacy/vendor/barcode.js",
     "build": "node scripts-build-react.cjs && node scripts-build-hosting.cjs",
-    "test:performance": "node tests/run-performance.cjs"
+    "test:performance": "node tests/run-performance.cjs",
+    "dev": "node scripts-build-react.cjs && node scripts-prepare-dev.cjs && npm --prefix hosting run dev"
   },
   "keywords": [],
   "author": "",
