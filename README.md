@@ -17,10 +17,8 @@ Use Node.js 22.13 or later. Root and hosting dependencies are installed separate
 npm ci
 # This code-only update retains existing media under dist/.
 # Reuse those assets locally without overwriting the current public source files:
-cp -an dist/. public/
-cd hosting
-npm run install:ci
-cd ..
+cp -an dist/. public/  # optional retained media (existing GIFs are unchanged)
+corepack pnpm --dir hosting install --frozen-lockfile
 npm run build
 npm run test:performance
 node tests/nutrition-preferences.cjs
@@ -29,6 +27,8 @@ node tests/food-actions.cjs
 node tests/food-summary.cjs
 npx tsc -p frontend/tsconfig.json --noEmit
 ```
+
+To develop locally after installing dependencies, run `npm run dev`. Open `http://localhost:5173`. The Worker accepts localhost or 127.0.0.1 as the callback/CSRF origin only for local requests. In your Supabase project's Authentication → URL Configuration, add `http://localhost:5173/**` as an allowed Redirect URL to test Google/email confirmation. Do not change the production Site URL or use service-role keys. Real sign-in and account access still require your configured Supabase project and network access.
 
 The production app now uses the Worker in `hosting/` for authentication and security headers; a static server alone does not reproduce production authentication. Supply runtime secrets through the hosting environment, never source files.
 
@@ -40,6 +40,6 @@ The production app now uses the Worker in `hosting/` for authentication and secu
 - `database/`, `supabase/`: database policies/migrations and metrics endpoint source.
 - `monitoring/`: monitoring configuration and dashboards.
 - `tests/`: security, sync, catalogue, nutrition, workout and regression checks.
-- `dist/`: retained previous repository output/media; rebuild to generate current production output.
+- `dist/`: generated build output (ignored on new commits); rebuild to generate current production output.\n- `.github/workflows/ci.yml`: install, test, type-check and build on PRs and pushes.
 
-This update excludes new or changed GIFs and other binary media. Existing repository media is preserved. Personal records, secrets and dependencies are excluded. The Hevy integration remains read-only.
+The neutral anatomy background is a repository-tracked SVG, so the muscle overlay no longer depends on the missing PNG. This update excludes new or changed GIFs and other binary media. Existing repository media is preserved. Personal records, secrets and dependencies are excluded. The Hevy integration remains read-only.
