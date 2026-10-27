@@ -62,7 +62,7 @@ const form=(path,body,headers={})=>request(path,'POST',body,{Cookie:cookie,Origi
  ]){
   const candidate=jwt({...claims,client_id:undefined,aud:'authenticated',...altered});
   r=await handle(request('/oauth/mcp/consent?authorization_id=auth-1','GET',undefined,{Cookie:'__Host-mfd-access='+candidate}),deps);
-  assert.equal(r.status,403);
+  assert.equal(r.status,altered.exp===1?401:403);
  }
  r=await handle(form('/oauth/mcp/consent','authorization_id=auth-1&decision=approve&permission=workouts',{Origin:'https://evil.example'}),deps);assert.equal(r.status,403);
  authorizationUser='bob';r=await handle(form('/oauth/mcp/consent','authorization_id=auth-1&decision=approve&permission=workouts'),deps);assert.equal(r.status,403);authorizationUser='alice';
