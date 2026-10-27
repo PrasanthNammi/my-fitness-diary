@@ -14,7 +14,12 @@ export async function handleMcpConsent(request:Request,upstream:Upstream,getToke
  const verified=await upstream('/auth/v1/user',{},token);
  if(!verified.ok)return page('Please sign in again.',401);
  const user=await verified.json() as any;
- try{const claims=JSON.parse(atob(token.split('.')[1].replace(/-/g,'+').replace(/_/g,'/')));if(claims.client_id)return page('Use your diary browser session.',403)}catch{return page('Invalid session',401)}
+ try{
+  const claims=JSON.parse(atob(token.split('.')[1].replace(/-/g,'+').replace(/_/g,'/')));
+  // The consent/approval UI must use a verified first-party browser identity,
+  // never an OAuth client token or a token for another account.
+  if(claims.client_id!==undefined || claims.aud!=='authenticated' || claims.role!=='authenticated' || claims.sub!==user.id || !claims.session_id || !(claims.exp>Date.now()/1000))return page('Use your diary browser session.',403);
+ }catch{return page('Invalid session',401)}
  async function call(path:string,init:RequestInit={}){const r=await upstream(path,init,token);if(!r.ok)throw Error('Request failed');return r.status===204?{}:await r.json() as any}
  async function rpc(operation:string,args:unknown={}){return call('/rest/v1/rpc/mfd_mcp',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({operation,args})})}
  const identity=`<p>Signed in as ${escape(user.email||user.id)}.</p>`;
