@@ -1,8 +1,8 @@
 const {buildSync}=require('esbuild'),vm=require('node:vm'),assert=require('node:assert/strict');
 const context={module:{exports:{}},Request,Response,Headers,URL,URLSearchParams,Uint8Array,TextEncoder,TextDecoder,AbortSignal,crypto:require('node:crypto').webcrypto,atob,btoa,Date};
 vm.createContext(context);vm.runInContext(buildSync({entryPoints:['hosting/worker/mfd.ts'],bundle:true,format:'cjs',write:false}).outputFiles[0].text,context);
-const handle=context.module.exports.handleMfd,origin='https://prasanth-nammi-portfolio.paleriver512.chatgpt.site';
-const claims={sub:'alice',iss:'https://djyozltkmbzhwuvemxuy.supabase.co/auth/v1',aud:origin+'/mcp',role:'authenticated',client_id:'client-a',session_id:'session-a',exp:Date.now()/1000+3600};
+const handle=context.module.exports.handleMfd,origin='https://mfd-oauth-testing.paleriver512.chatgpt.site';
+const claims={sub:'alice',iss:'https://gngnrmzeghjzqsmzuktl.supabase.co/auth/v1',aud:origin+'/mcp',role:'authenticated',client_id:'client-a',session_id:'session-a',exp:Date.now()/1000+3600};
 const jwt=claims=>'e30.'+Buffer.from(JSON.stringify(claims)).toString('base64url')+'.signature';
 const bearer=jwt(claims),browser=jwt({...claims,client_id:undefined,aud:'authenticated'}),cookie='__Host-mfd-access='+browser;
 let calls=[],deny=false,revoked=false,authorizationUser='alice';
@@ -82,3 +82,4 @@ const form=(path,body,headers={})=>request(path,'POST',body,{Cookie:cookie,Origi
  r=await handle(form('/oauth/mcp/approve','proposal_id=11111111-1111-4111-8111-111111111111'),deps);assert.equal(r.status,403);
  console.log('PASS MCP transport, discovery, verified bearer identity, protocol validation, tool allowlists, consent/deny, CSRF, XSS, revocation, approval and unchanged frontend');
 })().catch(e=>{console.error(e);process.exit(1)});
+

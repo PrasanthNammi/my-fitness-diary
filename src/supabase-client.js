@@ -1,3 +1,5 @@
+import {environment} from './environment';
+const config=environment();
 import {createClient} from '@supabase/supabase-js';
 const identityKey='mfd.session.user',legacyKey='forma.supabase.auth';
 const listeners=new Set();let session=null,initializing;
@@ -8,7 +10,7 @@ async function readSession(){
  try{
   let old;try{old=JSON.parse(localStorage.getItem(legacyKey)||'null')}catch{}
   let data;
-  if(old?.refresh_token){try{data=await request('migrate',{refresh_token:old.refresh_token})}catch(e){if(![400,401,403].includes(e.status))throw e}localStorage.removeItem(legacyKey);localStorage.removeItem(legacyKey+'-code-verifier')}
+  if(config.MFD_ENV!=='staging'&&old?.refresh_token){try{data=await request('migrate',{refresh_token:old.refresh_token})}catch(e){if(![400,401,403].includes(e.status))throw e}localStorage.removeItem(legacyKey);localStorage.removeItem(legacyKey+'-code-verifier')}
   data??=await request('session');remember(data.session,data.session?'SIGNED_IN':'SIGNED_OUT',false);return {data:{session:data.session},error:null};
  }catch(error){
   if([400,401,403].includes(error.status)){remember(null,'SIGNED_OUT',false);return {data:{session:null},error:null}}
@@ -29,5 +31,5 @@ const auth={
 channel&&(channel.onmessage=()=>auth.getSession());
 window.addEventListener('focus',()=>auth.getSession());
 window.addEventListener('online',()=>auth.getSession());
-const sdk=createClient(location.origin+'/api/supabase','sb_publishable_nH3vRaPWVxxY636AThDN5A_ZIlQGghL',{auth:{persistSession:false,autoRefreshToken:false,detectSessionInUrl:false},global:{fetch:(input,init)=>fetch(input,{...init,credentials:'same-origin',cache:'no-store'})}});
-window.formaSupabase={auth,from:sdk.from.bind(sdk),rpc:sdk.rpc.bind(sdk),storage:sdk.storage};
+const sdk=createClient(location.origin+'/api/supabase',config.MFD_SUPABASE_PUBLISHABLE_KEY,{auth:{persistSession:false,autoRefreshToken:false,detectSessionInUrl:false},global:{fetch:(input,init)=>fetch(input,{...init,credentials:'same-origin',cache:'no-store'})}});
+window.formaSupabase={supabaseUrl:config.MFD_SUPABASE_URL,auth,from:sdk.from.bind(sdk),rpc:sdk.rpc.bind(sdk),storage:sdk.storage};

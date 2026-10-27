@@ -4,11 +4,11 @@ const sections = ['workouts', 'routines', 'nutrition', 'progress', 'profile'];
 const versions = ['2025-03-26', '2025-06-18', '2025-11-25'];
 type Upstream = (path: string, init?: RequestInit, token?: string) => Promise<Response>;
 const json = (body: unknown, status = 200) => Response.json(body, {status, headers: {'Cache-Control': 'private, no-store', 'X-Content-Type-Options': 'nosniff'}});
-export async function handleMcp(request: Request, upstream: Upstream, origin: string, writes = false): Promise<Response> {
- const url = new URL(request.url), resource = origin + '/mcp';
+export async function handleMcp(request: Request, upstream: Upstream, origin: string, writes = false, issuer = 'https://djyozltkmbzhwuvemxuy.supabase.co/auth/v1', resourceUrl = origin + '/mcp'): Promise<Response> {
+ const url = new URL(request.url), resource = resourceUrl;
  const unauthorized=()=>new Response(JSON.stringify({error:'Invalid or missing MCP access token'}),{status:401,headers:{'Content-Type':'application/json','WWW-Authenticate':`Bearer resource_metadata="${origin}/.well-known/oauth-protected-resource/mcp"`,'Cache-Control':'private, no-store'}});
  if (url.pathname === '/.well-known/oauth-protected-resource' || url.pathname === '/.well-known/oauth-protected-resource/mcp') {
-  return json({resource, authorization_servers: ['https://djyozltkmbzhwuvemxuy.supabase.co/auth/v1'], bearer_methods_supported: ['header']});
+  return json({resource, authorization_servers: [issuer], bearer_methods_supported: ['header']});
  }
  if (request.headers.has('origin') && request.headers.get('origin') !== origin) return json({error: 'Invalid origin'}, 403);
  const token = /^Bearer ([^\s]+)$/.exec(request.headers.get('authorization') || '')?.[1];
@@ -18,7 +18,7 @@ export async function handleMcp(request: Request, upstream: Upstream, origin: st
   if (!verified.ok) return unauthorized();
   const user = await verified.json() as any;
   let claims:any;try{claims=JSON.parse(atob(token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')))}catch{return unauthorized()}
-  if (claims.sub !== user.id || claims.iss !== 'https://djyozltkmbzhwuvemxuy.supabase.co/auth/v1' || claims.aud !== resource || !claims.client_id || claims.role !== 'authenticated' || !claims.session_id || !(claims.exp > Date.now()/1000)) return unauthorized();
+  if (claims.sub !== user.id || claims.iss !== issuer || claims.aud !== resource || !claims.client_id || claims.role !== 'authenticated' || !claims.session_id || !(claims.exp > Date.now()/1000)) return unauthorized();
   if (request.method !== 'POST') return new Response(null, {status:405,headers:{Allow:'POST'}});
   if (!request.headers.get('content-type')?.startsWith('application/json')) return json({error:'JSON required'},415);
   if (!(request.headers.get('accept') || '').includes('application/json') || !(request.headers.get('accept') || '').includes('text/event-stream')) return json({error:'Accept JSON and event-stream'},406);
@@ -53,3 +53,4 @@ export async function handleMcp(request: Request, upstream: Upstream, origin: st
   return reply({content:[{type:'text',text:JSON.stringify(data)}],isError:false});
  } catch {return json({error:'MCP service unavailable'},503)}
 }
+

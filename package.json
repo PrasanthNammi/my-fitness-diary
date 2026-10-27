@@ -9,7 +9,8 @@
     "build": "node scripts-build-react.cjs && node scripts-build-hosting.cjs",
     "test:performance": "node tests/run-performance.cjs",
     "test:mcp": "node tests/mcp-server.cjs && node tests/mcp-database.cjs",
-    "dev": "node scripts-build-react.cjs && node scripts-prepare-dev.cjs && npm --prefix hosting run dev"
+    "dev": "node scripts-build-react.cjs && node scripts-prepare-dev.cjs && npm --prefix hosting run dev",
+    "test:staging": "node tests/staging-isolation.cjs"
   },
   "keywords": [],
   "author": "",

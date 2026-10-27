@@ -1,12 +1,12 @@
+import {environment} from '../../src/environment';
 import {handleMcp} from './mcp';
 import {handleMcpConsent} from './mcp-consent';
-const SUPABASE='https://djyozltkmbzhwuvemxuy.supabase.co';
-const KEY='sb_publishable_nH3vRaPWVxxY636AThDN5A_ZIlQGghL';
+
 const ACCESS='__Host-mfd-access',REFRESH='__Host-mfd-refresh',PKCE='__Host-mfd-pkce';
-const ORIGIN='https://prasanth-nammi-portfolio.paleriver512.chatgpt.site';
+
 const MAX_BODY=6*1024*1024;
 export const CSP="default-src 'self'; script-src 'self'; script-src-attr 'none'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' https: data: blob:; media-src 'self' blob:; connect-src 'self' https://world.openfoodfacts.org; frame-src 'self'; frame-ancestors 'self'; worker-src 'self'; object-src 'none'; base-uri 'none'; form-action 'self'; upgrade-insecure-requests";
-type Deps={fetch:typeof fetch;assets:{fetch:(request:Request)=>Promise<Response>};origin?:string;mcpWrites?:boolean};
+type Deps={fetch:typeof fetch;assets:{fetch:(request:Request)=>Promise<Response>};origin?:string;mcpWrites?:boolean;env?:Record<string,unknown>};
 class HttpError extends Error{constructor(public status:number,message:string){super(message)}}
 function cookie(name:string,value:string,age=2592000){return `${name}=${encodeURIComponent(value)}; Path=/; Max-Age=${age}; HttpOnly; Secure; SameSite=Lax`}
 function cookies(request:Request){const out=new Map<string,string>();for(const part of (request.headers.get('cookie')||'').split(';')){const i=part.indexOf('=');if(i<0)continue;try{const key=part.slice(0,i).trim();if(out.has(key))throw new HttpError(400,'Duplicate session cookie');out.set(key,decodeURIComponent(part.slice(i+1)))}catch(e){if(e instanceof HttpError)throw e}}return out}
@@ -17,6 +17,7 @@ function expiresSoon(token:string){try{return JSON.parse(atob(token.split('.')[1
 async function readBody(request:Request,limit=MAX_BODY){if(Number(request.headers.get('content-length'))>limit)throw new HttpError(413,'Request too large');if(!request.body)return new Uint8Array();const reader=request.body.getReader(),chunks:Uint8Array[]=[];let size=0;for(;;){const {value,done}=await reader.read();if(done)break;size+=value.length;if(size>limit){await reader.cancel();throw new HttpError(413,'Request too large')}chunks.push(value)}const out=new Uint8Array(size);let offset=0;for(const chunk of chunks){out.set(chunk,offset);offset+=chunk.length}return out}
 async function readJSON(request:Request){if(!request.headers.get('content-type')?.startsWith('application/json'))throw new HttpError(415,'JSON required');try{return JSON.parse(new TextDecoder().decode(await readBody(request,16384)))}catch(e){if(e instanceof HttpError)throw e;throw new HttpError(400,'Invalid JSON')}}
 export async function handleMfd(request:Request,deps:Deps){
+ const config=environment(deps.env),SUPABASE=config.MFD_SUPABASE_URL,KEY=config.MFD_SUPABASE_PUBLISHABLE_KEY,ORIGIN=config.MFD_SITE_ORIGIN;
  const url=new URL(request.url);
  // Only an explicit loopback host may use a local redirect/CSRF origin.
  // Public deployments retain their fixed, trusted production origin.
@@ -38,7 +39,7 @@ export async function handleMfd(request:Request,deps:Deps){
   }
   async function token(){let access=jar.get(ACCESS);if(!access||expiresSoon(access)){const refresh=jar.get(REFRESH);if(!refresh)throw new HttpError(401,'Sign in required');try{const data=await authCall('token?grant_type=refresh_token',{refresh_token:refresh});access=saveSession(data)}catch(e){if(e instanceof HttpError&&[400,401,403].includes(e.status))clearSession();throw e}}return access!}
   if(url.pathname==='/mcp'||url.pathname==='/.well-known/oauth-protected-resource'||url.pathname==='/.well-known/oauth-protected-resource/mcp'){
-   result=await handleMcp(request,upstream,origin,deps.mcpWrites===true);
+   result=await handleMcp(request,upstream,origin,deps.mcpWrites===true,config.MFD_OAUTH_ISSUER,config.MFD_MCP_RESOURCE_URL);
   }else if(['/oauth/mcp/consent','/oauth/mcp/connections','/oauth/mcp/approve'].includes(url.pathname)){
    result=await handleMcpConsent(request,upstream,token,origin,deps.mcpWrites===true);
   }else if(isCallback){
@@ -60,6 +61,7 @@ export async function handleMfd(request:Request,deps:Deps){
    const verifier=b64(crypto.getRandomValues(new Uint8Array(32))),challenge=b64(new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(verifier))));setCookies.push(cookie(PKCE,verifier,600));
    const dest=new URL('/auth/v1/authorize',SUPABASE);dest.search=new URLSearchParams({provider:'google',redirect_to:origin+'/',code_challenge:challenge,code_challenge_method:'s256'}).toString();result=json({url:dest.href});
   }else if(url.pathname==='/api/auth/migrate'&&request.method==='POST'){
+   if(config.MFD_ENV==='staging')throw new HttpError(403,'Session migration disabled in staging');
    const {refresh_token}=await readJSON(request);if(typeof refresh_token!=='string'||refresh_token.length>4096)throw new HttpError(400,'Invalid session');
    const data=await authCall('token?grant_type=refresh_token',{refresh_token});saveSession(data);result=json({session:{user:safeUser(data.user)}});
   }else if(url.pathname==='/api/auth/logout'&&request.method==='POST'){
@@ -78,3 +80,4 @@ export async function handleMfd(request:Request,deps:Deps){
  for(const value of setCookies)headers.append('Set-Cookie',value);
  return new Response(result.body,{status:result.status,statusText:result.statusText,headers});
 }
+
