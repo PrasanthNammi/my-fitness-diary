@@ -27,6 +27,9 @@ create table mfd_mcp.proposals (
  approved boolean not null default false,
  consumed boolean not null default false
 );
+-- The user-id index supports expiry/revocation cleanup and auth.users cascades.
+create index proposals_user_id_idx on mfd_mcp.proposals(user_id);
+create index proposals_client_user_idx on mfd_mcp.proposals(user_id,client_id) where not consumed;
 alter table mfd_mcp.grants enable row level security;
 alter table mfd_mcp.proposals enable row level security;
 alter table mfd_mcp.clients enable row level security;
@@ -37,8 +40,8 @@ revoke all on all tables in schema mfd_mcp from public,anon,authenticated;
 -- Ordinary browser sessions retain every existing workspace capability.
 create policy mcp_no_direct_workspace on public.forma_workspaces as restrictive
  for all to authenticated
- using ((select auth.jwt()->>'client_id') is null)
- with check ((select auth.jwt()->>'client_id') is null);
+ using ((select auth.jwt())->>'client_id' is null)
+ with check ((select auth.jwt())->>'client_id' is null);
 
 -- OAuth must not inherit unrelated social/catalogue/photo access either.
 -- Existing SECURITY DEFINER RPCs require a separate inventory before enabling
@@ -48,7 +51,7 @@ do $$ declare t record; begin
   (schemaname='public' and tablename<>'forma_workspaces') or (schemaname='storage' and tablename='objects')
  loop
   if not t.rowsecurity then raise exception 'Enable and review RLS on %.% before installing MCP',t.schemaname,t.tablename; end if;
-  execute format('create policy mcp_no_direct_access on %I.%I as restrictive for all to authenticated using ((select auth.jwt()->>''client_id'') is null) with check ((select auth.jwt()->>''client_id'') is null)',t.schemaname,t.tablename);
+  execute format('create policy mcp_no_direct_access on %I.%I as restrictive for all to authenticated using ((select auth.jwt())->>''client_id'' is null) with check ((select auth.jwt())->>''client_id'' is null)',t.schemaname,t.tablename);
  end loop;
 end $$;
 
