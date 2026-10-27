@@ -16,6 +16,11 @@ const as='aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',bs='bbbbbbbb-bbbb-4bbb-8bbb-bbbb
  insert into public.unrelated values('private');`);
  await db.exec(readFileSync('database/schema.sql','utf8'));
  await db.exec(readFileSync('database/mcp.sql','utf8'));
+ // Regression checks for hosted Supabase performance advisor findings.
+ const indexes=(await db.query("select indexname from pg_indexes where schemaname='mfd_mcp' and tablename='proposals'")).rows.map(r=>r.indexname);
+ assert(indexes.includes('proposals_user_id_idx'));
+ const ownerPolicy=(await db.query("select qual from pg_policies where schemaname='public' and tablename='forma_workspaces' and policyname='mcp_no_direct_workspace'")).rows[0].qual;
+ assert(ownerPolicy.includes('SELECT auth.jwt()'), 'JWT lookup must be cached once per statement');
  await db.exec(`insert into mfd_mcp.clients values('client-a'),('client-b');`);
  await db.exec('set role supabase_auth_admin');
  const hook=async event=>(await db.query('select mfd_mcp.access_token_hook($1::jsonb) as event',[JSON.stringify(event)])).rows[0].event;
