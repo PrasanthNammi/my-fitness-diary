@@ -24,6 +24,7 @@ jobs:
         run: npx tsc -p frontend/tsconfig.json --noEmit
       - name: Run regression tests
         run: |
+          npm run test:mcp
           npm run test:performance
           node tests/nutrition-preferences.cjs
           node tests/workout-clock.cjs

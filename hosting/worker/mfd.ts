@@ -1,10 +1,12 @@
+import {handleMcp} from './mcp';
+import {handleMcpConsent} from './mcp-consent';
 const SUPABASE='https://djyozltkmbzhwuvemxuy.supabase.co';
 const KEY='sb_publishable_nH3vRaPWVxxY636AThDN5A_ZIlQGghL';
 const ACCESS='__Host-mfd-access',REFRESH='__Host-mfd-refresh',PKCE='__Host-mfd-pkce';
 const ORIGIN='https://prasanth-nammi-portfolio.paleriver512.chatgpt.site';
 const MAX_BODY=6*1024*1024;
 export const CSP="default-src 'self'; script-src 'self'; script-src-attr 'none'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' https: data: blob:; media-src 'self' blob:; connect-src 'self' https://world.openfoodfacts.org; frame-src 'self'; frame-ancestors 'self'; worker-src 'self'; object-src 'none'; base-uri 'none'; form-action 'self'; upgrade-insecure-requests";
-type Deps={fetch:typeof fetch;assets:{fetch:(request:Request)=>Promise<Response>};origin?:string};
+type Deps={fetch:typeof fetch;assets:{fetch:(request:Request)=>Promise<Response>};origin?:string;mcpWrites?:boolean};
 class HttpError extends Error{constructor(public status:number,message:string){super(message)}}
 function cookie(name:string,value:string,age=2592000){return `${name}=${encodeURIComponent(value)}; Path=/; Max-Age=${age}; HttpOnly; Secure; SameSite=Lax`}
 function cookies(request:Request){const out=new Map<string,string>();for(const part of (request.headers.get('cookie')||'').split(';')){const i=part.indexOf('=');if(i<0)continue;try{const key=part.slice(0,i).trim();if(out.has(key))throw new HttpError(400,'Duplicate session cookie');out.set(key,decodeURIComponent(part.slice(i+1)))}catch(e){if(e instanceof HttpError)throw e}}return out}
@@ -35,7 +37,11 @@ export async function handleMfd(request:Request,deps:Deps){
    if(!['GET','HEAD','POST','PATCH','PUT','DELETE'].includes(request.method))throw new HttpError(405,'Method not allowed');
   }
   async function token(){let access=jar.get(ACCESS);if(!access||expiresSoon(access)){const refresh=jar.get(REFRESH);if(!refresh)throw new HttpError(401,'Sign in required');try{const data=await authCall('token?grant_type=refresh_token',{refresh_token:refresh});access=saveSession(data)}catch(e){if(e instanceof HttpError&&[400,401,403].includes(e.status))clearSession();throw e}}return access!}
-  if(isCallback){
+  if(url.pathname==='/mcp'||url.pathname==='/.well-known/oauth-protected-resource'||url.pathname==='/.well-known/oauth-protected-resource/mcp'){
+   result=await handleMcp(request,upstream,origin,deps.mcpWrites===true);
+  }else if(['/oauth/mcp/consent','/oauth/mcp/connections','/oauth/mcp/approve'].includes(url.pathname)){
+   result=await handleMcpConsent(request,upstream,token,origin,deps.mcpWrites===true);
+  }else if(isCallback){
    const verifier=jar.get(PKCE);setCookies.push(cookie(PKCE,'',0));
    if(!verifier)throw new HttpError(400,'Sign-in expired. Please start sign-in again.');
    saveSession(await authCall('token?grant_type=pkce',{auth_code:url.searchParams.get('code'),code_verifier:verifier}));
@@ -68,7 +74,7 @@ export async function handleMfd(request:Request,deps:Deps){
  }catch(e){const known=e instanceof HttpError;result=json({error:known?e.message:'Service unavailable. Please retry.'},known?e.status:503)}
  const headers=new Headers(result.headers);
  headers.set('Content-Security-Policy',CSP);headers.set('X-Content-Type-Options','nosniff');headers.set('X-Frame-Options','SAMEORIGIN');headers.set('Referrer-Policy','no-referrer');headers.set('Strict-Transport-Security','max-age=31536000');headers.set('Permissions-Policy','camera=(self), microphone=(), geolocation=(), payment=(), usb=(), serial=(), hid=()');
- if(api||setCookies.length||url.search){headers.set('Cache-Control','private, no-store');headers.set('CDN-Cache-Control','no-store');headers.set('Pragma','no-cache');headers.set('Vary','Cookie, Origin')}
+ if(api||url.pathname==='/mcp'||url.pathname.startsWith('/oauth/mcp/')||url.pathname.startsWith('/.well-known/oauth-protected-resource')||setCookies.length||url.search){headers.set('Cache-Control','private, no-store');headers.set('CDN-Cache-Control','no-store');headers.set('Pragma','no-cache');headers.set('Vary','Cookie, Origin')}
  for(const value of setCookies)headers.append('Set-Cookie',value);
  return new Response(result.body,{status:result.status,statusText:result.statusText,headers});
 }
