@@ -1,3 +1,5 @@
+import {selectDay} from '../lib/daySelection';
+import { finishedWorkout, workoutExpired } from '../domain/workoutLimit';
 import {activeRecords,metricLabels} from '../domain/records';
 import {toast} from '../components/ui';
 import {saveIdentity} from '../adapters/profile';
@@ -14,7 +16,7 @@ import { uid } from '../lib/format';
 import { getDB, update } from './store';
 
 
-import { startTimer } from '../domain/training';
+import { startTimer, prepareActiveBlock, logSetValues, findPrevious, ordinalWithinType } from '../domain/training';
 
 export const newSet = (type: SetType = 'normal', from?: Partial<SetEntry>): SetEntry => ({
   id: uid(),
@@ -110,32 +112,41 @@ export const training = {
 export const workouts = {
   start(routine: Routine | null) {
     const blocks: ExerciseBlock[] = routine
-      ? structuredClone(routine.exercises).map((b) => ({ ...b, id: uid(), sets: b.sets.map((s) => ({ ...s, id: uid(), done: false })) }))
+      ? structuredClone(routine.exercises).map((b) => ({ ...b, id: uid(), sets: b.sets.map((s) => ({ ...s, suggested: undefined, id: uid(), done: false })) }))
       : [];
+    const plannedBlocks = blocks.map(prepareActiveBlock);
     const a: ActiveWorkout = {
       id: uid(),
       title: routine?.name ?? 'Workout',
       routineId: routine?.id ?? null,
       startedAt: Date.now(),
-      exercises: blocks,
+      exercises: plannedBlocks,
       timers: Object.fromEntries(blocks.map((b) => [b.id, { durationSec: b.restSec, endsAt: null, pausedRemainingSec: null }])),
     };
     update((d) => void (d.active = a));
   },
   mutate(fn: (a: ActiveWorkout) => void) {
+    if (workouts.expire()) return;
     update((d) => {
       if (d.active) fn(d.active);
     });
   },
   /** Toggling a set to done starts that exercise's rest timer. */
   toggleDone(blockId: ID, setId: ID) {
+    if (workouts.expire()) return;
     update((d) => {
       const a = d.active;
       if (!a) return;
       const b = a.exercises.find((x) => x.id === blockId);
       const s = b?.sets.find((x) => x.id === setId);
       if (!b || !s) return;
-      s.done = !s.done;
+      if (s.done) s.done = false;
+      else {
+        const previous = findPrevious(d.workouts, b.exerciseId, s.type, ordinalWithinType(b.sets, b.sets.indexOf(s)));
+        const logged = logSetValues(s, b.tracking, previous);
+        if (!logged) { toast('Enter the missing set values before logging'); return; }
+        Object.assign(s, logged);
+      }
       if (s.done && b.restSec > 0) {
         const t = a.timers[b.id] ?? { durationSec: b.restSec, endsAt: null, pausedRemainingSec: null };
         a.timers[b.id] = startTimer({ ...t, durationSec: b.restSec }, Date.now());
@@ -143,25 +154,30 @@ export const workouts = {
     });
     const current=getDB();const records=activeRecords(current.workouts,current.active).get(setId);if(records?.length)toast('♛ '+records.map(r=>metricLabels[r.metric]).join(' · '));
   },
+  /** Idempotent recovery for suspended tabs, offline use and stale callbacks. */
+  expire(now = Date.now(), expectedId?: ID): { workout: Workout | null } | null {
+    const a = getDB().active;
+    if (!a || (expectedId && a.id !== expectedId) || !workoutExpired(a, now)) return null;
+    const workout = finishedWorkout(a, now);
+    update(d => {
+      if (!d.active || d.active.id !== a.id) return;
+      if (workout && !d.workouts.some(w=>w.id===workout.id)) d.workouts.push(workout);
+      d.active = null;
+    });
+    return { workout };
+  },
   discard() {
     update((d) => void (d.active = null));
   },
   /** Saves the session to history; sets that were never completed are dropped. */
   finish(): Workout | null {
     const a = getDB().active;
-    if (!a) return null;
-    const w: Workout = {
-      id: a.id,
-      title: a.title.trim() || 'Workout',
-      routineId: a.routineId,
-      startedAt: a.startedAt,
-      endedAt: Date.now(),
-      exercises: a.exercises
-        .map((b) => ({ ...b, sets: b.sets.filter((s) => s.done) }))
-        .filter((b) => b.sets.length > 0),
-    };
+    if (!a || !a.exercises.some(b => b.sets.some(s => s.done))) return null;
+    const w = finishedWorkout(a);
+    if (!w) return null;
     update((d) => {
-      d.workouts.push(w);
+      if (!d.active || d.active.id !== a.id) return;
+      if (!d.workouts.some(existing=>existing.id===w.id)) d.workouts.push(w);
       d.active = null;
     });
     return w;
@@ -178,7 +194,7 @@ export function routineFromWorkout(w: Workout, name: string, folderId: ID | null
     folderId,
     createdAt: Date.now(),
     updatedAt: Date.now(),
-    exercises: w.exercises.map((b) => ({ ...b, id: uid(), sets: b.sets.map((s) => ({ ...s, id: uid(), done: false })) })),
+    exercises: w.exercises.map((b) => ({ ...b, id: uid(), sets: b.sets.map((s) => ({ ...s, suggested: undefined, id: uid(), done: false })) })),
   };
 }
 
@@ -194,8 +210,12 @@ export const foods = {
       d.favouriteFoodIds = d.favouriteFoodIds.filter((x) => x !== id);
     });
   },
-  toggleFavourite(id: ID) {
+  toggleFavourite(id: ID, food?: Food) {
     update((d) => {
+      const adding = !d.favouriteFoodIds.includes(id);
+      const item = food ?? d.customFoods.find(f=>f.id===id) ?? d.diary.find(e=>e.food.id===id)?.food;
+      d.settings.favouriteFoods = (d.settings.favouriteFoods ?? []).filter(f=>f.id!==id);
+      if (adding && item) d.settings.favouriteFoods.push(structuredClone(item));
       d.favouriteFoodIds = d.favouriteFoodIds.includes(id)
         ? d.favouriteFoodIds.filter((x) => x !== id)
         : [id, ...d.favouriteFoodIds];
@@ -204,6 +224,7 @@ export const foods = {
 };
 
 export const diary = {
+  restore(entry: DiaryEntry) { update(d=>{if(!d.diary.some(e=>e.id===entry.id))d.diary.push(structuredClone(entry))}); },
   add(date: ISODate, meal: Meal, food: Food, amount: number, unit: PortionUnit): DiaryEntry {
     const e: DiaryEntry = { id: uid(), date, meal, food, amount, unit, createdAt: Date.now() };
     update((d) => void d.diary.push(e));
@@ -259,7 +280,7 @@ export const profileRepo = {
     update((d) => void (d.settings = { ...d.settings, ...patch }));
   },
   setSelectedDate(date: ISODate) {
-    update((d) => void (d.selectedDate = date));
+    selectDay(date);
   },
 };
 

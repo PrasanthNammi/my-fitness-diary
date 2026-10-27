@@ -1,0 +1,70 @@
+groups:
+- name: mfd-sync
+  interval: 1m
+  rules:
+  - alert: MFDSyncConflictBurst
+    expr: sum(increase(mfd_sync_operations_total{outcome="conflict"}[5m])) > 10
+    for: 1m
+    labels:
+      severity: warning
+      app: mfd
+    annotations:
+      summary: Repeated save conflicts
+      description: Inspect competing tabs, stale revisions and reconciliation; preserve
+        local data.
+  - alert: MFDSaveRequestStorm
+    expr: sum(rate(mfd_sync_operations_total[5m])) > 2
+    for: 2m
+    labels:
+      severity: critical
+      app: mfd
+    annotations:
+      summary: Unexpected save request storm
+      description: Stop duplicate writers; inspect retry circuit breaker.
+  - alert: MFDDatabaseRollbackStorm
+    expr: sum(rate(mfd_db_transactions_total{outcome="rollback"}[5m])) > 1
+    for: 2m
+    labels:
+      severity: critical
+      app: mfd
+    annotations:
+      summary: Database rollback storm
+      description: Check RPC errors; business conflicts must never use SQLSTATE 40001.
+  - alert: MFDSlowSaves
+    expr: sum(rate(mfd_sync_duration_seconds_sum[5m])) / clamp_min(sum(rate(mfd_sync_operations_total[5m])),
+      0.000001) > 1
+    for: 5m
+    labels:
+      severity: warning
+      app: mfd
+    annotations:
+      summary: Save operations average over one second
+      description: Inspect connection saturation and slow queries.
+  - alert: MFDConnectionsHigh
+    expr: mfd_db_connections / mfd_db_max_connections > 0.8
+    for: 5m
+    labels:
+      severity: warning
+      app: mfd
+    annotations:
+      summary: Database connections above 80 percent
+      description: Check connection leaks and pool pressure.
+  - alert: MFDExporterDown
+    expr: absent_over_time(mfd_metrics_exporter_up{scrape_job="mfd-sync"}[2m])
+    for: 1m
+    labels:
+      severity: critical
+      app: mfd
+    annotations:
+      summary: Sync monitoring cannot reach the exporter
+      description: Check monitoring secret, network and Edge Function availability.
+  - alert: MFDMonitoringMissing
+    expr: absent_over_time(mfd_sync_operations_total{scrape_job="mfd-sync"}[10m])
+    for: 1m
+    labels:
+      severity: critical
+      app: mfd
+    annotations:
+      summary: Sync monitoring series missing
+      description: Check the scrape job and credential; missing data must not look
+        healthy.

@@ -1,0 +1,13 @@
+const assert=require('assert/strict'),esbuild=require('esbuild'),os=require('os'),path=require('path');
+const output=path.join(os.tmpdir(),'mfd-exercise-replacement.cjs');
+esbuild.buildSync({entryPoints:['frontend/domain/training.ts'],bundle:true,platform:'node',format:'cjs',outfile:output});
+const {replaceExerciseBlock}=require(output);
+const old={id:'original',exerciseId:'barbell',tracking:'weight_reps',restSec:90,note:'original note',supersetId:'pair',sets:[{id:'done',done:true,weightKg:60,reps:8},{id:'pending',done:false,weightKg:60,reps:8}]};
+const replacement={id:'replacement',exerciseId:'bike',tracking:'distance_time',restSec:0,note:'',supersetId:null,sets:[{id:'fresh',done:false,weightKg:null,reps:null,timeSec:null,distanceKm:null}]};
+const other={...old,id:'other'},list=[other,old],before=JSON.stringify(list);
+const result=replaceExerciseBlock(list,'original',replacement,true);
+assert.equal(result[0],other);assert.equal(result[1].exerciseId,'barbell');assert.deepEqual(result[1].sets,[old.sets[0]]);assert.equal(result[2].exerciseId,'bike');assert.equal(result[2].tracking,'distance_time');assert.equal(result[2].sets[0].weightKg,null);assert.equal(result[2].sets[0].done,false);assert.equal(result[2].supersetId,'pair');assert.equal(JSON.stringify(list),before);
+assert.deepEqual(replaceExerciseBlock(list,'missing',replacement,true),list);
+assert.equal(replaceExerciseBlock([old],'original',replacement,false).length,1);
+assert.equal(replaceExerciseBlock([{...old,sets:[old.sets[1]]}],'original',replacement,true)[0].id,'replacement');
+console.log('PASS replacement preserves completed work, order and supersets; fresh tracking and sets; no source mutation');

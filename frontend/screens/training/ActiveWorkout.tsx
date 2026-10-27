@@ -1,3 +1,5 @@
+import {WorkoutClock} from './WorkoutClock';
+import { prepareActiveBlock, replaceExerciseBlock } from '../../domain/training';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { ChevronDown, Dumbbell, Pencil, Plus, Trash2 } from 'lucide-react';
 import type { ActiveWorkout as AW, ExerciseBlock, RestTimer, Workout } from '../../domain/types';
@@ -40,6 +42,7 @@ export function ActiveWorkoutScreen() {
   const weightUnit = useDB((d) => d.settings.weightUnit);
   const now = useNow(1000, !!a);
   const [pickerOpen, setPickerOpen] = useState(false);
+  const [replaceId, setReplaceId] = useState<string | null>(null);
   const [ssFor, setSsFor] = useState<string | null>(null);
   const [confirmDiscard, setConfirmDiscard] = useState(false);
   const [finishOpen, setFinishOpen] = useState(false);
@@ -61,7 +64,7 @@ export function ActiveWorkoutScreen() {
 
   const setBlocks = (fn: (l: ExerciseBlock[]) => ExerciseBlock[]) =>
     workouts.mutate((w) => {
-      w.exercises = fn(w.exercises);
+      w.exercises = fn(w.exercises).map(prepareActiveBlock);
       for (const b of w.exercises) if (!w.timers[b.id]) w.timers[b.id] = { durationSec: b.restSec, endsAt: null, pausedRemainingSec: null };
     });
 
@@ -95,9 +98,11 @@ export function ActiveWorkoutScreen() {
           <span className="ellipsis" style={{ fontSize: 16, fontWeight: 700 }}>{a.title}</span>
           <Pencil size={14} className="muted" />
         </button>
+        <WorkoutClock />
         <button className="btn btn-primary btn-sm" style={{ marginRight: 4 }} onClick={() => setFinishOpen(true)}>Finish</button>
       </header>
       <div className="screen" style={{ paddingTop: 0 }}>
+        <p className="small muted">Faded values are suggestions. Tap ✓ to log a set; untouched sets won’t be saved. Workouts end automatically after 200 minutes.</p>
         <div className="wo-summary" aria-label="Workout summary">
           <div><div className="k">Duration</div><div className="v accent-text">{duration(elapsed)}</div></div>
           <div><div className="k">Volume</div><div className="v">{fmtVolume(workingVolume(a.exercises), weightUnit)}</div></div>
@@ -122,6 +127,7 @@ export function ActiveWorkoutScreen() {
               timer={a.timers[b.id]}
               now={now}
               onChange={(nb) => setBlocks((l) => l.map((x) => (x.id === nb.id ? nb : x)))}
+              onReplace={() => setReplaceId(b.id)}
               onRemove={() => setBlocks((l) => leaveSuperset(l, b.id).filter((x) => x.id !== b.id))}
               onMove={(dir) => setBlocks((l) => moveBlock(l, i, dir))}
               onSuperset={() => setSsFor(b.id)}
@@ -141,6 +147,10 @@ export function ActiveWorkoutScreen() {
       </div>
 
       <ExercisePicker open={pickerOpen} onClose={() => setPickerOpen(false)} onAdd={(b) => setBlocks((l) => [...l, b])} />
+      {replaceId && <ExercisePicker key={replaceId} open onClose={() => setReplaceId(null)} replace initialSets={Math.max(1, a.exercises.find(x => x.id === replaceId)?.sets.filter(s => !s.done).length ?? 3)} onAdd={b => {
+        workouts.mutate(w => { w.exercises = replaceExerciseBlock(w.exercises, replaceId, prepareActiveBlock(b), true); delete w.timers[replaceId]; for (const x of w.exercises) if (!w.timers[x.id]) w.timers[x.id] = { durationSec: x.restSec, endsAt: null, pausedRemainingSec: null }; });
+        setReplaceId(null); toast('Exercise replaced');
+      }} />}
       <SupersetSheet open={!!ssFor} onClose={() => setSsFor(null)} list={a.exercises} forId={ssFor} onPick={(o) => ssFor && setBlocks((l) => joinSuperset(l, ssFor, o))} />
       <ConfirmSheet
         open={confirmDiscard}

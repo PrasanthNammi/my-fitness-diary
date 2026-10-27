@@ -1,0 +1,19 @@
+{
+  "stack_url": "https://zealousprairie1239.grafana.net",
+  "dashboard_url": "https://zealousprairie1239.grafana.net/d/mfd-sync-health/mfd-sync-health",
+  "folder_uid": "fdwrsn",
+  "datasource_uid": "grafanacloud-prom",
+  "group": "mfd-sync",
+  "scrape_job": "mfd-sync",
+  "contact_point": "MFD Email",
+  "test_notification": "Grafana confirmed successful dispatch; inbox unverified",
+  "rules": {
+    "conflict": "cg1pkgo11ai9sd",
+    "rollback": "bg1pkjtysk2yob",
+    "save_storm": "dg1pkp2dhcfswc",
+    "slow_saves": "eg1pkrk74eebke",
+    "connections": "cg1pksoqskcg0f",
+    "exporter_missing": "ag1pkuqtx5bswd",
+    "sync_series_missing": "ag1pkvyqaeneoa"
+  }
+}

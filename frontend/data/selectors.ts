@@ -1,13 +1,13 @@
 // Derived data hooks. Selectors read stable slices from the store, then compute with useMemo.
-import { useMemo } from 'react';
-import { calculateTargets, nutrientsFor, sumNutrients, type Nutrients } from '../domain/nutrition';
+import { useMemo,useSyncExternalStore } from 'react';
+import {selectedDay,subscribeDay} from '../lib/daySelection';
+import { calculateTargets, nutrientsFor, sumNutrients, fibreSummary, type Nutrients } from '../domain/nutrition';
 import type { DiaryEntry, ISODate, Meal } from '../domain/types';
 import { todayISO } from '../lib/format';
 import { useDB } from './store';
 
 export function useSelectedDate(): ISODate {
-  const d = useDB((db) => db.selectedDate);
-  return d ?? todayISO();
+  return useSyncExternalStore(subscribeDay,selectedDay);
 }
 
 export function useTargets() {
@@ -23,7 +23,8 @@ export function useDay(date: ISODate) {
     const entries = diary.filter((e) => e.date === date).sort((a, b) => a.createdAt - b.createdAt);
     const byMeal: Record<Meal, DiaryEntry[]> = { breakfast: [], lunch: [], dinner: [], snacks: [] };
     entries.forEach((e) => byMeal[e.meal].push(e));
-    return { entries, byMeal, total: sumNutrients(entries.map(entryNutrients)) };
+    const nutrients = entries.map(entryNutrients);
+    return { entries, byMeal, total: sumNutrients(nutrients), fibre: fibreSummary(nutrients) };
   }, [diary, date]);
 }
 

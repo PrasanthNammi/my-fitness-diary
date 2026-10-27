@@ -1,3 +1,4 @@
+import {MUSCLES as MUSCLE_GROUP_NAMES} from '../../domain/muscleStats';
 import {installNativeCatalogue,loadMfdCatalogue,getCatalogue,mapEntry,migrateExerciseIds} from '../../catalogue/runtime';
 import {ExerciseGuide,ExercisePage} from './ExercisePage';
 import {engine} from '../../adapters/engine';
@@ -37,7 +38,7 @@ function Stepper({ label, value, onChange, min = 0, max = 50 }: { label: string;
 type Filter = { muscle: string | null; equipment: string | null; source: ExerciseSource | null };
 
 /** Shared exercise picker used by the routine editor and the active workout. */
-export function ExercisePicker({ open, onClose, onAdd, browse }: { open: boolean; onClose: () => void; onAdd: (b: ExerciseBlock) => void; browse?:boolean }) {
+export function ExercisePicker({ open, onClose, onAdd, browse, replace = false, initialSets = 3 }: { open: boolean; onClose: () => void; onAdd: (b: ExerciseBlock) => void; browse?:boolean; replace?:boolean; initialSets?:number }) {
   const custom = useDB((d) => d.customExercises);
   const settings = useDB((d) => d.settings);
   const [q, setQ] = useState('');
@@ -76,7 +77,7 @@ export function ExercisePicker({ open, onClose, onAdd, browse }: { open: boolean
   const filterLabel = (k: keyof Filter) =>
     filter[k] ? (k === 'source' ? SOURCE_LABEL[filter[k] as ExerciseSource] : filter[k]) : k === 'muscle' ? 'Muscle' : k === 'equipment' ? 'Equipment' : 'Source';
 
-  let title = 'Exercise';
+  let title = replace ? 'Replace exercise' : 'Exercise';
   if (selected) title = 'Exercise';
   if (creating) title = 'Custom exercise';
 
@@ -103,6 +104,9 @@ export function ExercisePicker({ open, onClose, onAdd, browse }: { open: boolean
         />
       ) : selected ? (
         <AddConfig
+          key={selected.id}
+          replace={replace}
+          initialSets={initialSets}
           ex={selected}
           defaultRest={settings.defaultRestSec}
           weightUnit={settings.weightUnit}
@@ -165,9 +169,9 @@ export function ExercisePicker({ open, onClose, onAdd, browse }: { open: boolean
   );
 }
 
-function AddConfig({ ex, defaultRest, weightUnit, onAdd }: { ex: Exercise; defaultRest: number; weightUnit: 'kg' | 'lb'; onAdd: (b: ExerciseBlock) => void }) {
+function AddConfig({ ex, defaultRest, weightUnit, onAdd, replace, initialSets }: { replace?: boolean; initialSets: number; ex: Exercise; defaultRest: number; weightUnit: 'kg' | 'lb'; onAdd: (b: ExerciseBlock) => void }) {
   const fields = trackingFields(ex.tracking);
-  const [sets, setSets] = useState(3);
+  const [sets, setSets] = useState(Math.min(20, initialSets));
   const [reps, setReps] = useState(fields.includes('reps') ? 10 : 0);
   const [weight, setWeight] = useState('');
   const [rest, setRest] = useState(mss(ex.tracking === 'distance_time' ? 0 : defaultRest));
@@ -184,6 +188,7 @@ function AddConfig({ ex, defaultRest, weightUnit, onAdd }: { ex: Exercise; defau
   return (
     <div className="stack">
       <ExerciseDetail ex={ex} />
+      {replace && <Notice>Choose fresh sets for the replacement. Completed sets stay with the original exercise; unfinished sets are replaced.</Notice>}
       <div className="card card-pad stack">
         <div className="strong">Defaults</div>
         <div className="grid-2">
@@ -199,7 +204,7 @@ function AddConfig({ ex, defaultRest, weightUnit, onAdd }: { ex: Exercise; defau
           </Field>
         </div>
         {err && <Notice tone="error">{err}</Notice>}
-        <button className="btn btn-primary btn-block" onClick={submit}><Plus /> Add {sets} {sets === 1 ? 'set' : 'sets'}</button>
+        <button className="btn btn-primary btn-block" onClick={submit}><Plus /> {replace ? 'Replace with' : 'Add'} {sets} {sets === 1 ? 'set' : 'sets'}</button>
       </div>
     </div>
   );
@@ -211,6 +216,7 @@ function CustomExerciseForm({ onSaved }: { onSaved: (e: Exercise) => void }) {
   const [equipment, setEquipment] = useState<string | null>(null);
   const [tracking, setTracking] = useState<TrackingMode>('weight_reps');
   const [steps, setSteps] = useState('');
+  const [secondary, setSecondary] = useState<string[]>([]);
   const [tried, setTried] = useState(false);
   const errors = {
     name: !name.trim() ? 'Enter a name.' : exercises.all().some((e) => e.source === 'custom' && e.name.toLowerCase() === name.trim().toLowerCase()) ? 'You already have a custom exercise with this name.' : null,
@@ -228,7 +234,7 @@ function CustomExerciseForm({ onSaved }: { onSaved: (e: Exercise) => void }) {
         try { const ex = await exercises.createCustom({
           name: name.trim(),
           primaryMuscle: muscle!,
-          secondaryMuscles: [],
+          secondaryMuscles: secondary.filter(m=>m!==muscle),
           equipment: equipment!,
           tracking,
           instructions: steps.trim() ? steps.split('\n').map((s) => s.trim()).filter(Boolean) : null,
@@ -239,8 +245,9 @@ function CustomExerciseForm({ onSaved }: { onSaved: (e: Exercise) => void }) {
       <Field label="Name" htmlFor="cx-name" error={tried ? errors.name : null}>
         <input id="cx-name" className="input" value={name} onChange={(e) => setName(e.target.value)} aria-invalid={tried && !!errors.name} data-autofocus />
       </Field>
-      <SelectField label="Primary muscle" value={muscle} options={MUSCLES.map((m) => ({ value: m, label: m }))} onChange={setMuscle} />
+      <SelectField label="Primary muscle" value={muscle} options={Object.values(MUSCLE_GROUP_NAMES).map((m) => ({ value: m, label: m }))} onChange={setMuscle} />
       {tried && errors.muscle && <div className="err small danger-text">{errors.muscle}</div>}
+      <details><summary className="small">Secondary muscles · optional</summary><div className="custom-muscle-choices">{Object.values(MUSCLE_GROUP_NAMES).filter(m=>m!==muscle&&!['Other','Cardio','Full body'].includes(m)).map(m=><label key={m}><input type="checkbox" checked={secondary.includes(m)} onChange={()=>setSecondary(old=>old.includes(m)?old.filter(x=>x!==m):[...old,m])}/>{m}</label>)}</div></details>
       <SelectField label="Equipment" value={equipment} options={EQUIPMENT.map((m) => ({ value: m, label: m }))} onChange={setEquipment} />
       {tried && errors.equipment && <div className="err small danger-text">{errors.equipment}</div>}
       <SelectField label="Tracking" value={tracking} options={TRACKING_MODES.map((m) => ({ value: m, label: TRACKING_LABEL[m] }))} onChange={setTracking} />

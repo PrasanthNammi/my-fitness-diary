@@ -5,11 +5,19 @@ insert into public.forma_workspaces(user_id,payload) values(current_setting('tes
 set local role authenticated;
 select set_config('request.jwt.claim.sub',current_setting('test.a'),true);
 insert into public.mfd_profiles(username,display_name) values('test_'||substr(current_setting('test.a'),1,8),'A');
+insert into storage.objects(bucket_id,name) values('mfd-workout-photos',current_setting('test.a')||'/test.jpg');
+insert into public.mfd_workout_photos(workout_id,path) values('permission-test',current_setting('test.a')||'/test.jpg');
 insert into public.mfd_friendships(recipient) values(current_setting('test.b')::uuid);
 do $$declare n int;begin update public.mfd_friendships set status='accepted' where sender=auth.uid();get diagnostics n=row_count;if n<>0 then raise exception 'Sender accepted own request';end if;end$$;
 select set_config('request.jwt.claim.sub',current_setting('test.b'),true);
 do $$declare n int;begin select count(*) into n from public.mfd_social_workouts where owner_id=current_setting('test.a')::uuid;if n<>0 then raise exception 'Pending friend saw workouts';end if;end$$;
 update public.mfd_friendships set status='accepted' where recipient=auth.uid();
+do $$declare n int;begin
+ select count(*) into n from storage.objects where bucket_id='mfd-workout-photos' and name=current_setting('test.a')||'/test.jpg';if n<>1 then raise exception 'Accepted friend cannot read workout photo';end if;
+ begin insert into storage.objects(bucket_id,name) values('mfd-workout-photos',current_setting('test.a')||'/forbidden.jpg');raise exception 'Cross-owner photo upload allowed';exception when insufficient_privilege then null;end;
+ update public.forma_workspaces set payload='{}' where user_id=current_setting('test.a')::uuid;get diagnostics n=row_count;if n<>0 then raise exception 'Cross-owner workspace write allowed';end if;
+ delete from public.mfd_workout_photos where owner_id=current_setting('test.a')::uuid;get diagnostics n=row_count;if n<>0 then raise exception 'Friend deleted owner photo';end if;
+end $$;
 do $$declare n int;v jsonb;begin select count(*) into n from public.mfd_social_workouts where owner_id=current_setting('test.a')::uuid;if n<>1 then raise exception 'Accepted friend cannot see workouts';end if;select data into v from public.mfd_social_workouts where owner_id=current_setting('test.a')::uuid;if v?'meals' or v?'notes' or v?'hevyRows' or(v->'sets'->0)?'notes' then raise exception 'Private metadata exposed';end if;select count(*) into n from public.forma_workspaces where user_id=current_setting('test.a')::uuid;if n<>0 then raise exception 'Private workspace exposed';end if;end$$;
 select set_config('request.jwt.claim.sub',current_setting('test.a'),true);
 insert into public.mfd_messages(recipient,body) values(current_setting('test.b')::uuid,'Test');
@@ -17,10 +25,25 @@ select set_config('request.jwt.claim.sub',current_setting('test.b'),true);
 update public.mfd_messages set read_at=now()+interval '1 year' where recipient=auth.uid();
 do $$declare t timestamptz;begin select expires_at into t from public.mfd_messages where recipient=auth.uid();if t>now()+interval '5 minutes 5 seconds' then raise exception 'Client extended expiry';end if;end$$;
 select set_config('request.jwt.claim.sub',current_setting('test.c'),true);
+do $$declare n int;begin
+ select count(*) into n from storage.objects where bucket_id='mfd-workout-photos' and name=current_setting('test.a')||'/test.jpg';if n<>0 then raise exception 'Stranger read workout photo';end if;
+ select count(*) into n from public.mfd_workout_photos where owner_id=current_setting('test.a')::uuid;if n<>0 then raise exception 'Stranger read photo metadata';end if;
+end $$;
 do $$declare n int;begin select count(*) into n from public.mfd_messages where sender=current_setting('test.a')::uuid;if n<>0 then raise exception 'Third party read chat';end if;select count(*) into n from public.mfd_social_workouts where owner_id=current_setting('test.a')::uuid;if n<>0 then raise exception 'Stranger saw workouts';end if;end$$;
 select set_config('request.jwt.claim.sub',current_setting('test.b'),true);
+delete from public.mfd_friendships where sender=current_setting('test.a')::uuid and recipient=auth.uid();
+do $$declare n int;begin
+ select count(*) into n from public.mfd_social_workouts where owner_id=current_setting('test.a')::uuid;if n<>0 then raise exception 'Removed friend read workout';end if;
+ select count(*) into n from storage.objects where bucket_id='mfd-workout-photos' and name=current_setting('test.a')||'/test.jpg';if n<>0 then raise exception 'Removed friend read photo';end if;
+ select count(*) into n from public.mfd_messages where sender=current_setting('test.a')::uuid;if n<>0 then raise exception 'Removed friend read chat';end if;
+end $$;
+select set_config('request.jwt.claim.sub',current_setting('test.a'),true);
+insert into public.mfd_friendships(recipient) values(current_setting('test.b')::uuid);
+select set_config('request.jwt.claim.sub',current_setting('test.b'),true);
+update public.mfd_friendships set status='accepted' where recipient=auth.uid();
 insert into public.mfd_blocks(target_id) values(current_setting('test.a')::uuid);
+do $$declare n int;begin select count(*) into n from storage.objects where bucket_id='mfd-workout-photos' and name=current_setting('test.a')||'/test.jpg';if n<>0 then raise exception 'Block failed for photo authorization';end if;end $$;
 do $$declare n int;begin select count(*) into n from public.mfd_social_workouts where owner_id=current_setting('test.a')::uuid;if n<>0 then raise exception 'Block failed to revoke access';end if;select count(*) into n from public.mfd_messages where sender=current_setting('test.a')::uuid;if n<>0 then raise exception 'Block failed for messages';end if;end$$;
 reset role;
-select 'PASS: friend acceptance, restricted history, private workspace isolation, sanitized projection, chat privacy, server expiry and blocks' as result;
+select 'PASS: friend acceptance/removal, private workspace read/write isolation, sanitized projection, chat privacy/expiry, private photo authorization, cross-owner upload/delete denial and blocks' as result;
 rollback;

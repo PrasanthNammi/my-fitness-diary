@@ -22,6 +22,7 @@ export interface Profile {
   goal: Goal;
   targetWeightKg: number;
   trainingDaysPerWeek: number;
+  waterGoalMl?: number;
 }
 
 export interface NutritionTargets {
@@ -64,6 +65,7 @@ export interface Exercise {
 }
 
 export interface SetEntry {
+  suggested?: Partial<Record<'weightKg' | 'reps' | 'timeSec' | 'distanceKm' | 'floors' | 'steps', number | null>>;
   id: ID;
   type: SetType;
   weightKg: number | null;
@@ -115,6 +117,7 @@ export interface ActiveWorkout {
   routineId: ID | null;
   startedAt: number;
   exercises: ExerciseBlock[];
+  clock?: { mode: 'timer' | 'stopwatch'; durationSec: number; valueMs: number; startedAt: number | null };
   timers: Record<ID, RestTimer>; // keyed by ExerciseBlock id
 }
 
@@ -210,6 +213,7 @@ export interface Account {
 }
 
 export interface Settings {
+  favouriteFoods?: Food[];
   weightUnit: 'kg' | 'lb';
   energyUnit: 'kcal' | 'kJ';
   defaultRestSec: number;

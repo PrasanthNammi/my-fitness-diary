@@ -1,0 +1,7 @@
+import type {DiaryEntry,ISODate} from './types';
+import {nutrientsFor} from './nutrition';
+import {addDays,fromISODate,toISODate} from '../lib/format';
+export type FoodPeriod='day'|'week'|'month';
+export function foodPeriod(date:ISODate,period:FoodPeriod){const d=fromISODate(date);let start=date,end=addDays(date,1);if(period==='week'){start=addDays(date,-((d.getDay()+6)%7));end=addDays(start,7)}if(period==='month'){start=toISODate(new Date(d.getFullYear(),d.getMonth(),1));end=toISODate(new Date(d.getFullYear(),d.getMonth()+1,1))}let days=0;for(let cursor=start;cursor<end;cursor=addDays(cursor,1))days++;return {start,end,days}}
+export function shiftFoodPeriod(date:ISODate,period:FoodPeriod,delta:number){if(period!=='month')return addDays(date,delta*(period==='week'?7:1));const d=fromISODate(date);return toISODate(new Date(d.getFullYear(),d.getMonth()+delta,1))}
+export function foodSummary(entries:DiaryEntry[]){const rows=entries.map(entry=>({entry,nutrients:nutrientsFor(entry.food,entry.amount,entry.unit)}));const keys=['kcal','protein','carbs','fat','fibre','sugars','saturates','salt'] as const;return {rows,values:Object.fromEntries(keys.map(key=>{const known=rows.filter(r=>r.nutrients[key]!=null&&Number.isFinite(r.nutrients[key]));return [key,{value:known.length||!rows.length?known.reduce((n,r)=>n+r.nutrients[key]!,0):null,missing:rows.length-known.length}]})) as Record<typeof keys[number],{value:number|null;missing:number}>}}

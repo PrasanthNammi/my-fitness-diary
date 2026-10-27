@@ -30,7 +30,7 @@ begin
   update public.forma_workspaces set payload=document,revision=revision+1,updated_at=now()
   where user_id=v_user and revision=expected_revision returning revision,updated_at into v_revision,v_at;
  end if;
- if v_revision is null then raise exception 'Workspace changed on another device. Reload before saving.' using errcode='40001'; end if;
+ if v_revision is null then raise exception 'Workspace changed on another device. Reload before saving.' using errcode='PT409'; end if;
  return query select v_revision,v_at;
 end $$;
 revoke all on function public.forma_save_workspace(jsonb,bigint) from public,anon;

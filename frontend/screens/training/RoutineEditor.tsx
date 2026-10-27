@@ -1,3 +1,4 @@
+import { replaceExerciseBlock } from '../../domain/training';
 import {resolveExercise} from '../../catalogue/runtime';
 import { useEffect, useMemo, useState } from 'react';
 import { Dumbbell, Plus } from 'lucide-react';
@@ -29,6 +30,7 @@ export function RoutineEditor({ routineId, folderId }: { routineId: string | nul
   });
   useEffect(()=>{setBlocks(current=>{let changed=false;const next=current.map(b=>{const saved=existing?.exercises.find(x=>x.id===b.id);const resolved=b.exerciseId.startsWith('history:')?resolveExercise({exercise:decodeURIComponent(b.exerciseId.slice(8))}):saved?.exerciseId;if(resolved&&resolved!==b.exerciseId){changed=true;return {...b,exerciseId:resolved}}return b});return changed?next:current})},[catalogue]);
   const [pickerOpen, setPickerOpen] = useState(false);
+  const [replaceId, setReplaceId] = useState<string | null>(null);
   const [ssFor, setSsFor] = useState<string | null>(null);
   const [tried, setTried] = useState(false);
   const [confirmLeave, setConfirmLeave] = useState(false);
@@ -114,7 +116,8 @@ export function RoutineEditor({ routineId, folderId }: { routineId: string | nul
                 supersetLetter={b.supersetId ? letters[b.supersetId] ?? null : null}
                 weightUnit={weightUnit}
                 onChange={(nb) => updateBlock(i, nb)}
-                onRemove={() => setBlocks((l) => leaveSuperset(l, b.id).filter((x) => x.id !== b.id))}
+                onReplace={() => setReplaceId(b.id)}
+              onRemove={() => setBlocks((l) => leaveSuperset(l, b.id).filter((x) => x.id !== b.id))}
                 onMove={(dir) => setBlocks((l) => moveBlock(l, i, dir))}
                 onSuperset={() => setSsFor(b.id)}
                 onUnsuperset={() => setBlocks((l) => leaveSuperset(l, b.id))}
@@ -129,6 +132,10 @@ export function RoutineEditor({ routineId, folderId }: { routineId: string | nul
       </div>
 
       <ExercisePicker open={pickerOpen} onClose={() => setPickerOpen(false)} onAdd={(b) => setBlocks((l) => [...l, b])} />
+      {replaceId && <ExercisePicker key={replaceId} open onClose={() => setReplaceId(null)} replace initialSets={Math.max(1, blocks.find(x => x.id === replaceId)?.sets.filter(s => !s.done).length ?? 3)} onAdd={b => {
+        setBlocks(l => replaceExerciseBlock(l, replaceId, b, false));
+        setReplaceId(null); toast('Exercise replaced');
+      }} />}
       <SupersetSheet open={!!ssFor} onClose={() => setSsFor(null)} list={blocks} forId={ssFor} onPick={(other) => ssFor && setBlocks((l) => joinSuperset(l, ssFor, other))} />
       <ConfirmSheet
         open={confirmLeave}

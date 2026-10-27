@@ -1,0 +1,464 @@
+[
+  {
+    "uid": "mfdsyncconflictburst",
+    "title": "Repeated save conflicts",
+    "folderUID": "fdwrsn",
+    "ruleGroup": "mfd-sync",
+    "condition": "C",
+    "for": "1m",
+    "noDataState": "Alerting",
+    "execErrState": "Alerting",
+    "labels": {
+      "severity": "warning",
+      "app": "mfd"
+    },
+    "annotations": {
+      "summary": "Repeated save conflicts",
+      "description": "Inspect competing tabs, stale revisions and reconciliation; preserve local data."
+    },
+    "data": [
+      {
+        "refId": "A",
+        "relativeTimeRange": {
+          "from": 600,
+          "to": 0
+        },
+        "datasourceUid": "grafanacloud-prom",
+        "model": {
+          "refId": "A",
+          "expr": "sum(increase(mfd_sync_operations_total{outcome=\"conflict\"}[5m])) > bool 10",
+          "instant": true,
+          "range": false
+        }
+      },
+      {
+        "refId": "C",
+        "relativeTimeRange": {
+          "from": 0,
+          "to": 0
+        },
+        "datasourceUid": "__expr__",
+        "model": {
+          "refId": "C",
+          "type": "threshold",
+          "expression": "A",
+          "conditions": [
+            {
+              "evaluator": {
+                "type": "gt",
+                "params": [
+                  0
+                ]
+              },
+              "operator": {
+                "type": "and"
+              },
+              "reducer": {
+                "type": "last",
+                "params": []
+              },
+              "type": "query"
+            }
+          ]
+        }
+      }
+    ],
+    "isPaused": false
+  },
+  {
+    "uid": "mfdsaverequeststorm",
+    "title": "Unexpected save request storm",
+    "folderUID": "fdwrsn",
+    "ruleGroup": "mfd-sync",
+    "condition": "C",
+    "for": "2m",
+    "noDataState": "Alerting",
+    "execErrState": "Alerting",
+    "labels": {
+      "severity": "critical",
+      "app": "mfd"
+    },
+    "annotations": {
+      "summary": "Unexpected save request storm",
+      "description": "Stop duplicate writers; inspect retry circuit breaker."
+    },
+    "data": [
+      {
+        "refId": "A",
+        "relativeTimeRange": {
+          "from": 600,
+          "to": 0
+        },
+        "datasourceUid": "grafanacloud-prom",
+        "model": {
+          "refId": "A",
+          "expr": "sum(rate(mfd_sync_operations_total[5m])) > bool 2",
+          "instant": true,
+          "range": false
+        }
+      },
+      {
+        "refId": "C",
+        "relativeTimeRange": {
+          "from": 0,
+          "to": 0
+        },
+        "datasourceUid": "__expr__",
+        "model": {
+          "refId": "C",
+          "type": "threshold",
+          "expression": "A",
+          "conditions": [
+            {
+              "evaluator": {
+                "type": "gt",
+                "params": [
+                  0
+                ]
+              },
+              "operator": {
+                "type": "and"
+              },
+              "reducer": {
+                "type": "last",
+                "params": []
+              },
+              "type": "query"
+            }
+          ]
+        }
+      }
+    ],
+    "isPaused": false
+  },
+  {
+    "uid": "mfddatabaserollbackstorm",
+    "title": "Database rollback storm",
+    "folderUID": "fdwrsn",
+    "ruleGroup": "mfd-sync",
+    "condition": "C",
+    "for": "2m",
+    "noDataState": "Alerting",
+    "execErrState": "Alerting",
+    "labels": {
+      "severity": "critical",
+      "app": "mfd"
+    },
+    "annotations": {
+      "summary": "Database rollback storm",
+      "description": "Check RPC errors; business conflicts must never use SQLSTATE 40001."
+    },
+    "data": [
+      {
+        "refId": "A",
+        "relativeTimeRange": {
+          "from": 600,
+          "to": 0
+        },
+        "datasourceUid": "grafanacloud-prom",
+        "model": {
+          "refId": "A",
+          "expr": "sum(rate(mfd_db_transactions_total{outcome=\"rollback\"}[5m])) > bool 1",
+          "instant": true,
+          "range": false
+        }
+      },
+      {
+        "refId": "C",
+        "relativeTimeRange": {
+          "from": 0,
+          "to": 0
+        },
+        "datasourceUid": "__expr__",
+        "model": {
+          "refId": "C",
+          "type": "threshold",
+          "expression": "A",
+          "conditions": [
+            {
+              "evaluator": {
+                "type": "gt",
+                "params": [
+                  0
+                ]
+              },
+              "operator": {
+                "type": "and"
+              },
+              "reducer": {
+                "type": "last",
+                "params": []
+              },
+              "type": "query"
+            }
+          ]
+        }
+      }
+    ],
+    "isPaused": false
+  },
+  {
+    "uid": "mfdslowsaves",
+    "title": "Save operations average over one second",
+    "folderUID": "fdwrsn",
+    "ruleGroup": "mfd-sync",
+    "condition": "C",
+    "for": "5m",
+    "noDataState": "Alerting",
+    "execErrState": "Alerting",
+    "labels": {
+      "severity": "warning",
+      "app": "mfd"
+    },
+    "annotations": {
+      "summary": "Save operations average over one second",
+      "description": "Inspect connection saturation and slow queries."
+    },
+    "data": [
+      {
+        "refId": "A",
+        "relativeTimeRange": {
+          "from": 600,
+          "to": 0
+        },
+        "datasourceUid": "grafanacloud-prom",
+        "model": {
+          "refId": "A",
+          "expr": "sum(rate(mfd_sync_duration_seconds_sum[5m])) / clamp_min(sum(rate(mfd_sync_operations_total[5m])), 0.000001) > bool 1",
+          "instant": true,
+          "range": false
+        }
+      },
+      {
+        "refId": "C",
+        "relativeTimeRange": {
+          "from": 0,
+          "to": 0
+        },
+        "datasourceUid": "__expr__",
+        "model": {
+          "refId": "C",
+          "type": "threshold",
+          "expression": "A",
+          "conditions": [
+            {
+              "evaluator": {
+                "type": "gt",
+                "params": [
+                  0
+                ]
+              },
+              "operator": {
+                "type": "and"
+              },
+              "reducer": {
+                "type": "last",
+                "params": []
+              },
+              "type": "query"
+            }
+          ]
+        }
+      }
+    ],
+    "isPaused": false
+  },
+  {
+    "uid": "mfdconnectionshigh",
+    "title": "Database connections above 80 percent",
+    "folderUID": "fdwrsn",
+    "ruleGroup": "mfd-sync",
+    "condition": "C",
+    "for": "5m",
+    "noDataState": "Alerting",
+    "execErrState": "Alerting",
+    "labels": {
+      "severity": "warning",
+      "app": "mfd"
+    },
+    "annotations": {
+      "summary": "Database connections above 80 percent",
+      "description": "Check connection leaks and pool pressure."
+    },
+    "data": [
+      {
+        "refId": "A",
+        "relativeTimeRange": {
+          "from": 600,
+          "to": 0
+        },
+        "datasourceUid": "grafanacloud-prom",
+        "model": {
+          "refId": "A",
+          "expr": "mfd_db_connections / mfd_db_max_connections > bool 0.8",
+          "instant": true,
+          "range": false
+        }
+      },
+      {
+        "refId": "C",
+        "relativeTimeRange": {
+          "from": 0,
+          "to": 0
+        },
+        "datasourceUid": "__expr__",
+        "model": {
+          "refId": "C",
+          "type": "threshold",
+          "expression": "A",
+          "conditions": [
+            {
+              "evaluator": {
+                "type": "gt",
+                "params": [
+                  0
+                ]
+              },
+              "operator": {
+                "type": "and"
+              },
+              "reducer": {
+                "type": "last",
+                "params": []
+              },
+              "type": "query"
+            }
+          ]
+        }
+      }
+    ],
+    "isPaused": false
+  },
+  {
+    "uid": "mfdexporterdown",
+    "title": "Sync monitoring cannot reach the exporter",
+    "folderUID": "fdwrsn",
+    "ruleGroup": "mfd-sync",
+    "condition": "C",
+    "for": "1m",
+    "noDataState": "OK",
+    "execErrState": "Alerting",
+    "labels": {
+      "severity": "critical",
+      "app": "mfd"
+    },
+    "annotations": {
+      "summary": "Sync monitoring cannot reach the exporter",
+      "description": "Check monitoring secret, network and Edge Function availability."
+    },
+    "data": [
+      {
+        "refId": "A",
+        "relativeTimeRange": {
+          "from": 600,
+          "to": 0
+        },
+        "datasourceUid": "grafanacloud-prom",
+        "model": {
+          "refId": "A",
+          "expr": "absent_over_time(mfd_metrics_exporter_up{scrape_job=\"mfd-sync\"}[2m])",
+          "instant": true,
+          "range": false
+        }
+      },
+      {
+        "refId": "C",
+        "relativeTimeRange": {
+          "from": 0,
+          "to": 0
+        },
+        "datasourceUid": "__expr__",
+        "model": {
+          "refId": "C",
+          "type": "threshold",
+          "expression": "A",
+          "conditions": [
+            {
+              "evaluator": {
+                "type": "gt",
+                "params": [
+                  0
+                ]
+              },
+              "operator": {
+                "type": "and"
+              },
+              "reducer": {
+                "type": "last",
+                "params": []
+              },
+              "type": "query"
+            }
+          ]
+        }
+      }
+    ],
+    "isPaused": false
+  },
+  {
+    "uid": "mfdmonitoringmissing",
+    "title": "Sync monitoring series missing",
+    "folderUID": "fdwrsn",
+    "ruleGroup": "mfd-sync",
+    "condition": "C",
+    "for": "1m",
+    "noDataState": "OK",
+    "execErrState": "Alerting",
+    "labels": {
+      "severity": "critical",
+      "app": "mfd"
+    },
+    "annotations": {
+      "summary": "Sync monitoring series missing",
+      "description": "Check the scrape job and credential; missing data must not look healthy."
+    },
+    "data": [
+      {
+        "refId": "A",
+        "relativeTimeRange": {
+          "from": 600,
+          "to": 0
+        },
+        "datasourceUid": "grafanacloud-prom",
+        "model": {
+          "refId": "A",
+          "expr": "absent_over_time(mfd_sync_operations_total{scrape_job=\"mfd-sync\"}[10m])",
+          "instant": true,
+          "range": false
+        }
+      },
+      {
+        "refId": "C",
+        "relativeTimeRange": {
+          "from": 0,
+          "to": 0
+        },
+        "datasourceUid": "__expr__",
+        "model": {
+          "refId": "C",
+          "type": "threshold",
+          "expression": "A",
+          "conditions": [
+            {
+              "evaluator": {
+                "type": "gt",
+                "params": [
+                  0
+                ]
+              },
+              "operator": {
+                "type": "and"
+              },
+              "reducer": {
+                "type": "last",
+                "params": []
+              },
+              "type": "query"
+            }
+          ]
+        }
+      }
+    ],
+    "isPaused": false
+  }
+]
