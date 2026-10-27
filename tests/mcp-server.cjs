@@ -52,6 +52,18 @@ const form=(path,body,headers={})=>request(path,'POST',body,{Cookie:cookie,Origi
  r=await handle(rpc('tools/list',{padding:'x'.repeat(17000)}),deps);assert.equal(r.status,413);
  r=await handle(request('/oauth/mcp/consent?authorization_id=auth-1'),deps);assert.equal(r.status,401);
  r=await handle(request('/oauth/mcp/consent?authorization_id=auth-1','GET',undefined,{Cookie:cookie}),deps);body=await r.text();assert(body.includes('&lt;script&gt;'));assert(!body.includes('<script>'));assert(body.includes('alice@example.invalid'));assert(!body.includes('checked'));assert(r.headers.get('cache-control').includes('no-store'));
+ // Consent pages accept only a first-party token for the authenticated user.
+ for(const altered of [
+  {sub:'bob',client_id:undefined,aud:'authenticated'},
+  {aud:origin+'/mcp',client_id:'client-a'},
+  {role:'service_role',client_id:undefined,aud:'authenticated'},
+  {exp:1,client_id:undefined,aud:'authenticated'},
+  {session_id:undefined,client_id:undefined,aud:'authenticated'}
+ ]){
+  const candidate=jwt({...claims,client_id:undefined,aud:'authenticated',...altered});
+  r=await handle(request('/oauth/mcp/consent?authorization_id=auth-1','GET',undefined,{Cookie:'__Host-mfd-access='+candidate}),deps);
+  assert.equal(r.status,403);
+ }
  r=await handle(form('/oauth/mcp/consent','authorization_id=auth-1&decision=approve&permission=workouts',{Origin:'https://evil.example'}),deps);assert.equal(r.status,403);
  authorizationUser='bob';r=await handle(form('/oauth/mcp/consent','authorization_id=auth-1&decision=approve&permission=workouts'),deps);assert.equal(r.status,403);authorizationUser='alice';
  r=await handle(form('/oauth/mcp/consent','authorization_id=auth-1&decision=approve'),deps);assert.equal(r.status,400);
