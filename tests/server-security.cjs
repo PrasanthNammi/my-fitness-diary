@@ -1,6 +1,6 @@
 const {buildSync}=require('esbuild'),vm=require('vm'),assert=require('assert');
 const c={module:{exports:{}},Request,Response,Headers,URL,URLSearchParams,Uint8Array,TextEncoder,TextDecoder,AbortSignal,crypto:require('crypto').webcrypto,atob,btoa,Date};vm.createContext(c);vm.runInContext(buildSync({entryPoints:['hosting/worker/mfd.ts'],bundle:true,format:'cjs',write:false}).outputFiles[0].text,c);const handle=c.module.exports.handleMfd;
-const origin='https://prasanth-nammi-portfolio.paleriver512.chatgpt.site';
+const origin='https://prasanth-nammi-portfolio.shanustylish777.chatgpt.site';
 const token='eyJhbGciOiJIUzI1NiJ9.'+Buffer.from(JSON.stringify({exp:Math.floor(Date.now()/1000)+3600,sub:'alice'})).toString('base64url')+'.signature';
 const issued={access_token:token,refresh_token:'refresh-private',user:{id:'alice',email:'alice@example.invalid'}};
 let calls=[],reply=()=>Response.json(issued);

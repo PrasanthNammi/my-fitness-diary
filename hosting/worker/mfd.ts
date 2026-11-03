@@ -1,7 +1,7 @@
 const SUPABASE='https://djyozltkmbzhwuvemxuy.supabase.co';
 const KEY='sb_publishable_nH3vRaPWVxxY636AThDN5A_ZIlQGghL';
 const ACCESS='__Host-mfd-access',REFRESH='__Host-mfd-refresh',PKCE='__Host-mfd-pkce';
-const ORIGIN='https://prasanth-nammi-portfolio.paleriver512.chatgpt.site';
+const ORIGIN='https://prasanth-nammi-portfolio.shanustylish777.chatgpt.site';
 const MAX_BODY=6*1024*1024;
 export const CSP="default-src 'self'; script-src 'self'; script-src-attr 'none'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' https: data: blob:; media-src 'self' blob:; connect-src 'self' https://world.openfoodfacts.org; frame-src 'self'; frame-ancestors 'self'; worker-src 'self'; object-src 'none'; base-uri 'none'; form-action 'self'; upgrade-insecure-requests";
 type Deps={fetch:typeof fetch;assets:{fetch:(request:Request)=>Promise<Response>};origin?:string};
