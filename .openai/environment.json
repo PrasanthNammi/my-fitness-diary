@@ -5,5 +5,6 @@
   "MFD_OAUTH_ISSUER": "https://gngnrmzeghjzqsmzuktl.supabase.co/auth/v1",
   "MFD_SITE_ORIGIN": "https://mfd-oauth-testing.paleriver512.chatgpt.site",
   "MFD_MCP_RESOURCE_URL": "https://mfd-oauth-testing.paleriver512.chatgpt.site/mcp",
-  "MFD_MCP_WRITES": "false"
+  "MFD_MCP_WRITES": "false",
+  "MFD_CONNECTOR_URL": "https://mfd-connect-staging.shanustylish777.workers.dev"
 }

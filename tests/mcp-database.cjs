@@ -24,10 +24,10 @@ const as='aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',bs='bbbbbbbb-bbbb-4bbb-8bbb-bbbb
  await db.exec(`insert into mfd_mcp.clients values('client-a'),('client-b');`);
  await db.exec('set role supabase_auth_admin');
  const hook=async event=>(await db.query('select mfd_mcp.access_token_hook($1::jsonb) as event',[JSON.stringify(event)])).rows[0].event;
- assert.equal((await hook({client_id:'client-a',claims:{aud:'authenticated',sub:alice,client_id:'client-a'}})).claims.aud,'https://prasanth-nammi-portfolio.paleriver512.chatgpt.site/mcp');
+ assert.equal((await hook({client_id:'client-a',claims:{aud:'authenticated',sub:alice,client_id:'client-a'}})).claims.aud,'https://mfd-oauth-testing.paleriver512.chatgpt.site/mcp');
  assert.equal((await hook({claims:{aud:'authenticated',sub:alice}})).claims.aud,'authenticated');
  assert.equal((await hook({client_id:'unregistered',claims:{aud:'authenticated'}})).claims.aud,'authenticated');
- async function identity(user=alice,client,session=user===alice?as:bs,aud='https://prasanth-nammi-portfolio.paleriver512.chatgpt.site/mcp'){
+ async function identity(user=alice,client,session=user===alice?as:bs,aud='https://mfd-oauth-testing.paleriver512.chatgpt.site/mcp'){
   await db.exec('reset role');
   await db.query("select set_config('request.jwt.claims',$1,false)",[JSON.stringify({sub:user,session_id:session,...(client?{client_id:client,aud}:{})})]);
   await db.exec('set role authenticated');
@@ -89,6 +89,30 @@ const as='aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',bs='bbbbbbbb-bbbb-4bbb-8bbb-bbbb
  await identity(alice,'client-a');proposal=await rpc('propose_water_goal',{expected_revision:3,water_goal_ml:3000});
  await identity();await rpc('approve',proposal);await rpc('revoke',{client_id:'client-a'});
  await identity(alice,'client-a');await denied(()=>rpc('apply_water_goal',proposal));
+ // Duplicate proposals are separate immutable requests; approval is never inherited.
+ await identity();await rpc('consent',{client_id:'client-a',permissions:['profile','workouts','routines','nutrition','progress']});
+ await identity(alice,'client-a');
+ const first=await rpc('propose_water_goal',{expected_revision:3,water_goal_ml:3500});
+ const duplicate=await rpc('propose_water_goal',{expected_revision:3,water_goal_ml:3500});
+ assert.notEqual(first.proposal_id,duplicate.proposal_id);
+ await identity();await rpc('approve',first);
+ await identity(alice,'client-a');await denied(()=>rpc('apply_water_goal',duplicate));
+ assert.equal((await rpc('apply_water_goal',first)).revision,4);
+ await identity();await denied(()=>rpc('approve',duplicate),/Workspace changed/);
+ // Owner IDs supplied directly to the database cannot redirect reads or writes.
+ for(const [user,other] of [[alice,bob],[bob,alice]]){
+  await identity(user);await rpc('consent',{client_id:'client-b',permissions:['profile','workouts','routines','nutrition','progress']});
+  await identity(user,'client-b');
+  for(const section of ['profile','workouts','routines','nutrition','progress']){
+   const clean=await rpc(section),forged=await rpc(section,{user_id:other});
+   assert.deepEqual(forged,clean);
+   assert(!JSON.stringify(forged).includes(user===alice?'bob-workout':'alice-workout'));
+  }
+  assert.equal((await db.query('update public.forma_workspaces set payload=$$ {} $$::jsonb where user_id=$1 returning user_id',[other])).rows.length,0);
+  assert.equal((await db.query('delete from public.forma_workspaces where user_id=$1 returning user_id',[other])).rows.length,0);
+  await denied(()=>rpc('apply_water_goal',{proposal_id:first.proposal_id}));
+ }
+ console.log('PASS duplicate proposals require independent approval, stale duplicates fail, and bidirectional cross-account reads/writes fail');
  await db.exec(`reset role; delete from auth.sessions where id='${as}'`);
  await identity();await denied(()=>rpc('connections'));
  await db.exec('reset role; set role anon');await denied(()=>rpc('workouts'));

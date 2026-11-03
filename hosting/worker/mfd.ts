@@ -1,3 +1,4 @@
+import type {AuthUser, AuthResponse} from './auth-types';
 import {environment} from '../../src/environment';
 import {handleMcp} from './mcp';
 import {handleMcpConsent} from './mcp-consent';
@@ -10,8 +11,8 @@ type Deps={fetch:typeof fetch;assets:{fetch:(request:Request)=>Promise<Response>
 class HttpError extends Error{constructor(public status:number,message:string){super(message)}}
 function cookie(name:string,value:string,age=2592000){return `${name}=${encodeURIComponent(value)}; Path=/; Max-Age=${age}; HttpOnly; Secure; SameSite=Lax`}
 function cookies(request:Request){const out=new Map<string,string>();for(const part of (request.headers.get('cookie')||'').split(';')){const i=part.indexOf('=');if(i<0)continue;try{const key=part.slice(0,i).trim();if(out.has(key))throw new HttpError(400,'Duplicate session cookie');out.set(key,decodeURIComponent(part.slice(i+1)))}catch(e){if(e instanceof HttpError)throw e}}return out}
-function safeUser(user:any){return user?.id?{id:user.id,email:user.email||'',user_metadata:{}}:null}
-function json(body:any,status=200){return new Response(JSON.stringify(body),{status,headers:{'Content-Type':'application/json'}})}
+function safeUser(user:AuthUser | undefined){return user?.id?{id:user.id,email:user.email||'',user_metadata:{}}:null}
+function json(body:unknown,status=200){return new Response(JSON.stringify(body),{status,headers:{'Content-Type':'application/json'}})}
 function b64(bytes:Uint8Array){return btoa(String.fromCharCode(...bytes)).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'')}
 function expiresSoon(token:string){try{return JSON.parse(atob(token.split('.')[1].replace(/-/g,'+').replace(/_/g,'/'))).exp*1000<Date.now()+60000}catch{return true}}
 async function readBody(request:Request,limit=MAX_BODY){if(Number(request.headers.get('content-length'))>limit)throw new HttpError(413,'Request too large');if(!request.body)return new Uint8Array();const reader=request.body.getReader(),chunks:Uint8Array[]=[];let size=0;for(;;){const {value,done}=await reader.read();if(done)break;size+=value.length;if(size>limit){await reader.cancel();throw new HttpError(413,'Request too large')}chunks.push(value)}const out=new Uint8Array(size);let offset=0;for(const chunk of chunks){out.set(chunk,offset);offset+=chunk.length}return out}
@@ -25,9 +26,9 @@ export async function handleMfd(request:Request,deps:Deps){
  const origin=deps.origin||(loopback?url.origin:ORIGIN),setCookies:string[]=[];
  const api=url.pathname.startsWith('/api/');
  function clearSession(){setCookies.push(cookie(ACCESS,'',0),cookie(REFRESH,'',0))}
- function saveSession(data:any){if(!data?.access_token||!data.refresh_token||!data.user?.id)throw new HttpError(502,'Invalid authentication response');setCookies.push(cookie(ACCESS,data.access_token),cookie(REFRESH,data.refresh_token));return data.access_token as string}
+ function saveSession(data:AuthResponse){if(!data?.access_token||!data.refresh_token||!data.user?.id)throw new HttpError(502,'Invalid authentication response');setCookies.push(cookie(ACCESS,data.access_token),cookie(REFRESH,data.refresh_token));return data.access_token as string}
  async function upstream(path:string,options:RequestInit={},token?:string){const headers=new Headers(options.headers);headers.set('apikey',KEY);headers.set('Authorization','Bearer '+(token||KEY));const response=await deps.fetch(SUPABASE+path,{...options,headers,redirect:'manual',signal:AbortSignal.timeout(20000)});return response}
- async function authCall(path:string,body?:any,token?:string){const r=await upstream('/auth/v1/'+path,{method:body===undefined?'GET':'POST',headers:{'Content-Type':'application/json'},...(body===undefined?{}:{body:JSON.stringify(body)})},token);const data=await r.json() as any;if(!r.ok)throw new HttpError(r.status, data.msg||data.message||data.error_description||'Authentication failed');return data}
+ async function authCall(path:string,body?:unknown,token?:string){const r=await upstream('/auth/v1/'+path,{method:body===undefined?'GET':'POST',headers:{'Content-Type':'application/json'},...(body===undefined?{}:{body:JSON.stringify(body)})},token);const data=await r.json() as AuthResponse;if(!r.ok)throw new HttpError(r.status, data.msg||data.message||data.error_description||'Authentication failed');return data}
  let result:Response;
  try{
   const jar=cookies(request);

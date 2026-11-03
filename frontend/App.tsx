@@ -18,6 +18,7 @@ import { ActiveWorkoutScreen } from './screens/training/ActiveWorkout';
 import { FoodScreen } from './screens/food/FoodScreen';
 import { ProgressScreen, SessionDetail } from './screens/progress/ProgressScreen';
 import { CoachScreen } from './screens/coach/CoachScreen';
+import { AiAssistants } from './screens/ai/AiAssistants';
 import {EngineSurface} from './Runtime';
 import {SettingsLive} from './screens/SettingsLive';
 import {FriendsScreen} from './screens/Friends';
@@ -65,7 +66,7 @@ function Routes({ route }: { route: string[] }) {
       return <EngineSurface screen="progress"/>;
     case 'friends':return <FriendsScreen username={b==='u'?c:undefined}/>;
     case 'coach':
-      return <div className="empty"><span aria-label="Coach unavailable">✧</span></div>;
+      return <AiAssistants />;
     case 'settings':
       return <SettingsLive section={b ?? null}/>;
     default:
@@ -82,7 +83,7 @@ export function App() {
   const route = useRoute();
 
   useEffect(() => {
-    const titles: Record<string, string> = { today: 'Today', training: 'Training', workout: 'Workout', food: 'Food', progress: 'Progress', coach: 'Coach', settings: 'Settings' };
+    const titles: Record<string, string> = { today: 'Today', training: 'Training', workout: 'Workout', food: 'Food', progress: 'Progress', coach: 'AI assistants', settings: 'Settings' };
     document.title = `${titles[route[0]] ?? 'Today'} · My Fitness Diary`;
   }, [route]);
 

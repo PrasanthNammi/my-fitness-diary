@@ -1,0 +1,22 @@
+// PROPOSAL ONLY. Account/hostname/client configuration and abuse controls unresolved.
+// No account_id, routes, namespace or secret is provisioned. Placeholders fail closed.
+{
+  "name": "mfd-auth-staging",
+  "main": "../../.sites-runtime/independent/auth-worker.js",
+  "compatibility_date": "2026-10-12",
+  "workers_dev": true,
+  "routes": [],
+  "upload_source_maps": false,
+  "observability": {"enabled": false},
+  "vars": {
+    "MFD_ENV": "staging",
+    "MFD_SUPABASE_URL": "https://gngnrmzeghjzqsmzuktl.supabase.co",
+    "MFD_OAUTH_ISSUER": "https://gngnrmzeghjzqsmzuktl.supabase.co/auth/v1",
+    "MFD_MCP_RESOURCE_URL": "https://gngnrmzeghjzqsmzuktl.supabase.co/functions/v1/mfd-mcp/mcp",
+    "MFD_AUTH_ORIGIN": "https://mfd-auth-staging.invalid",
+    "MFD_SUPABASE_PUBLISHABLE_KEY": "REPLACE_WITH_EXISTING_STAGING_PUBLISHABLE_KEY",
+    "MFD_ALLOWED_CLIENT_IDS": "[]",
+    "MFD_CLIENT_REDIRECTS": "{}",
+    "MFD_MCP_WRITES": "false"
+  }
+}

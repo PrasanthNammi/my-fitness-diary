@@ -21,6 +21,6 @@ console.log('PASS muscle statistics: completed working sets, secondary credit, d
 // Anatomy stays a neutral base with dynamic regions and is cached on demand.
 assert.ok(fs.existsSync('public/legacy/anatomy/muscles-neutral.svg'));
 const sw=fs.readFileSync('public/sw.js','utf8'),assets=JSON.parse(sw.match(/const ASSETS=(.*);/)[1]),core=JSON.parse(sw.match(/const CORE=(.*);/)[1]);
-assert.ok(assets.includes('/legacy/anatomy/muscles-neutral.png'));assert.ok(!core.includes('/legacy/anatomy/muscles-neutral.png'));
+assert.ok(assets.includes('/legacy/anatomy/muscles-neutral.svg'));assert.ok(!core.includes('/legacy/anatomy/muscles-neutral.svg'));
 assert.ok(fs.readFileSync('frontend/screens/progress/MuscleAnatomy.tsx','utf8').includes('counts[m]>0'));
 console.log('PASS dynamic anatomy and lazy offline-cache inclusion');

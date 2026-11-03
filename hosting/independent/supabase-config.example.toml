@@ -1,0 +1,9 @@
+# PROPOSAL ONLY. Not an active project config. Do not deploy without approval.
+# The generated self-contained edge.js would be copied to this entrypoint in
+# a separately reviewed function package. Do not copy the root repository SQL.
+[functions.mfd-mcp]
+enabled = true
+verify_jwt = false
+entrypoint = "./functions/mfd-mcp/index.ts"
+# Discovery must reach the function anonymously; its MCP data handler requires
+# verified Supabase Bearer + exact audience/client and the live-authorizing RPC.

@@ -7,7 +7,7 @@ grant usage on schema mfd_mcp to authenticated;
 create table mfd_mcp.clients(client_id text primary key);
 create table mfd_mcp.settings(
  id boolean primary key default true check(id), writes_enabled boolean not null default false,
- resource_uri text not null default 'https://prasanth-nammi-portfolio.paleriver512.chatgpt.site/mcp'
+ resource_uri text not null default 'https://mfd-oauth-testing.paleriver512.chatgpt.site/mcp'
 );
 insert into mfd_mcp.settings(id,writes_enabled) values(true,false);
 

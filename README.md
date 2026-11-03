@@ -17,7 +17,7 @@ Use Node.js 22.13 or later. Root and hosting dependencies are installed separate
 npm ci
 # This code-only update retains existing media under dist/.
 # Reuse those assets locally without overwriting the current public source files:
-cp -an dist/. public/  # optional retained media (existing GIFs are unchanged)
+node scripts-restore-media.cjs  # retained media only; never copies old executable files
 npx --yes pnpm@11.25.0 --dir hosting install --frozen-lockfile
 npm run build
 npm run test:performance

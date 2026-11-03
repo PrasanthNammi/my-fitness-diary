@@ -26,11 +26,11 @@ const worker = {
         },
       };
     }
-    return runWithConnectorBinding(binding, () => handleMfd(request, {env: env as any, fetch: globalThis.fetch.bind(globalThis), mcpWrites: (env as any).MFD_MCP_WRITES === 'true', assets: {fetch: (r: Request) => {
+    return runWithConnectorBinding(binding, () => handleMfd(request, {env: env as unknown as Record<string, unknown>, fetch: globalThis.fetch.bind(globalThis), mcpWrites: env.MFD_MCP_WRITES === 'true', assets: {fetch: (r: Request) => {
       const path=new URL(r.url).pathname;
       const html=['/','/index.html'].includes(path)?appHTML:['/legacy/','/legacy/index.html'].includes(path)?legacyHTML:null;
       if(html!==null)return Promise.resolve(new Response(r.method==='HEAD'?null:html,{headers:{'Content-Type':'text/html; charset=utf-8','Cache-Control':'no-cache'}}));
-      return (env as any).ASSETS?.fetch(r) || handler.fetch(r,env,ctx);
+      return env.ASSETS?.fetch(r) || handler.fetch(r,env,ctx);
     }}}));
   },
 };

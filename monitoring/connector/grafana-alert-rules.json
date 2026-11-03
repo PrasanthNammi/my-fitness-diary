@@ -1,0 +1,390 @@
+[
+ {
+  "uid": "mfdconnectorexceededcpu",
+  "title": "AI connector stopped for exceeding CPU",
+  "folderUID": "fdwrsn",
+  "ruleGroup": "mfd-connector",
+  "condition": "C",
+  "for": "0s",
+  "noDataState": "OK",
+  "execErrState": "Alerting",
+  "labels": {
+   "severity": "warning",
+   "app": "mfd"
+  },
+  "annotations": {
+   "summary": "AI connector stopped for exceeding CPU",
+   "description": "Cloudflare stopped connector requests for exceeding the free plan's CPU/memory limits in the last hour. AI calls failed and were not billed. Check the CPU panel; if regular, slim the connector bundle."
+  },
+  "data": [
+   {
+    "refId": "A",
+    "relativeTimeRange": {
+     "from": 3600,
+     "to": 0
+    },
+    "datasourceUid": "CLOUDFLARE_INFINITY_UID",
+    "model": {
+     "refId": "A",
+     "type": "graphql",
+     "source": "url",
+     "parser": "backend",
+     "format": "table",
+     "url": "https://api.cloudflare.com/client/v4/graphql",
+     "url_options": {
+      "method": "POST",
+      "body_type": "graphql",
+      "body_content_type": "application/json",
+      "body_graphql_query": "query($a:string!,$w:[string!]){viewer{accounts(filter:{accountTag:$a}){workersInvocationsAdaptive(limit:2000,filter:{scriptName_in:$w,datetime_geq:\"${__timeFrom:date:iso}\",datetime_leq:\"${__timeTo:date:iso}\",status:\"exceededResources\"}){sum{requests} dimensions{scriptName}}}}}",
+      "body_graphql_variables": "{\"a\": \"fa8205077c4bc4d2bb38ee035e74a156\", \"w\": [\"mfd-connect-staging\", \"mfd-connect\"]}"
+     },
+     "root_selector": "data.viewer.accounts[0].workersInvocationsAdaptive",
+     "columns": [
+      {
+       "selector": "dimensions.scriptName",
+       "text": "worker",
+       "type": "string"
+      },
+      {
+       "selector": "sum.requests",
+       "text": "value",
+       "type": "number"
+      }
+     ]
+    }
+   },
+   {
+    "refId": "B",
+    "relativeTimeRange": {
+     "from": 0,
+     "to": 0
+    },
+    "datasourceUid": "__expr__",
+    "model": {
+     "refId": "B",
+     "type": "reduce",
+     "expression": "A",
+     "reducer": "max",
+     "settings": {
+      "mode": "dropNN"
+     }
+    }
+   },
+   {
+    "refId": "C",
+    "relativeTimeRange": {
+     "from": 0,
+     "to": 0
+    },
+    "datasourceUid": "__expr__",
+    "model": {
+     "refId": "C",
+     "type": "threshold",
+     "expression": "B",
+     "conditions": [
+      {
+       "evaluator": {
+        "type": "gt",
+        "params": [
+         0
+        ]
+       }
+      }
+     ]
+    }
+   }
+  ],
+  "isPaused": false
+ },
+ {
+  "uid": "mfdconnectorcrash",
+  "title": "AI connector crashed",
+  "folderUID": "fdwrsn",
+  "ruleGroup": "mfd-connector",
+  "condition": "C",
+  "for": "0s",
+  "noDataState": "OK",
+  "execErrState": "Alerting",
+  "labels": {
+   "severity": "warning",
+   "app": "mfd"
+  },
+  "annotations": {
+   "summary": "AI connector crashed",
+   "description": "The connector threw an unexpected error or hit an internal Cloudflare error in the last hour. Check wrangler tail / Cloudflare logs for the Worker."
+  },
+  "data": [
+   {
+    "refId": "A",
+    "relativeTimeRange": {
+     "from": 3600,
+     "to": 0
+    },
+    "datasourceUid": "CLOUDFLARE_INFINITY_UID",
+    "model": {
+     "refId": "A",
+     "type": "graphql",
+     "source": "url",
+     "parser": "backend",
+     "format": "table",
+     "url": "https://api.cloudflare.com/client/v4/graphql",
+     "url_options": {
+      "method": "POST",
+      "body_type": "graphql",
+      "body_content_type": "application/json",
+      "body_graphql_query": "query($a:string!,$w:[string!]){viewer{accounts(filter:{accountTag:$a}){workersInvocationsAdaptive(limit:2000,filter:{scriptName_in:$w,datetime_geq:\"${__timeFrom:date:iso}\",datetime_leq:\"${__timeTo:date:iso}\",status_in:[\"scriptThrewException\",\"internalError\"]}){sum{requests} dimensions{scriptName}}}}}",
+      "body_graphql_variables": "{\"a\": \"fa8205077c4bc4d2bb38ee035e74a156\", \"w\": [\"mfd-connect-staging\", \"mfd-connect\"]}"
+     },
+     "root_selector": "data.viewer.accounts[0].workersInvocationsAdaptive",
+     "columns": [
+      {
+       "selector": "dimensions.scriptName",
+       "text": "worker",
+       "type": "string"
+      },
+      {
+       "selector": "sum.requests",
+       "text": "value",
+       "type": "number"
+      }
+     ]
+    }
+   },
+   {
+    "refId": "B",
+    "relativeTimeRange": {
+     "from": 0,
+     "to": 0
+    },
+    "datasourceUid": "__expr__",
+    "model": {
+     "refId": "B",
+     "type": "reduce",
+     "expression": "A",
+     "reducer": "sum",
+     "settings": {
+      "mode": "dropNN"
+     }
+    }
+   },
+   {
+    "refId": "C",
+    "relativeTimeRange": {
+     "from": 0,
+     "to": 0
+    },
+    "datasourceUid": "__expr__",
+    "model": {
+     "refId": "C",
+     "type": "threshold",
+     "expression": "B",
+     "conditions": [
+      {
+       "evaluator": {
+        "type": "gt",
+        "params": [
+         0
+        ]
+       }
+      }
+     ]
+    }
+   }
+  ],
+  "isPaused": false
+ },
+ {
+  "uid": "mfdconnectorvolume",
+  "title": "AI connector above half the free daily requests",
+  "folderUID": "fdwrsn",
+  "ruleGroup": "mfd-connector",
+  "condition": "C",
+  "for": "0s",
+  "noDataState": "OK",
+  "execErrState": "Alerting",
+  "labels": {
+   "severity": "info",
+   "app": "mfd"
+  },
+  "annotations": {
+   "summary": "AI connector above half the free daily requests",
+   "description": "More than 50,000 connector requests in 24 h (free plan: 100,000/day, requests beyond fail and are never billed). Look for a misbehaving AI client."
+  },
+  "data": [
+   {
+    "refId": "A",
+    "relativeTimeRange": {
+     "from": 86400,
+     "to": 0
+    },
+    "datasourceUid": "CLOUDFLARE_INFINITY_UID",
+    "model": {
+     "refId": "A",
+     "type": "graphql",
+     "source": "url",
+     "parser": "backend",
+     "format": "table",
+     "url": "https://api.cloudflare.com/client/v4/graphql",
+     "url_options": {
+      "method": "POST",
+      "body_type": "graphql",
+      "body_content_type": "application/json",
+      "body_graphql_query": "query($a:string!,$w:[string!]){viewer{accounts(filter:{accountTag:$a}){workersInvocationsAdaptive(limit:2000,filter:{scriptName_in:$w,datetime_geq:\"${__timeFrom:date:iso}\",datetime_leq:\"${__timeTo:date:iso}\"}){sum{requests} dimensions{scriptName}}}}}",
+      "body_graphql_variables": "{\"a\": \"fa8205077c4bc4d2bb38ee035e74a156\", \"w\": [\"mfd-connect-staging\", \"mfd-connect\"]}"
+     },
+     "root_selector": "data.viewer.accounts[0].workersInvocationsAdaptive",
+     "columns": [
+      {
+       "selector": "dimensions.scriptName",
+       "text": "worker",
+       "type": "string"
+      },
+      {
+       "selector": "sum.requests",
+       "text": "value",
+       "type": "number"
+      }
+     ]
+    }
+   },
+   {
+    "refId": "B",
+    "relativeTimeRange": {
+     "from": 0,
+     "to": 0
+    },
+    "datasourceUid": "__expr__",
+    "model": {
+     "refId": "B",
+     "type": "reduce",
+     "expression": "A",
+     "reducer": "sum",
+     "settings": {
+      "mode": "dropNN"
+     }
+    }
+   },
+   {
+    "refId": "C",
+    "relativeTimeRange": {
+     "from": 0,
+     "to": 0
+    },
+    "datasourceUid": "__expr__",
+    "model": {
+     "refId": "C",
+     "type": "threshold",
+     "expression": "B",
+     "conditions": [
+      {
+       "evaluator": {
+        "type": "gt",
+        "params": [
+         50000
+        ]
+       }
+      }
+     ]
+    }
+   }
+  ],
+  "isPaused": false
+ },
+ {
+  "uid": "mfdconnectorcpup99",
+  "title": "AI connector worst-case CPU above 10 ms for 6 h",
+  "folderUID": "fdwrsn",
+  "ruleGroup": "mfd-connector",
+  "condition": "C",
+  "for": "0s",
+  "noDataState": "OK",
+  "execErrState": "Alerting",
+  "labels": {
+   "severity": "info",
+   "app": "mfd"
+  },
+  "annotations": {
+   "summary": "AI connector worst-case CPU above 10 ms for 6 h",
+   "description": "The worst 1% of connector requests used more than 10 ms CPU over the last 6 hours. Not an error by itself; watch for 'stopped for exceeding CPU'. Paused on purpose (2026-11-03): cold-start p99 sits around 20 ms by design; watch the CPU panel instead. The 'stopped for exceeding CPU' rule is the email alert."
+  },
+  "data": [
+   {
+    "refId": "A",
+    "relativeTimeRange": {
+     "from": 21600,
+     "to": 0
+    },
+    "datasourceUid": "CLOUDFLARE_INFINITY_UID",
+    "model": {
+     "refId": "A",
+     "type": "graphql",
+     "source": "url",
+     "parser": "backend",
+     "format": "table",
+     "url": "https://api.cloudflare.com/client/v4/graphql",
+     "url_options": {
+      "method": "POST",
+      "body_type": "graphql",
+      "body_content_type": "application/json",
+      "body_graphql_query": "query($a:string!,$w:[string!]){viewer{accounts(filter:{accountTag:$a}){workersInvocationsAdaptive(limit:2000,filter:{scriptName_in:$w,datetime_geq:\"${__timeFrom:date:iso}\",datetime_leq:\"${__timeTo:date:iso}\"}){quantiles{cpuTimeP99} dimensions{scriptName}}}}}",
+      "body_graphql_variables": "{\"a\": \"fa8205077c4bc4d2bb38ee035e74a156\", \"w\": [\"mfd-connect-staging\", \"mfd-connect\"]}"
+     },
+     "root_selector": "data.viewer.accounts[0].workersInvocationsAdaptive",
+     "columns": [
+      {
+       "selector": "dimensions.scriptName",
+       "text": "worker",
+       "type": "string"
+      },
+      {
+       "selector": "quantiles.cpuTimeP99",
+       "text": "value",
+       "type": "number"
+      }
+     ]
+    }
+   },
+   {
+    "refId": "B",
+    "relativeTimeRange": {
+     "from": 0,
+     "to": 0
+    },
+    "datasourceUid": "__expr__",
+    "model": {
+     "refId": "B",
+     "type": "reduce",
+     "expression": "A",
+     "reducer": "max",
+     "settings": {
+      "mode": "dropNN"
+     }
+    }
+   },
+   {
+    "refId": "C",
+    "relativeTimeRange": {
+     "from": 0,
+     "to": 0
+    },
+    "datasourceUid": "__expr__",
+    "model": {
+     "refId": "C",
+     "type": "threshold",
+     "expression": "B",
+     "conditions": [
+      {
+       "evaluator": {
+        "type": "gt",
+        "params": [
+         10000
+        ]
+       }
+      }
+     ]
+    }
+   }
+  ],
+  "isPaused": true
+ }
+]

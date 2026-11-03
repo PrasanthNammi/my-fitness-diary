@@ -5,3 +5,8 @@ node_modules/
 *.log
 /dist/
 /hosting/public/
+
+# Checkout-local tool state
+/.sites-runtime/
+# Retained media restored locally from the pre-existing dist snapshot
+/public/catalogue/app_media/

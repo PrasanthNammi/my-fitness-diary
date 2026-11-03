@@ -1,0 +1,17 @@
+{
+  "status": "LOCAL_VERIFIED_NOT_EXECUTED",
+  "date": "2026-10-30",
+  "project": "gngnrmzeghjzqsmzuktl",
+  "files": {
+    "database/staging/c1c-replay-session-guard.proposed.sql": "3255554064d35a7a4fee9aa6f27df2ffcbf4f20ff859c2d30c5fe31c038bff1c",
+    "database/staging/c1c-replay-session-guard.rollback.proposed.sql": "dcb71f0df7582365f4b4c22a185558a67740095372b6c60534dec3b23e0eaa79",
+    "tests/replay-session-guard.cjs": "d0da954daed3bf712ae4eccde7509b582b67a7304d9395a9a911efddafd68b31"
+  },
+  "before_normalized_body_md5": "7d93d522e07936bca67faa53903d4868",
+  "after_normalized_body_md5": "2e64d4e8a8d55ca50701e764a70d0258",
+  "local_tests": {
+    "total": 62,
+    "passed": 62
+  },
+  "hosted_patch_verified": false
+}

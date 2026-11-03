@@ -15,6 +15,12 @@ in this repository. Exact log-ingest GB/quota is not part of these counters.
 group were observed receiving real data and all seven rules evaluated Normal.
 The following setup notes explain how to recreate the installation.
 
+## AI connector
+
+The AI connector Workers on Cloudflare are monitored separately through Cloudflare's
+analytics API; see `connector/README.md` (dashboard "MFD AI Connector Health", rule group
+`mfd-connector`, same `app=mfd` email routing).
+
 ## Connect
 
 1. Sign in/create the Grafana Cloud Free stack. Supabase's official Grafana Cloud

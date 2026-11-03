@@ -1,0 +1,23 @@
+{
+  "scripts/c1c-safari-owned-window.cjs": "8a484f3426b24372463345b19f745df75f7df7c317631493d8bec5dae10fdb7d",
+  "scripts/c1c-safari-bridge.applescript": "dad64a5832a51ff1cb0bd1aa95e769f57ac15bc14271048e50a98e1ea925acd8",
+  "scripts/c1c-google-h1-h3-safari.cjs": "0e27c9fa657e9515ab6a1fb7ede80b4c4887b947aa3345b0d5858719b0567111",
+  "scripts/c1c-safari-acceptance.command": "404292f55b2d3ac3945d08bed4e39d7464c12f48ed0c2474e6a409cfd14bdba9",
+  "scripts/c1c-manual-google-flow.cjs": "696f3331de50c70e458664a4c1cef9793592d65a272cda43f945b39b04dccd61",
+  "scripts/c1c-google-pkce-plan.cjs": "5d4a041cbb4f69b68da75dd99e150cee7ebd4fb9319918889bd3acff41e5f658",
+  "scripts/c1c-alternative-lifecycle-core.cjs": "6099138ee95389eea6cd8a6320f6498012c43323406952e71beab587306ec481",
+  "scripts/c1c-browser-policy.cjs": "18b4371fddff0a0c744eea1f6dc6751755b7614186dcbb241f0a4eef47948bf0",
+  "scripts/c1c-safe-diagnostics.cjs": "5f2d1693e480bbaa4a810e84fe2614393ad40c2fbe728c18a013532bcfc76dd8",
+  "tests/c1c-safari-window.cjs": "6e53dc9d483d6fb518d09a791482788b3b9a6c14d95bef2b945d89226578e746",
+  "tests/c1c-safari-lifecycle.cjs": "2ae3f658020c24c1f4a71bab34d67f9530dd82c0cf868afd946829e50b6d7e63",
+  "tests/c1c-safari-preflight.cjs": "12fdb6594cb3231bb30506675f50a9831221b8ba76b9ff510c5668f88006d2e8",
+  "tests/c1c-lifecycle-evidence.cjs": "b497b24560a17bd1a59fee2fb0af949c246ef913881a6f30dd2d02a9cd53f15b",
+  "scripts-smoke-c1c-safari-e2e.cjs": "2efd8394626bd326fa034c8333ff15b112733bc6f8aaaa2d8d3a4fe0265f64fc",
+  "package.json": "7233ee2613aed152d1eafa27c5fac3b3850682223ca358841289fba4222173df",
+  "package-lock.json": "a4742f5baadf995e7214b8e29e43c715d16dc0d3aa13285c092320fe65283d4e",
+  "node_modules/@supabase/supabase-js/package.json": "16ce1954171a17e803be9aa55f19a63d017517aa50d01d9ab44d72b3853d0e85",
+  "scripts/c1c-safari-owned-window.stepwise.proposed.cjs": "8a484f3426b24372463345b19f745df75f7df7c317631493d8bec5dae10fdb7d",
+  "tests/c1c-safari-preparation.cjs": "f0b4e0065596924b9315e27a11de980f64ca928f3df17e40fe1c4e1d2e588658",
+  "docs/artifacts/c1c-safari-stepwise-plan.json": "ce7f4774671c459a3f34650fa9c9576e1dac76c62363623cb2ada8ae67d4a171",
+  "database/staging/c1c-replay-session-guard.proposed.sql": "3255554064d35a7a4fee9aa6f27df2ffcbf4f20ff859c2d30c5fe31c038bff1c"
+}

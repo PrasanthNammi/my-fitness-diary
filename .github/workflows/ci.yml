@@ -2,7 +2,7 @@ name: MFD code checks
 on:
   pull_request:
   push:
-    branches: [main, mfd-v53-code-only]
+    branches: [main, mfd-v53-code-only, staging/mfd-oauth-testing]
 jobs:
   check:
     runs-on: ubuntu-latest
@@ -19,16 +19,18 @@ jobs:
         run: npx --yes pnpm@11.25.0 --dir hosting install --frozen-lockfile
       - name: Restore retained media
         run: |
-          if test -d dist; then cp -an dist/. public/; fi
+          node scripts-restore-media.cjs
       - name: Check TypeScript
-        run: npx tsc -p frontend/tsconfig.json --noEmit
-      - name: Run regression tests
         run: |
-          npm run test:mcp
-          npm run test:performance
-          node tests/nutrition-preferences.cjs
-          node tests/workout-clock.cjs
-          node tests/food-actions.cjs
-          node tests/food-summary.cjs
-      - name: Build production bundle
+          npx tsc -p frontend/tsconfig.json --noEmit
+          npx tsc -p hosting/tsconfig.json --noEmit --incremental false
+      - name: Lint Worker and hosting
+        run: npm --prefix hosting run lint
+      - name: Build and inspect staging artifacts
         run: npm run build
+      - name: Run all local tests with network disabled
+        run: npm run test:local
+      - name: Check dependency security
+        run: |
+          npm audit --audit-level=high
+          npx --yes pnpm@11.25.0 --dir hosting audit --audit-level=high

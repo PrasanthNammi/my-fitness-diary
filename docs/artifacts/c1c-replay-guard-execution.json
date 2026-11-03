@@ -1,0 +1,21 @@
+{
+  "project": "gngnrmzeghjzqsmzuktl",
+  "outcome": "COMMITTED_INDEPENDENTLY_VERIFIED",
+  "submitted_at": "2026-10-30T14:52:26.919Z",
+  "verified_at": "2026-10-30T14:55:25.108Z",
+  "migration": "c1c_replay_session_guard",
+  "forward_sha256": "3255554064d35a7a4fee9aa6f27df2ffcbf4f20ff859c2d30c5fe31c038bff1c",
+  "after_normalized_body_md5": "2e64d4e8a8d55ca50701e764a70d0258",
+  "users": 2,
+  "session_rows": 12,
+  "all_original_sessions_preserved": true,
+  "all_original_sessions_live": true,
+  "permissions_rls_policies_unrelated_functions_unchanged": true,
+  "refresh_metadata_unchanged": true,
+  "grants_and_fixtures_unchanged": true,
+  "writes": false,
+  "worker_deployed": false,
+  "recovery_executed": false,
+  "H2": "RETEST_REQUIRED",
+  "H3": "NOT_TESTED"
+}

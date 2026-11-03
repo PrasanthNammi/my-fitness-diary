@@ -1,0 +1,22 @@
+{
+  "status": "PROPOSED_ONLY_NO_HOSTED_EXECUTION",
+  "project": "gngnrmzeghjzqsmzuktl",
+  "method": "Google provider OAuth with SDK-owned S256 PKCE",
+  "new_sessions_max": 2,
+  "existing_users_only": true,
+  "callback": "https://mfd-connect-staging.shanustylish777.workers.dev/auth/google/callback",
+  "callback_handling": "only fresh harness-owned private-context main-frame navigation; abort before Worker network; never existing code/cookie",
+  "worker_browser_network": "denied by local CONNECT proxy",
+  "max_application_requests": 40,
+  "max_browser_auth_requests": 8,
+  "google_ui_asset_traffic": "excluded from application cap; no load test",
+  "max_login_wait_ms": 300000,
+  "max_expiry_wait_seconds": 4200,
+  "reuse_interval_seconds": 10,
+  "passwords": false,
+  "new_oauth_clients": false,
+  "callback_changes": false,
+  "hosted_settings_changes": false,
+  "new_permissions": false,
+  "source_google_compatibility": "UNTESTED until separately approved live login"
+}

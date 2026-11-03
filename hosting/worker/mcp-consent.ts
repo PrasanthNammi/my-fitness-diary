@@ -1,10 +1,14 @@
+import type {AuthUser} from './auth-types';
 type Upstream=(path:string,options?:RequestInit,token?:string)=>Promise<Response>;
+type Connection={client_id:string;permissions:string[]};
+export type Authorization={user?:AuthUser;client?:{id:string;name:string};redirect_url?:string;redirect_uri?:string;scope?:string};
+type Proposal={id:string;client_id:string;water_goal_ml:number;revision:number;expires_at:string};
 const permissions=['workouts','routines','nutrition','progress','profile'];
 const escape=(v:unknown)=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]!));
 const hidden=(key:string,value:string)=>`<input type="hidden" name="${escape(key)}" value="${escape(value)}">`;
 const form=(action:string,content:string)=>`<form method="post" action="${action}">${content}</form>`;
 function page(content:string,status=200){return new Response(`<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>My Fitness Diary connections</title><main><h1>My Fitness Diary connections</h1>${content}<p><a href="/">Return to diary</a> · <a href="/oauth/mcp/connections">Manage connections</a></p></main></html>`,{status,headers:{'Content-Type':'text/html; charset=utf-8','Cache-Control':'private, no-store'}})}
-export async function handleMcpConsent(request:Request,upstream:Upstream,getToken:()=>Promise<string>,origin:string,writes:boolean){
+export async function handleMcpConsent(request:Request,upstream:Upstream,getToken:()=>Promise<string>,origin:string,writes:boolean,validateAuthorization?:(data:Authorization,path:string,token:string,owner:string)=>Promise<void>){
  const url=new URL(request.url);
  if(!['GET','POST'].includes(request.method))return page('Method not allowed',405);
  if(request.headers.get('sec-fetch-site')==='cross-site'&&request.method==='POST')return page('Same-origin request required',403);
@@ -13,15 +17,16 @@ export async function handleMcpConsent(request:Request,upstream:Upstream,getToke
  try{token=await getToken()}catch{return page('<p>Sign in to your diary in another tab, then reload this page to continue. Your authorization request stays in this tab.</p>',401)}
  const verified=await upstream('/auth/v1/user',{},token);
  if(!verified.ok)return page('Please sign in again.',401);
- const user=await verified.json() as any;
+ const user=await verified.json() as AuthUser;
+ const verifiedOwner:string=user.id||'';if(!verifiedOwner)return page('Invalid session',401);
  try{
   const claims=JSON.parse(atob(token.split('.')[1].replace(/-/g,'+').replace(/_/g,'/')));
   // The consent/approval UI must use a verified first-party browser identity,
   // never an OAuth client token or a token for another account.
   if(claims.client_id!==undefined || claims.aud!=='authenticated' || claims.role!=='authenticated' || claims.sub!==user.id || !claims.session_id || !(claims.exp>Date.now()/1000))return page('Use your diary browser session.',403);
  }catch{return page('Invalid session',401)}
- async function call(path:string,init:RequestInit={}){const r=await upstream(path,init,token);if(!r.ok)throw Error('Request failed');return r.status===204?{}:await r.json() as any}
- async function rpc(operation:string,args:unknown={}){return call('/rest/v1/rpc/mfd_mcp',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({operation,args})})}
+ async function call<T=Authorization>(path:string,init:RequestInit={}){const r=await upstream(path,init,token);if(!r.ok)throw Error('Request failed');const data=r.status===204?{}:await r.json();if(validateAuthorization && /^\/auth\/v1\/oauth\/authorizations\//.test(path))await validateAuthorization(data as Authorization,path,token,verifiedOwner);return data as T}
+ async function rpc<T=unknown>(operation:string,args:unknown={}){return call<T>('/rest/v1/rpc/mfd_mcp',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({operation,args})})}
  const identity=`<p>Signed in as ${escape(user.email||user.id)}.</p>`;
  try{
   if(request.method==='POST'){
@@ -48,26 +53,28 @@ export async function handleMcpConsent(request:Request,upstream:Upstream,getToke
    if(!details.client?.id)return page('Start a new authorization request.',400);
    if(details.user?.id!==user.id)return page('Authorization account mismatch',403);
    const approve=data.get('decision')==='approve';
+   const selected=data.getAll('permission');
    if(approve){
-    const selected=data.getAll('permission');
     if(!selected.length||selected.some(p=>!permissions.includes(p)))return page('Choose at least one diary permission.',400);
-    await rpc('consent',{client_id:details.client.id,permissions:selected});
    }
    const result=await call('/auth/v1/oauth/authorizations/'+encodeURIComponent(id)+'/consent',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:approve?'approve':'deny'})});
    // Redirect URI comes exclusively from Supabase's validated authorization.
-   const dest=new URL(result.redirect_url);
+   const dest=new URL(result.redirect_url!);
    if(!['https:','http:'].includes(dest.protocol))return page('Unsupported redirect URI',400);
+   // Never expand local diary permissions if native OAuth approval fails.
+   // If the local save fails after native approval, the new sections stay denied.
+   if(approve)await rpc('consent',{client_id:details.client.id,permissions:selected});
    return new Response(null,{status:303,headers:{Location:dest.href}});
   }
   if(url.pathname==='/oauth/mcp/connections'){
-   const connections=await rpc('connections');
+   const connections=await rpc<Connection[]>('connections');
    // Include native-only grants so a partial revocation remains recoverable.
-   let notice='';try{const native=await call('/auth/v1/user/oauth/grants');for(const grant of (Array.isArray(native)?native:native.grants||[])){if(!connections.some((g:any)=>g.client_id===grant.client_id))connections.push({client_id:grant.client_id,permissions:[]})}}catch{notice='<p>OAuth grant listing is temporarily unavailable. Local diary permissions are shown below; retry to see native-only grants.</p>'}
-   return page(identity+notice+'<p>Revocation blocks diary access immediately and revokes the client’s refresh tokens.</p>'+connections.map((g:any)=>form('/oauth/mcp/connections',`<p>Client: ${escape(g.client_id)}<br>Permissions: ${escape(g.permissions.join(', ')||'No diary access')}</p>${hidden('client_id',g.client_id)}<button>Revoke access</button>`)).join(''));
+   let notice='';try{const native=await call<{client_id:string}[]|{grants?:{client_id:string}[]}>('/auth/v1/user/oauth/grants');for(const grant of (Array.isArray(native)?native:native.grants||[])){if(!connections.some((g:Connection)=>g.client_id===grant.client_id))connections.push({client_id:grant.client_id,permissions:[]})}}catch{notice='<p>OAuth grant listing is temporarily unavailable. Local diary permissions are shown below; retry to see native-only grants.</p>'}
+   return page(identity+notice+'<p>Revocation blocks diary access immediately and revokes the client’s refresh tokens.</p>'+connections.map((g:Connection)=>form('/oauth/mcp/connections',`<p>Client: ${escape(g.client_id)}<br>Permissions: ${escape(g.permissions.join(', ')||'No diary access')}</p>${hidden('client_id',g.client_id)}<button>Revoke access</button>`)).join(''));
   }
   if(url.pathname==='/oauth/mcp/approve'){
    if(!writes)return page('Writes disabled',403);
-   const p=await rpc('review',{proposal_id:url.searchParams.get('proposal_id')});
+   const p=await rpc<Proposal>('review',{proposal_id:url.searchParams.get('proposal_id')});
    return page(identity+`<p>Client ${escape(p.client_id)} requests setting your water goal to <strong>${escape(p.water_goal_ml)} ml</strong> at diary revision ${escape(p.revision)}. Expires ${escape(p.expires_at)}.</p>`+form('/oauth/mcp/approve',hidden('proposal_id',p.id)+'<button>Approve this exact change once</button>'));
   }
   const id=url.searchParams.get('authorization_id')||'';

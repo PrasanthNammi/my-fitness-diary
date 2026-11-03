@@ -5,12 +5,14 @@
   "main": "index.js",
   "scripts": {
     "build:client": "esbuild src/supabase-client.js --bundle --minify --format=iife --platform=browser --outfile=public/legacy/vendor/supabase.js",
-    "build:barcode": "esbuild src/barcode-client.js --bundle --minify --format=iife --platform=browser --outfile=public/legacy/vendor/barcode.js",
+    "build:barcode": "node scripts-build-barcode.cjs",
     "build": "node scripts-build-react.cjs && node scripts-build-hosting.cjs",
     "test:performance": "node tests/run-performance.cjs",
     "test:mcp": "node tests/mcp-server.cjs && node tests/mcp-database.cjs",
-    "dev": "node scripts-build-react.cjs && node scripts-prepare-dev.cjs && npm --prefix hosting run dev",
-    "test:staging": "node tests/staging-isolation.cjs"
+    "dev": "node scripts-build-react.cjs && node scripts-verify-staging.cjs public && node scripts-prepare-dev.cjs && npm --prefix hosting run dev",
+    "test:staging": "node tests/staging-isolation.cjs",
+    "test:local": "node tests/run-local-checks.cjs",
+    "verify:staging": "node scripts-verify-staging.cjs"
   },
   "keywords": [],
   "author": "",
@@ -20,11 +22,12 @@
     "@supabase/supabase-js": "2.118.0",
     "@types/react": "18.3.31",
     "@types/react-dom": "18.3.7",
-    "@zxing/browser": "0.2.1",
+    "@zxing/browser": "0.1.5",
     "lucide-react": "1.59.0",
     "react": "18.3.1",
     "react-dom": "18.3.1",
-    "typescript": "5.9.3"
+    "typescript": "5.9.3",
+    "@zxing/library": "0.21.3"
   },
   "devDependencies": {
     "@electric-sql/pglite": "0.3.14",

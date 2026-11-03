@@ -41,7 +41,7 @@ const form=(path,body,headers={})=>request(path,'POST',body,{Cookie:cookie,Origi
  }
  r=await handle(rpc('tools/call',{name:'apply_water_goal',arguments:{}}),deps);assert.equal((await r.json()).error.code,-32602);
  deny=true;r=await handle(rpc('tools/list'),deps);assert.equal(r.status,401);deny=false;
- for(const changes of [{aud:'authenticated'},{iss:'https://evil.example'},{client_id:undefined},{exp:1},{sub:'bob'},{role:'service_role'}]){
+ for(const changes of [{aud:'authenticated'},{iss:'https://evil.example'},{client_id:undefined},{session_id:undefined},{exp:1},{sub:'bob'},{role:'service_role'}]){
   r=await handle(rpc('tools/list',{}, {},{Authorization:'Bearer '+jwt({...claims,...changes})}),deps);assert.equal(r.status,401);
  }
  r=await handle(rpc('tools/list',{}, {},{Origin:'https://evil.example'}),deps);assert.equal(r.status,403);
@@ -80,6 +80,103 @@ const form=(path,body,headers={})=>request(path,'POST',body,{Cookie:cookie,Origi
  r=await handle(request('/oauth/mcp/approve?proposal_id=11111111-1111-4111-8111-111111111111','GET',undefined,{Cookie:cookie}),writes);body=await r.text();assert(body.includes('2500'));assert(body.includes('revision 5'));
  r=await handle(form('/oauth/mcp/approve','proposal_id=11111111-1111-4111-8111-111111111111'),writes);assert.equal(r.status,200);assert(calls.at(-1).init.body.includes('"operation":"approve"'));
  r=await handle(form('/oauth/mcp/approve','proposal_id=11111111-1111-4111-8111-111111111111'),deps);assert.equal(r.status,403);
+ // Upstream failures are bounded, uncached failures and never trigger mutation retries.
+ for(const failure of ['auth-network','rpc-network','rpc-http']){
+  let attempts=0;
+  const failing={...deps,fetch:async(url,init)=>{
+   if((failure==='auth-network'&&url.endsWith('/user'))||(failure.startsWith('rpc-')&&url.includes('/rest/'))){
+    attempts++;
+    if(failure==='rpc-http')return Response.json({error:'unavailable'},{status:503});
+    throw Error('Synthetic network interruption');
+   }
+   return deps.fetch(url,init);
+  }};
+  r=await handle(rpc('tools/call',{name:'get_workouts'}),failing);
+  assert.equal(attempts,1);assert(r.headers.get('cache-control').includes('no-store'));
+  if(failure==='rpc-http')assert.equal((await r.json()).result.isError,true);else assert.equal(r.status,503);
+ }
+ // Native approval failures must never save new diary permissions.
+ for(const failure of ['http','network','invalid-redirect']){
+  const attempted=[];
+  const failing={...deps,fetch:async(url,init)=>{
+   attempted.push({url,init});
+   if(url.endsWith('/consent')){
+    if(failure==='network')throw Error('Synthetic interruption');
+    return failure==='http'?Response.json({error:'expired'},{status:400}):Response.json({redirect_url:'javascript:alert(1)'});
+   }
+   return deps.fetch(url,init);
+  }};
+  r=await handle(form('/oauth/mcp/consent','authorization_id=auth-1&decision=approve&permission=profile'),failing);
+  assert.equal(r.status,failure==='invalid-redirect'?400:503);
+  assert(!attempted.some(c=>c.init.body?.includes('"operation":"consent"')));
+ }
+ // Local grant save failure must not redirect as a successful authorization.
+ const localFailure={...deps,fetch:async(url,init)=>{
+  if(init.body?.includes('"operation":"consent"'))return Response.json({error:'unavailable'},{status:503});
+  return deps.fetch(url,init);
+ }};
+ r=await handle(form('/oauth/mcp/consent','authorization_id=auth-1&decision=approve&permission=profile'),localFailure);
+ assert.equal(r.status,503);assert(!r.headers.has('location'));
+ // Repeated and concurrent reads remain bounded and do not call mutation RPCs.
+ calls=[];
+ const reads=await Promise.all(Array.from({length:8},()=>handle(rpc('tools/call',{name:'get_workouts',arguments:{limit:1}}),deps)));
+ for(const response of reads)assert.equal((await response.json()).result.isError,false);
+ assert.equal(calls.filter(c=>c.init.body?.includes('"operation":"workouts"')).length,8);
+ assert(!calls.some(c=>/"operation":"(consent|approve|apply_water_goal|propose_water_goal)"/.test(c.init.body||'')));
+ // Read-only transport rejects all write tools before sending a data RPC.
+ for(const name of ['propose_water_goal','apply_water_goal']){
+  calls=[];r=await handle(rpc('tools/call',{name,arguments:{}}),deps);
+  assert.equal((await r.json()).error.code,-32602);
+  assert(!calls.some(c=>c.url.includes('/rest/')));
+ }
+ // A repeated consent POST whose authorization has been consumed cannot change grants.
+ let submitted=false;
+ const oneUse={...deps,fetch:async(url,init)=>{
+  if(url.includes('/oauth/authorizations/')&&!url.endsWith('/consent')&&submitted)return Response.json({error:'consumed'},{status:400});
+  const response=await deps.fetch(url,init);if(url.endsWith('/consent'))submitted=true;return response;
+ }};
+ assert.equal((await handle(form('/oauth/mcp/consent','authorization_id=auth-1&decision=approve&permission=workouts'),oneUse)).status,303);
+ calls=[];
+ assert.equal((await handle(form('/oauth/mcp/consent','authorization_id=auth-1&decision=approve&permission=profile'),oneUse)).status,503);
+ assert(!calls.some(c=>c.init.body?.includes('"operation":"consent"')));
+ // Auth rejection must stop before any diary RPC, including revoked credentials.
+ for(const status of [401,403]){
+  let dataCalls=0;
+  const rejected={...deps,fetch:async(url,init)=>{
+   if(url.endsWith('/auth/v1/user'))return Response.json({error:'Invalid or revoked token'},{status});
+   dataCalls++;return deps.fetch(url,init);
+  }};
+  assert.equal((await handle(rpc('tools/call',{name:'get_profile'}),rejected)).status,401);
+  assert.equal(dataCalls,0);
+ }
+ // Signed client identity, live sessions and section consent are independently
+ // enforced by the database. Transport must not fall back or retry a denial.
+ for(const reason of ['Unregistered MCP client','Active session required','Consent required']){
+  let attempts=0;
+  const rejected={...deps,fetch:async(url,init)=>{
+   if(url.includes('/rest/v1/rpc/')){attempts++;return Response.json({error:reason},{status:403});}
+   return deps.fetch(url,init);
+  }};
+  const response=await handle(rpc('tools/call',{name:'get_profile'}),rejected);
+  assert.equal((await response.json()).result.isError,true);assert.equal(attempts,1);
+ }
+ // Characterize current throttling behavior without claiming a local limiter:
+ // upstream 429 is an uncached error, with no implicit read or mutation retry.
+ let throttledCalls=0;
+ const throttled={...deps,fetch:async(url,init)=>{
+  if(url.includes('/rest/v1/rpc/')){throttledCalls++;return Response.json({error:'Rate limited'},{status:429,headers:{'Retry-After':'30'}});}
+  return deps.fetch(url,init);
+ }};
+ const limited=await handle(rpc('tools/call',{name:'get_workouts'}),throttled);
+ assert.equal((await limited.json()).result.isError,true);assert.equal(throttledCalls,1);
+ assert(limited.headers.get('cache-control').includes('no-store'));
+ assert.equal(limited.headers.get('retry-after'),null); // Known retry-guidance gap.
+ for(const invalid of ['null','[]','{"jsonrpc":"2.0","id":null,"method":"tools/list"}']){
+  const response=await handle(request('/mcp','POST',invalid,{'Content-Type':'application/json',Accept:'application/json, text/event-stream',Authorization:'Bearer '+bearer}),deps);
+  assert.equal(response.status,400);assert.equal((await response.json()).error.code,-32600);
+ }
+ console.log('PASS fail-closed auth/session/client/consent denials, malformed envelopes and upstream throttling without retries');
+ console.log('PASS consent failure paths, repeated/concurrent reads, consumed authorization replay and unauthorized writes');
  console.log('PASS MCP transport, discovery, verified bearer identity, protocol validation, tool allowlists, consent/deny, CSRF, XSS, revocation, approval and unchanged frontend');
 })().catch(e=>{console.error(e);process.exit(1)});
 
