@@ -4,6 +4,8 @@ import { Check, ChevronDown, ChevronLeft, CircleAlert, Info, MoreHorizontal, X, 
 import logoMark from '../../assets/mfd-logo.svg?raw';
 
 import { goBack } from '../../lib/router';
+import { aiSource } from '../../domain/aiSource';
+import type { AddedBy } from '../../domain/types';
 
 // ── Logos (embedded exactly as supplied) ─────────────────────────
 export function LogoMark({ width = 120 }: { width?: number }) {
@@ -249,6 +251,12 @@ export function Notice({ tone = 'info', children }: { tone?: 'info' | 'warn' | '
       <div>{children}</div>
     </div>
   );
+}
+
+/** Small label on entries an AI assistant added through the connector. */
+export function AiBadge({ addedBy }: { addedBy?: AddedBy }) {
+  const name = aiSource(addedBy);
+  return name ? <span className="badge ai">Added by {name}</span> : null;
 }
 
 export function Empty({ icon: Icon, title, children, action }: { icon?: LucideIcon; title: string; children?: ReactNode; action?: ReactNode }) {

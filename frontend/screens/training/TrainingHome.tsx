@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { ChevronDown, FolderInput, FolderPlus, Pencil, Play, Plus, SquarePen, Trash2, Type } from 'lucide-react';
 import type { Folder, Routine } from '../../domain/types';
-import { ConfirmSheet, OverflowMenu, Sheet, TopBar, toast, Field } from '../../components/ui';
+import { AiBadge, ConfirmSheet, OverflowMenu, Sheet, TopBar, toast, Field } from '../../components/ui';
 import { useDB } from '../../data/store';
 import { exerciseName, training, workouts } from '../../data/repositories';
 import { navigate } from '../../lib/router';
@@ -127,7 +127,7 @@ function RoutineCard({ r, folders, onStart }: { r: Routine; folders: Folder[]; o
       <div className="row" style={{ alignItems: 'flex-start' }}>
         <button className="routine-open grow" aria-label={`View ${r.name}`} onClick={() => navigate(`/training/routine/view/${r.id}`)}>
           <div className="name ellipsis">{r.name}</div>
-          <div className="meta">{blockSummary(r.exercises)}</div>
+          <div className="meta">{blockSummary(r.exercises)}<AiBadge addedBy={r.addedBy} /></div>
         </button>
         <OverflowMenu
           small

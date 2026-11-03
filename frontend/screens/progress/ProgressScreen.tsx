@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import { Activity, BarChart3, ChevronRight, ClipboardList, HeartPulse, Plus, Scale, Sparkles, Trash2 } from 'lucide-react';
 import type { Workout } from '../../domain/types';
 import { e1rm, setLabels, trackingFields, workingVolume } from '../../domain/training';
-import { ConfirmSheet, Empty, Field, OverflowMenu, Segmented, SelectField, Sheet, TopBar, toast } from '../../components/ui';
+import { AiBadge, ConfirmSheet, Empty, Field, OverflowMenu, Segmented, SelectField, Sheet, TopBar, toast } from '../../components/ui';
 import { BarChart, LineChart } from '../../components/Charts';
 import { useDB } from '../../data/store';
 import { body, exerciseName, workouts as workoutRepo } from '../../data/repositories';
@@ -206,7 +206,7 @@ function Body({ from }: { from: string | null }) {
         <div className="list">
           {[...ws].reverse().slice(0, 5).map((w) => (
             <div key={w.id} className="list-row">
-              <div className="grow"><div className="row-title tnum">{fmtNum(kgTo(w.kg, unit), 1)} {unit}</div><div className="row-sub">{longDate(fromISODate(w.date).getTime())}</div></div>
+              <div className="grow"><div className="row-title tnum">{fmtNum(kgTo(w.kg, unit), 1)} {unit}</div><div className="row-sub">{longDate(fromISODate(w.date).getTime())}<AiBadge addedBy={w.addedBy} /></div></div>
               <OverflowMenu small title="Weight entry" actions={[{ label: 'Delete entry', icon: Trash2, danger: true, onSelect: () => (body.deleteWeight(w.id), toast('Entry deleted')) }]} />
             </div>
           ))}

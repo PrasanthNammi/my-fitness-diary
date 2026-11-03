@@ -95,6 +95,12 @@ export interface Folder {
   createdAt: number;
 }
 
+/** Set when an AI assistant added the entry through the connector (kept as stored). */
+export interface AddedBy {
+  connection?: string;
+  at?: string;
+}
+
 export interface Routine {
   id: ID;
   name: string;
@@ -102,6 +108,7 @@ export interface Routine {
   exercises: ExerciseBlock[];
   createdAt: number;
   updatedAt: number;
+  addedBy?: AddedBy;
 }
 
 /** Rest timer state is stored as timestamps so it survives navigation and reloads. */
@@ -128,6 +135,7 @@ export interface Workout {
   startedAt: number;
   endedAt: number;
   exercises: ExerciseBlock[];
+  addedBy?: AddedBy;
 }
 
 // ── Nutrition ─────────────────────────────────────────────────────
@@ -165,6 +173,7 @@ export interface DiaryEntry {
   amount: number;
   unit: PortionUnit;
   createdAt: number;
+  addedBy?: AddedBy;
 }
 
 // ── Body & recovery ───────────────────────────────────────────────
@@ -172,6 +181,7 @@ export interface WeightEntry {
   id: ID;
   date: ISODate;
   kg: number;
+  addedBy?: AddedBy;
 }
 
 export interface CheckIn {
