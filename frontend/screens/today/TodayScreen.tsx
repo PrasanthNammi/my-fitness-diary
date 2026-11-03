@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import { ChevronRight, Droplet, Dumbbell, Minus, Play, Plus, Scale, Sparkles } from 'lucide-react';
-import { Bar, TopBar } from '../../components/ui';
+import { AiBadge, Bar, TopBar } from '../../components/ui';
 import { DateStrip } from '../../components/DateStrip';
 import { useDB } from '../../data/store';
 import { useDay, useSelectedDate, useTargets } from '../../data/selectors';
@@ -61,7 +61,7 @@ export function TodayScreen() {
       <TopBar
         title={profile ? `Hi, ${profile.name}` : 'Today'}
         actions={
-          <button className="icon-btn" aria-label="Open coach" onClick={() => navigate('/coach')}>
+          <button className="icon-btn" aria-label="AI assistants" onClick={() => navigate('/coach')}>
             <Sparkles />
           </button>
         }
@@ -136,7 +136,7 @@ export function TodayScreen() {
                 <button key={w.id} className="list-row" style={{ padding: '6px 0', minHeight: 44 }} onClick={() => navigate(`/progress/session/${w.id}`)}>
                   <div className="grow">
                     <div className="row-title ellipsis">{w.title}</div>
-                    <div className="row-sub">{duration((w.endedAt - w.startedAt) / 1000)} · {fmtVolume(workingVolume(w.exercises), s.weightUnit)}</div>
+                    <div className="row-sub">{duration((w.endedAt - w.startedAt) / 1000)} · {fmtVolume(workingVolume(w.exercises), s.weightUnit)}<AiBadge addedBy={w.addedBy} /></div>
                   </div>
                   <ChevronRight className="chev" />
                 </button>
