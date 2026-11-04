@@ -17,6 +17,7 @@ import { energyValue, fmtInt, fmtNum } from '../../lib/format';
 import { PortionEditor, refText } from './PortionEditor';
 import { CustomFoodForm } from './CustomFoodForm';
 import { BarcodeSheet } from './BarcodeSheet';
+import { CreateWithAiSheet } from './CreateWithAiSheet';
 import { isValidBarcode } from '../../adapters/barcode';
 
 
@@ -73,6 +74,7 @@ function FoodPicker({ meal, date, onClose, onAdded }: { meal: Meal | null; date:
   const [chosen, setChosen] = useState<Food | null>(null);
   const [formOpen, setFormOpen] = useState<{ editing?: Food; barcode?: string } | null>(null);
   const [scanOpen, setScanOpen] = useState(false);
+  const [aiOpen, setAiOpen] = useState(false);
   const [deleting, setDeleting] = useState<Food | null>(null);
   const open = meal !== null;
   const mealLabel = MEALS.find((m) => m.id === meal)?.label ?? '';
@@ -166,15 +168,15 @@ function FoodPicker({ meal, date, onClose, onAdded }: { meal: Meal | null; date:
         {list.length === 0 ? (
           lookingUp ? null : <div style={{ marginTop: 10 }}>
             {barcodeQuery && lookup?.code === barcodeQuery && tab === 'all' ? (
-              <Empty icon={SearchX} title="No food found for this barcode" action={<button className="btn btn-secondary btn-sm" onClick={() => setFormOpen({ barcode: barcodeQuery })}>Create food</button>}>
-                Create it once and it will be found next time.
+              <Empty icon={SearchX} title="No food found for this barcode" action={<div className="empty-actions"><button className="btn btn-secondary btn-sm" onClick={() => setFormOpen({ barcode: barcodeQuery })}>Create food</button><button className="btn btn-secondary btn-sm" onClick={() => setAiOpen(true)}>Create with AI</button></div>}>
+                Enter it yourself, or let your AI assistant read the label.
               </Empty>
             ) : tab === 'favourites' && !q ? (
               <Empty icon={Star} title="No favourites yet">Tap the star on any food to keep it here.</Empty>
             ) : tab === 'mine' && !q ? (
               <Empty icon={UtensilsCrossed} title="No custom foods">Create foods from their nutrition labels.</Empty>
             ) : (
-              <Empty icon={SearchX} title="No foods found" action={<button className="btn btn-secondary btn-sm" onClick={() => setFormOpen({})}>Create food</button>}>
+              <Empty icon={SearchX} title="No foods found" action={<div className="empty-actions"><button className="btn btn-secondary btn-sm" onClick={() => setFormOpen({})}>Create food</button><button className="btn btn-secondary btn-sm" onClick={() => setAiOpen(true)}>Create with AI</button></div>}>
                 Try another search or add it yourself.
               </Empty>
             )}
@@ -219,6 +221,7 @@ function FoodPicker({ meal, date, onClose, onAdded }: { meal: Meal | null; date:
           lookupBarcode(code);
         }}
       />
+      <CreateWithAiSheet open={aiOpen} onClose={() => setAiOpen(false)} mealLabel={mealLabel} date={date} />
       <ConfirmSheet open={!!deleting} onClose={() => setDeleting(null)} title={`Delete “${deleting?.name ?? ''}”?`} body="Diary entries already logged keep their values." confirmLabel="Delete" danger onConfirm={() => deleting && (foods.deleteCustom(deleting.id), toast('Food deleted'))} />
     </>
   );

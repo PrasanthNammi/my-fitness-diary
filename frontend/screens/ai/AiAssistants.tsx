@@ -1,19 +1,23 @@
 import { useRef, useState } from 'react';
 import { Segmented, TopBar, toast } from '../../components/ui';
+import { appLinkProps, type AppLink } from '../../lib/appLinks';
 
 // Production AI connector (Cloudflare Worker); the staging build uses its own link.
 const CONNECTOR_URL = 'https://mfd-connect.shanustylish777.workers.dev';
 
 type App = 'chatgpt' | 'claude';
 // Same steps as the connector's own page; menu names moved during 2026, so both places are named.
-const STEPS: Record<App, { open: string; url: string; steps: [string, string][] }> = {
-  chatgpt: { open: 'Open ChatGPT', url: 'https://chatgpt.com', steps: [
+// `app` opens the installed app where possible (see lib/appLinks). Each page was tested on Android and iPhone with
+// the apps installed (Nov 2026): ChatGPT stays in the app on /settings (its /apps and home page bounce back to the
+// browser); Claude's iOS app opens the Add-connector box, but its Android app only accepts pages like /new.
+const STEPS: Record<App, { open: string; app: AppLink; steps: [string, string][] }> = {
+  chatgpt: { open: 'Open ChatGPT', app: { web: 'https://chatgpt.com/settings', androidPackage: 'com.openai.chatgpt' }, steps: [
     ['Turn on developer mode', 'In ChatGPT open Settings. Developer mode is under Apps & Connectors → Advanced, or under Security. Needs Plus or higher.'],
     ['Create the connector', 'Go to Apps & Connectors → Create. Name it My Fitness Diary, paste the link, choose OAuth.'],
     ['Sign in and choose access', 'Sign in with your diary account, then tick what ChatGPT may see and add.'],
     ['Try it', 'In a new chat press +, pick My Fitness Diary, and ask “Summarise my last 4 weeks”.'],
   ] },
-  claude: { open: 'Open Claude', url: 'https://claude.ai', steps: [
+  claude: { open: 'Open Claude', app: { web: 'https://claude.ai/customize/connectors?modal=add-custom-connector', android: 'https://claude.ai/new', androidPackage: 'com.anthropic.claude' }, steps: [
     ['Open connectors', 'In Claude go to Customize → Connectors (or Settings → Connectors).'],
     ['Add a custom connector', 'Press + then Add custom connector. Name it My Fitness Diary and paste the link.'],
     ['Connect', 'Press Connect, sign in with your diary account, then tick what Claude may see and add.'],
@@ -69,7 +73,7 @@ export function AiAssistants() {
             <li key={title}><div className="row-title">{title}</div><div className="row-sub">{text}</div></li>
           ))}
         </ol>
-        <a className="btn btn-secondary btn-block" href={guide.url} target="_blank" rel="noopener noreferrer">{guide.open}</a>
+        <a className="btn btn-secondary btn-block" {...appLinkProps(guide.app, navigator.userAgent)}>{guide.open}</a>
         {connector && (
           <div className="card card-pad stack-sm">
             <div className="row-title">Connected apps</div>
