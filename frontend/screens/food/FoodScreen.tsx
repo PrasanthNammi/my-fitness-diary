@@ -4,7 +4,7 @@ import {ChartNoAxesColumnIncreasing,ChevronUp,ChevronDown,ChevronRight,X} from '
 import {engine,openTool} from '../../adapters/engine';
 import {foodIn} from '../../adapters/compat';
 import {Camera,Flag} from 'lucide-react';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Pencil, Plus, ScanBarcode, Search, SearchX, Star, Trash2, UtensilsCrossed } from 'lucide-react';
 import type { DiaryEntry, Food, Meal, PortionUnit } from '../../domain/types';
 import { allowedUnits } from '../../domain/nutrition';
@@ -17,6 +17,7 @@ import { energyValue, fmtInt, fmtNum } from '../../lib/format';
 import { PortionEditor, refText } from './PortionEditor';
 import { CustomFoodForm } from './CustomFoodForm';
 import { BarcodeSheet } from './BarcodeSheet';
+import { isValidBarcode } from '../../adapters/barcode';
 
 
 function portionText(e: DiaryEntry) {
@@ -64,7 +65,10 @@ function FoodPicker({ meal, date, onClose, onAdded }: { meal: Meal | null; date:
   const favIds = useDB((d) => d.favouriteFoodIds);
   const entries = useDB((d) => d.diary);
   const savedFavourites = useDB(d=>d.settings.favouriteFoods);
-  const [q, setQ] = useState('');const [remote,setRemote]=useState<Food[]>([]);const [lastSearch,setLastSearch]=useState(0);async function searchOnline(){if(q.trim().length<3||Date.now()-lastSearch<6500)return;setLastSearch(Date.now());try{setRemote((await engine().searchFood(q)).filter((p:any)=>!p.incomplete).map(foodIn))}catch{toast('Offline')}}
+  const [q, setQ] = useState('');const [remote,setRemote]=useState<Food[]>([]);const [lastSearch,setLastSearch]=useState(0);const [lookup,setLookup]=useState<{code:string;loading:boolean}|null>(null),lookupSeq=useRef(0);
+  // Scanned or typed barcode: put it in the search bar, show saved foods that match it and add the database product to the list.
+  async function lookupBarcode(code:string){const seq=++lookupSeq.current;setTab('all');setQ(code);setRemote([]);setLookup({code,loading:true});try{const p=await engine().barcode(code);if(seq!==lookupSeq.current)return;if(p&&!p.incomplete){const f=foodIn(p);setRemote([{...f,barcode:f.barcode||code}])}}catch{if(seq===lookupSeq.current)toast('Offline')}finally{if(seq===lookupSeq.current)setLookup({code,loading:false})}}
+  async function searchOnline(){if(isValidBarcode(q))return lookupBarcode(q.trim());if(q.trim().length<3||Date.now()-lastSearch<6500)return;setLastSearch(Date.now());try{setRemote((await engine().searchFood(q)).filter((p:any)=>!p.incomplete).map(foodIn))}catch{toast('Offline')}}
   const [tab, setTab] = useState<Tab>('all');
   const [chosen, setChosen] = useState<Food | null>(null);
   const [formOpen, setFormOpen] = useState<{ editing?: Food; barcode?: string } | null>(null);
@@ -91,7 +95,11 @@ function FoodPicker({ meal, date, onClose, onAdded }: { meal: Meal | null; date:
     return base.filter((f) => terms.every((t) => `${f.name} ${f.brand ?? ''} ${f.barcode ?? ''}`.toLowerCase().includes(t)));
   }, [tab, all, custom, favIds, q]);
 
+  const barcodeQuery = isValidBarcode(q) ? q.trim() : null;
+  const lookingUp = !!lookup?.loading && lookup.code === barcodeQuery;
   const close = () => {
+    lookupSeq.current++;
+    setLookup(null);
     setQ('');
     setTab('all');
     onClose();
@@ -128,8 +136,9 @@ function FoodPicker({ meal, date, onClose, onAdded }: { meal: Meal | null; date:
         <div style={{ position: 'sticky', top: -4, background: 'var(--surface)', zIndex: 2, paddingBottom: 8 }}>
           <div className="row" style={{ gap: 6 }}>
             <label className="search">
-              <Search />
+              {!q && <Search />}
               <input type="search" placeholder="Search foods" value={q} onChange={(e) => setQ(e.target.value)} aria-label="Search foods" />
+              {q && <button type="button" className="search-clear" aria-label="Clear search" onClick={() => setQ('')}><X /></button>}
             </label>
             <button className="icon-btn" aria-label="Search" onClick={searchOnline}><Search/></button><button className="icon-btn" style={{ background: 'var(--field)' }} aria-label="Scan barcode" onClick={() => setScanOpen(true)}><ScanBarcode /></button>
             <button className={`icon-btn${tab === 'favourites' ? ' active' : ''}`} style={{ background: 'var(--field)' }} aria-label="Show favourites" aria-pressed={tab === 'favourites'} onClick={() => setTab(tab === 'favourites' ? 'all' : 'favourites')}>
@@ -153,9 +162,14 @@ function FoodPicker({ meal, date, onClose, onAdded }: { meal: Meal | null; date:
             <Plus /> Create food
           </button>
         )}
+        {lookingUp && <p className="food-lookup" role="status">Looking up barcode {barcodeQuery}…</p>}
         {list.length === 0 ? (
-          <div style={{ marginTop: 10 }}>
-            {tab === 'favourites' && !q ? (
+          lookingUp ? null : <div style={{ marginTop: 10 }}>
+            {barcodeQuery && lookup?.code === barcodeQuery && tab === 'all' ? (
+              <Empty icon={SearchX} title="No food found for this barcode" action={<button className="btn btn-secondary btn-sm" onClick={() => setFormOpen({ barcode: barcodeQuery })}>Create food</button>}>
+                Create it once and it will be found next time.
+              </Empty>
+            ) : tab === 'favourites' && !q ? (
               <Empty icon={Star} title="No favourites yet">Tap the star on any food to keep it here.</Empty>
             ) : tab === 'mine' && !q ? (
               <Empty icon={UtensilsCrossed} title="No custom foods">Create foods from their nutrition labels.</Empty>
@@ -200,13 +214,9 @@ function FoodPicker({ meal, date, onClose, onAdded }: { meal: Meal | null; date:
       <BarcodeSheet
         open={scanOpen}
         onClose={() => setScanOpen(false)}
-        onFound={(f) => {
+        onScanned={(code) => {
           setScanOpen(false);
-          setChosen(f);
-        }}
-        onCreate={(code) => {
-          setScanOpen(false);
-          setFormOpen({ barcode: code });
+          lookupBarcode(code);
         }}
       />
       <ConfirmSheet open={!!deleting} onClose={() => setDeleting(null)} title={`Delete “${deleting?.name ?? ''}”?`} body="Diary entries already logged keep their values." confirmLabel="Delete" danger onConfirm={() => deleting && (foods.deleteCustom(deleting.id), toast('Food deleted'))} />
