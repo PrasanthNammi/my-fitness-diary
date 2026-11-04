@@ -12,9 +12,21 @@ export function isAndroid(userAgent: string): boolean {
   return /Android/i.test(userAgent);
 }
 
+/** iPhone/iPad. iPadOS reports a Mac user agent, so a touch screen on "Macintosh" counts as iPad. */
+export function isIOS(userAgent: string, maxTouchPoints = 0): boolean {
+  return /iPhone|iPad|iPod/i.test(userAgent) || (/Macintosh/i.test(userAgent) && maxTouchPoints > 1);
+}
+
 export function appHref(link: AppLink, userAgent: string): string {
   if (!isAndroid(userAgent)) return link.web;
   const url = new URL(link.android ?? link.web);
   const scheme = url.protocol.replace(':', '');
   return `intent://${url.host}${url.pathname}${url.search}#Intent;scheme=${scheme};package=${link.androidPackage};S.browser_fallback_url=${encodeURIComponent(link.web)};end`;
+}
+
+// Anchor attributes for an app link. Android intent links stay in this tab: a new tab would be left empty once
+// the app opens. Everything else opens in a new tab so MFD stays open behind it.
+export function appLinkProps(link: AppLink, userAgent: string): { href: string; target?: string; rel: string } {
+  const href = appHref(link, userAgent);
+  return href.startsWith('intent:') ? { href, rel: 'noopener noreferrer' } : { href, target: '_blank', rel: 'noopener noreferrer' };
 }

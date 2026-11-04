@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react';
 import { Segmented, TopBar, toast } from '../../components/ui';
-import { appHref, type AppLink } from '../../lib/appLinks';
+import { appLinkProps, type AppLink } from '../../lib/appLinks';
 
 // Production AI connector (Cloudflare Worker); the staging build uses its own link.
 const CONNECTOR_URL = 'https://mfd-connect.shanustylish777.workers.dev';
@@ -45,7 +45,6 @@ export function AiAssistants() {
     setTimeout(() => setCopied(false), 2000);
   };
   const guide = STEPS[app];
-  const openHref = appHref(guide.app, navigator.userAgent);
   return (
     <>
       <TopBar title="AI assistants" back="/today" bordered />
@@ -74,8 +73,7 @@ export function AiAssistants() {
             <li key={title}><div className="row-title">{title}</div><div className="row-sub">{text}</div></li>
           ))}
         </ol>
-        {/* Android app links stay in this tab: a new tab would be left empty once the app opens. */}
-        <a className="btn btn-secondary btn-block" href={openHref} target={openHref.startsWith('intent:') ? undefined : '_blank'} rel="noopener noreferrer">{guide.open}</a>
+        <a className="btn btn-secondary btn-block" {...appLinkProps(guide.app, navigator.userAgent)}>{guide.open}</a>
         {connector && (
           <div className="card card-pad stack-sm">
             <div className="row-title">Connected apps</div>
