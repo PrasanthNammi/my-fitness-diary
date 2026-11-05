@@ -3,7 +3,7 @@ import {foodSummary} from '../../domain/foodSummary';
 import {ChartNoAxesColumnIncreasing,ChevronUp,ChevronDown,ChevronRight,X} from 'lucide-react';
 import {engine,openTool} from '../../adapters/engine';
 import {foodIn} from '../../adapters/compat';
-import {Camera,Flag} from 'lucide-react';
+import {Camera,Copy,Flag} from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Pencil, Plus, ScanBarcode, Search, SearchX, Star, Trash2, UtensilsCrossed } from 'lucide-react';
 import type { DiaryEntry, Food, Meal, PortionUnit } from '../../domain/types';
@@ -18,6 +18,7 @@ import { PortionEditor, refText } from './PortionEditor';
 import { CustomFoodForm } from './CustomFoodForm';
 import { BarcodeSheet } from './BarcodeSheet';
 import { CreateWithAiSheet } from './CreateWithAiSheet';
+import { CopyMealSheet } from './CopyMealSheet';
 import { isValidBarcode } from '../../adapters/barcode';
 
 
@@ -34,7 +35,7 @@ export function FoodScreen() {
   const { byMeal, total, fibre } = useDay(date);
   const t = useTargets()?.targets;
   const eU = useDB(d=>d.settings.energyUnit);
-  const [pickerMeal,setPickerMeal]=useState<Meal|null>(null),[editing,setEditing]=useState<DiaryEntry|null>(null);
+  const [pickerMeal,setPickerMeal]=useState<Meal|null>(null),[editing,setEditing]=useState<DiaryEntry|null>(null),[copyMeal,setCopyMeal]=useState<Meal|null>(null);
   const [expanded,setExpanded]=useState<Set<Meal>>(()=>new Set(['breakfast'])),[summary,setSummary]=useState(false);
   const [feedback,setFeedback]=useState<{text:string;entry:DiaryEntry;kind:'add'|'remove'}|null>(null);
   useEffect(()=>setFeedback(null),[date]);
@@ -47,13 +48,14 @@ export function FoodScreen() {
     {feedback&&<div className="food-feedback" role="status"><span>{feedback.text}</span><button onClick={()=>{if(feedback.kind==='add')diary.remove(feedback.entry.id);else diary.restore(feedback.entry);setFeedback(null)}}>Undo</button><button className="icon-btn" aria-label="Dismiss confirmation" onClick={()=>setFeedback(null)}><X size={16}/></button></div>}
     <div className="food-section-label">Your meals</div>
     {MEALS.map(m=>{const list=byMeal[m.id],values=foodSummary(list).values,open=expanded.has(m.id);return <section key={m.id} className="food-meal" aria-label={m.label}>
-      <div className="food-meal-header"><button className="food-meal-toggle" aria-expanded={open} aria-controls={`meal-${m.id}`} onClick={()=>setExpanded(old=>{const next=new Set(old);next.has(m.id)?next.delete(m.id):next.add(m.id);return next})}><span className="food-meal-title">{m.label}{open?<ChevronUp size={16}/>:<ChevronDown size={16}/>}</span><span className="food-meal-energy">{fmtInt(energyValue(values.kcal.value??0,eU))} {eU} · {list.length} {list.length===1?'food':'foods'}</span></button><button className="icon-btn food-meal-add" aria-label={`Add food to ${m.label}`} onClick={()=>setPickerMeal(m.id)}><Plus size={20}/></button></div>
+      <div className="food-meal-header"><button className="food-meal-toggle" aria-expanded={open} aria-controls={`meal-${m.id}`} onClick={()=>setExpanded(old=>{const next=new Set(old);next.has(m.id)?next.delete(m.id):next.add(m.id);return next})}><span className="food-meal-title">{m.label}{open?<ChevronUp size={16}/>:<ChevronDown size={16}/>}</span><span className="food-meal-energy">{fmtInt(energyValue(values.kcal.value??0,eU))} {eU} · {list.length} {list.length===1?'food':'foods'}</span></button>{list.length>0&&<button className="icon-btn food-meal-add" aria-label={`Copy ${m.label}`} onClick={()=>setCopyMeal(m.id)}><Copy size={18}/></button>}<button className="icon-btn food-meal-add" aria-label={`Add food to ${m.label}`} onClick={()=>setPickerMeal(m.id)}><Plus size={20}/></button></div>
       {macroCells({protein:values.protein.value??0,carbs:values.carbs.value??0,fat:values.fat.value??0,fibre:values.fibre.value})}
       <div id={`meal-${m.id}`} hidden={!open}>{list.map(entry=>{const n=entryNutrients(entry);return <div className="food-log-entry" key={entry.id}><button className="food-entry-edit" onClick={()=>setEditing(entry)} aria-label={`Edit ${entry.food.name}`}><span className="food-entry-name">{entry.food.name}</span><span className="food-entry-portion">{portionText(entry)} · {fmtInt(energyValue(n.kcal,eU))} {eU}<AiBadge addedBy={entry.addedBy} /></span><span className="food-entry-values">{[n.protein,n.carbs,n.fat,n.fibre].map((v,i)=><span key={i}>{v==null?'—':fmtNum(v,1)} <small>{['protein','carbs','fats','fibre'][i]}</small></span>)}</span></button><button className="icon-btn food-entry-remove" aria-label={`Remove ${entry.food.name}`} onClick={()=>remove(entry)}><X size={17}/></button></div>})}{!list.length&&<p className="food-empty-meal">No foods logged</p>}</div>
     </section>})}
     <section className="food-daily-summary" aria-label="Daily nutrition totals"><div className="food-total-grid">{([[eU,energyValue(total.kcal,eU),t?energyValue(t.kcal,eU):null],['Protein',total.protein,t?.protein],['Carbs',total.carbs,t?.carbs],['Fats',total.fat,t?.fat]] as const).map(([name,value,goal])=><div key={name}><div className="food-meter"><span style={{width:`${goal?Math.min(100,value/goal*100):0}%`}}/></div><span>{name}</span><strong>{fmtInt(value)}</strong>{goal!=null&&<small>/ {fmtInt(goal)}{name===eU?'':' g'}</small>}</div>)}</div><div className="food-summary-footer"><span>Fibre {fibre.grams==null?'—':`${fmtNum(fibre.grams,1)} g`}{fibre.missing>0?' · some values missing':''}</span><button onClick={()=>setSummary(true)}>All nutrients <ChevronRight size={14}/></button></div></section>
     </div>
     <FoodPicker meal={pickerMeal} date={date} onClose={()=>setPickerMeal(null)} onAdded={added}/>
+    <CopyMealSheet entries={copyMeal?byMeal[copyMeal]:[]} meal={copyMeal} date={date} onClose={()=>setCopyMeal(null)}/>
     <NutritionSummary open={summary} onClose={()=>setSummary(false)} date={date}/>
     <PortionEditor open={!!editing} onClose={()=>setEditing(null)} food={editing?.food??null} initial={editing?{amount:editing.amount,unit:editing.unit,meal:editing.meal}:null} submitLabel="Update entry" onSubmit={v=>{if(!editing)return;diary.updateEntry(editing.id,v);toast('Entry updated');setEditing(null)}} onDelete={()=>{if(!editing)return;remove(editing);setEditing(null)}}/>
   </div>;

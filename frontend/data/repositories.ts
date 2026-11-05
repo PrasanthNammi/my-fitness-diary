@@ -230,6 +230,13 @@ export const diary = {
     update((d) => void d.diary.push(e));
     return e;
   },
+  /** Copies entries to another day or meal as new entries (same food and portion). */
+  copy(entries: DiaryEntry[], date: ISODate, meal: Meal): DiaryEntry[] {
+    const now = Date.now();
+    const copies = entries.map((e): DiaryEntry => ({ id: uid(), date, meal, food: structuredClone(e.food), amount: e.amount, unit: e.unit, createdAt: now }));
+    update((d) => void d.diary.push(...copies));
+    return copies;
+  },
   updateEntry(id: ID, patch: Partial<Pick<DiaryEntry, 'amount' | 'unit' | 'meal'>>) {
     update((d) => {
       const e = d.diary.find((x) => x.id === id);
