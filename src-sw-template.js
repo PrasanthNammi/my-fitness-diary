@@ -35,7 +35,8 @@ self.addEventListener('push',event=>{
  await self.registration.showNotification(String(m.title||'My Fitness Diary').slice(0,120),{body:String(m.body||'').slice(0,200),tag:String(m.tag||'mfd'),renotify:!quiet,silent:quiet,icon:'/legacy/icon-256.png',vibrate:quiet?undefined:[120,60,120],actions,data:{id:typeof m.id==='string'?m.id:null,over:m.title==='Rest over',url:m.tag==='rest'?'/#/workout':'/'}})})());
 });
 self.addEventListener('notificationclick',event=>{
- const n=event.notification,{id,url}=n.data||{};n.close();
+ const n=event.notification,{id,url}=n.data||{};
+ // −15s / +15s keep the notification: it is updated in place, so the notification shade stays open.
  if((event.action==='plus15'||event.action==='minus15')&&id){
   const sec=event.action==='plus15'?15:-15;
   // An open MFD window owns the timer (and its ticking notification); otherwise ask the push service.
@@ -43,5 +44,6 @@ self.addEventListener('notificationclick',event=>{
    if(windows.length){for(const w of windows)w.postMessage({type:'MFD_REST_ADJUST',id,sec});return}
    await fetch('/api/push/rests/adjust',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify({id,sec})}).catch(()=>{})})());
   return}
+ n.close();
  event.waitUntil((async()=>{const windows=await self.clients.matchAll({type:'window',includeUncontrolled:true});const open=windows.find(w=>new URL(w.url).origin===self.location.origin);if(open){await open.focus();return}await self.clients.openWindow(url||'/')})());
 });
