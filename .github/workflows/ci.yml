@@ -19,6 +19,9 @@ jobs:
         run: npx --yes pnpm@11.25.0 --dir hosting install --frozen-lockfile
       - name: Check TypeScript
         run: npx tsc -p frontend/tsconfig.json --noEmit
+      # Some tests check the built service worker, so build first.
+      - name: Build production bundle
+        run: npm run build
       - name: Run regression tests
         run: |
           npm run test:performance
@@ -26,5 +29,3 @@ jobs:
           node tests/workout-clock.cjs
           node tests/food-actions.cjs
           node tests/food-summary.cjs
-      - name: Build production bundle
-        run: npm run build
