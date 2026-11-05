@@ -9,32 +9,41 @@ that commit builds.
 
 - The change is merged to `main` and CI is green.
 - Note the full commit hash: `git rev-parse origin/main`.
-- Note the Sites commit the last release produced. Each release report gives it.
+- Note the last released commit and the Sites commit it produced. Each release report gives both.
+- Build the release bundle:
+  `node scripts-release-bundle.cjs <last released commit> <commit>`.
+  It writes `~/Downloads/mfd-release-<commit>.zip`, containing the exact bytes of every changed
+  file and a `MANIFEST.txt`, and checks each file's hash before finishing. The bundle is needed
+  because ChatGPT's GitHub reader can't move binary files (images, GIFs); GitHub is only used
+  to check hashes.
 
 ## 2. Ship it (ChatGPT Work mode, in the Sites project)
 
-Paste this prompt and fill in the two hashes:
+Attach the bundle zip. Paste this prompt and fill in the hashes:
 
-> Release GitHub `PrasanthNammi/my-fitness-diary` commit `<COMMIT>` to this Site. Follow these
-> steps exactly. If any step fails or doesn't match, stop, publish nothing, and report.
+> Release GitHub `PrasanthNammi/my-fitness-diary` commit `<COMMIT>` to this Site, using the
+> attached bundle `mfd-release-<short commit>.zip`. Follow these steps exactly. If any step fails
+> or doesn't match, stop, publish nothing, and report.
 >
-> 1. **Starting point.** The current Sites source commit must be `<PREVIOUS SITES COMMIT>`. If it
->    isn't, stop: someone changed Sites outside this process.
-> 2. **Read the target.** Read the full recursive GitHub tree at `<COMMIT>`. It must not be
->    truncated.
-> 3. **Make the Sites source identical to it.**
->    - Write every file whose git blob hash differs from GitHub, or that is missing in Sites,
->      using GitHub's exact bytes. Binary files must be written byte for byte.
+> 1. **Starting point.** The current Sites source commit must be `<PREVIOUS SITES COMMIT>`, with
+>    a clean checkout. If it isn't, stop: someone changed Sites outside this process.
+> 2. **Read the target.** Read the full recursive GitHub tree at `<COMMIT>` (paths and blob
+>    hashes only). It must not be truncated.
+> 3. **Check the bundle.** Unzip it to a temporary folder. `MANIFEST.txt` must name `<COMMIT>`.
+>    Every file it lists under "Write" must be in the zip, and `git hash-object` of each must
+>    equal both the hash in `MANIFEST.txt` and the GitHub tree's hash for that path.
+> 4. **Apply it.**
+>    - Copy each "Write" file from the zip into the Sites source, byte for byte (binary-safe
+>      copy; never decode as text).
+>    - Delete each file listed under "Delete".
 >    - Don't edit, merge or reformat any file content yourself.
->    - Delete Sites files that aren't in the GitHub tree, except `public/react/**`,
->      `public/sw.js` and `node_modules/`. If anything else would be deleted, list it and stop.
-> 4. **Check before building.** Compare blob hashes for every tracked file, excluding
->    `node_modules/`. Expected: 0 different, 0 only in GitHub, and only `public/react/**` and
->    `public/sw.js` only in Sites. If that's not the result, stop.
-> 5. **Build and publish** as usual (`npm run build`).
-> 6. **Report:**
+> 5. **Check before building.** Compare blob hashes for every tracked Sites file against the
+>    GitHub tree, excluding `node_modules/`. Expected: 0 different, 0 only in GitHub, and only
+>    `public/react/**` and `public/sw.js` only in Sites. If that's not the result, stop.
+> 6. **Build and publish** as usual (`npm run build`).
+> 7. **Report:**
 >    - the new Sites commit and version;
->    - the step 4 counts;
+>    - the step 5 counts;
 >    - the build result;
 >    - the live `/sw.js` version string (`const CACHE=...`).
 
@@ -60,5 +69,5 @@ Cloudflare adds to HTML pages.
 - **Never change files directly in Sites.** Every change goes through a GitHub PR, then a release.
 - **Fixing a broken release:** release the previous good commit with the same prompt, then fix
   forward on GitHub.
-- **Server code** (`hosting/worker/`) can't be checked by downloading files. Step 4's hash
+- **Server code** (`hosting/worker/`) can't be checked by downloading files. Step 5's hash
   comparison covers it, and the script's sign-in and header checks exercise it.
