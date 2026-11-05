@@ -27,6 +27,8 @@ npx tsc -p frontend/tsconfig.json --noEmit
 
 To develop locally after installing dependencies, run `npm run dev`. Open `http://localhost:5173`. The Worker accepts localhost or 127.0.0.1 as the callback/CSRF origin only for local requests. In your Supabase project's Authentication → URL Configuration, add `http://localhost:5173/**` as an allowed Redirect URL to test Google/email confirmation. Do not change the production Site URL or use service-role keys. Real sign-in and account access still require your configured Supabase project and network access.
 
+Releases to production follow [RELEASING.md](RELEASING.md): one exact commit of `main`, verified file by file.
+
 The production app now uses the Worker in `hosting/` for authentication and security headers; a static server alone does not reproduce production authentication. Supply runtime secrets through the hosting environment, never source files.
 
 ## Layout
