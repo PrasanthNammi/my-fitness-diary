@@ -3,7 +3,7 @@
 const REST_KEY = 'mfd-push-rest', SCHEDULED_KEY = 'mfd-push-scheduled';
 
 export type PushStatus = 'unsupported' | 'needs-install' | 'denied' | 'off' | 'on';
-const ios = () => /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.userAgent.includes('Mac') && navigator.maxTouchPoints > 1);
+export const ios = () => /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.userAgent.includes('Mac') && navigator.maxTouchPoints > 1);
 const standalone = () => matchMedia('(display-mode: standalone)').matches || (navigator as { standalone?: boolean }).standalone === true;
 export const android = () => /Android/i.test(navigator.userAgent);
 
@@ -51,7 +51,8 @@ export type PendingRest = { id: string; ends: number; label: string };
 export function scheduleRests(rests: PendingRest[]) {
   if (!rests.length || !restAlertsOn() || !('Notification' in window) || Notification.permission !== 'granted') return;
   write(SCHEDULED_KEY, '1');
-  void api('rests', { rests, tz: Intl.DateTimeFormat().resolvedOptions().timeZone, controls: android() }).catch(() => write(SCHEDULED_KEY, null));
+  // No server "Resting" notification: on Android MFD shows its own ticking one (restNotification.ts).
+  void api('rests', { rests, tz: Intl.DateTimeFormat().resolvedOptions().timeZone, controls: false }).catch(() => write(SCHEDULED_KEY, null));
 }
 /** App back in front: take rests back (with any ±15 s from the notification) and cancel them there. */
 export async function reclaimRests(): Promise<PendingRest[] | null> {
