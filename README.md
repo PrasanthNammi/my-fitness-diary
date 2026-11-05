@@ -15,9 +15,6 @@ Use Node.js 22.13 or later. Root and hosting dependencies are installed separate
 
 ```sh
 npm ci
-# This code-only update retains existing media under dist/.
-# Reuse those assets locally without overwriting the current public source files:
-cp -an dist/. public/  # optional retained media (existing GIFs are unchanged)
 npx --yes pnpm@11.25.0 --dir hosting install --frozen-lockfile
 npm run build
 npm run test:performance
@@ -35,11 +32,11 @@ The production app now uses the Worker in `hosting/` for authentication and secu
 ## Layout
 
 - `frontend/`: React/TypeScript screens, domain logic, repositories and adapters.
-- `public/`: current client files and compatibility engine; generated client JS is retained for source parity.
+- `public/`: client files, compatibility engine, exercise media (`public/catalogue/app_media/`) and third-party licenses. `public/react/` and `public/sw.js` are build outputs (not committed).
 - `hosting/`: Worker, server authentication, framework configuration and build tools.
 - `database/`, `supabase/`: database policies/migrations and metrics endpoint source.
 - `monitoring/`: monitoring configuration and dashboards.
 - `tests/`: security, sync, catalogue, nutrition, workout and regression checks.
-- `dist/`: generated build output (ignored on new commits); rebuild to generate current production output.\n- `.github/workflows/ci.yml`: install, test, type-check and build on PRs and pushes.
+- `.github/workflows/ci.yml`: install, test, type-check and build on PRs and pushes.
 
-The neutral anatomy background is a repository-tracked SVG, so the muscle overlay no longer depends on the missing PNG. This update excludes new or changed GIFs and other binary media. Existing repository media is preserved. Personal records, secrets and dependencies are excluded. The Hevy integration remains read-only.
+The muscle overlay is drawn on the neutral 1254px anatomy illustration (`public/legacy/anatomy/muscles-neutral.png`). `main` matches the production Sites source exactly, apart from build outputs. Personal records, secrets and dependencies are excluded. The Hevy integration remains read-only.

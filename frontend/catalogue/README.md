@@ -2,7 +2,7 @@
 
 Version 0.3.0: 1,064 immutable exercise IDs, grouped into 300 families.
 
-Public catalogue and media live under `dist/catalogue/`. Only public generated outputs
+Public catalogue and media live under `public/catalogue/`. Only public generated outputs
 from the supplied catalogue package are included. Personal Hevy links belong in the
 owner's private workspace (`mfdExerciseLinks`), never these files. Custom exercises
 are stored in each private workspace; older catalogue contributions are protected by

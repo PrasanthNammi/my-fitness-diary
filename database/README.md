@@ -29,7 +29,7 @@ The frontend checks public auth settings and enables Google only when configured
 npm ci
 npm run build:client
 
-SDK version and bundler are pinned in package-lock.json. The bundled browser SDK is committed to dist/vendor, including its license. All other source files are buildless scripts.
+SDK version and bundler are pinned in package-lock.json. The bundled browser SDK is committed to public/vendor, including its license. All other source files are buildless scripts.
 
 # Local/cloud migration
 
