@@ -2,6 +2,9 @@ const SUPABASE='https://djyozltkmbzhwuvemxuy.supabase.co';
 const KEY='sb_publishable_nH3vRaPWVxxY636AThDN5A_ZIlQGghL';
 const ACCESS='__Host-mfd-access',REFRESH='__Host-mfd-refresh',PKCE='__Host-mfd-pkce';
 const ORIGIN='https://prasanth-nammi-portfolio.shanustylish777.chatgpt.site';
+// Phone notifications are sent by the MFD connector Worker; this server forwards the user's session to it.
+const PUSH='https://mfd-connect.shanustylish777.workers.dev';
+const PUSH_PATHS=/^\/push\/(key|devices|devices\/remove|prefs|rests|rests\/adjust)$/;
 const MAX_BODY=6*1024*1024;
 export const CSP="default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; script-src-attr 'none'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' https: data: blob:; media-src 'self' blob:; connect-src 'self' https://world.openfoodfacts.org; frame-src 'self'; frame-ancestors 'self'; worker-src 'self'; object-src 'none'; base-uri 'none'; form-action 'self'; upgrade-insecure-requests";
 type Deps={fetch:typeof fetch;assets:{fetch:(request:Request)=>Promise<Response>};origin?:string};
@@ -63,6 +66,13 @@ export async function handleMfd(request:Request,deps:Deps){
    if(!/^\/(rest\/v1\/|storage\/v1\/(object|render\/image)\/)/.test(path)||decoded.includes('..')||decoded.includes('\\')||decoded.includes('//'))throw new HttpError(404,'Unknown API');
    const access=await token(),headers=new Headers();for(const name of ['content-type','accept','prefer','range','range-unit','if-match','if-none-match','x-upsert']){const value=request.headers.get(name);if(value)headers.set(name,value)}
    const body=['GET','HEAD'].includes(request.method)?undefined:await readBody(request);const r=await upstream(path+url.search,{method:request.method,headers,body},access);const out=new Headers();for(const name of ['content-type','content-range','range-unit','retry-after']){const value=r.headers.get(name);if(value)out.set(name,value)}result=new Response(r.body,{status:r.status,headers:out});
+  }else if(url.pathname.startsWith('/api/push/')){
+   const path=url.pathname.slice('/api'.length);
+   if(!PUSH_PATHS.test(path)||!['GET','POST'].includes(request.method))throw new HttpError(404,'Unknown API');
+   const headers=new Headers();if(path!=='/push/key')headers.set('Authorization','Bearer '+await token());
+   let body:string|undefined;if(request.method==='POST'){body=JSON.stringify(await readJSON(request));headers.set('Content-Type','application/json')}
+   const r=await deps.fetch(PUSH+path,{method:request.method,headers,body,redirect:'manual',signal:AbortSignal.timeout(15000)});
+   result=new Response(r.body,{status:r.status,headers:{'Content-Type':'application/json'}});
   }else if(api)throw new HttpError(404,'Unknown API');
   else result=await deps.assets.fetch(request);
  }catch(e){const known=e instanceof HttpError;result=json({error:known?e.message:'Service unavailable. Please retry.'},known?e.status:503)}

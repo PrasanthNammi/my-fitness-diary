@@ -2,7 +2,8 @@ import { useEffect, useRef } from 'react';
 import { X } from 'lucide-react';
 import type { ActiveWorkout } from '../domain/types';
 import { resetTimer, timerRemaining, timerState } from '../domain/training';
-import { useDB } from '../data/store';
+import { getDB, useDB } from '../data/store';
+import { reclaimRests, scheduleRests } from '../lib/push';
 import { exerciseName, workouts } from '../data/repositories';
 import { chime, primeChime } from '../lib/chime';
 import { mss } from '../lib/format';
@@ -37,6 +38,24 @@ export function RestBar() {
   useEffect(() => {
     document.addEventListener('pointerdown', primeChime);
     return () => document.removeEventListener('pointerdown', primeChime);
+  }, []);
+  // Leaving MFD hands running rests to phone notifications; coming back takes them back,
+  // including any −15s / +15s pressed on the notification.
+  useEffect(() => {
+    const onVisibility = () => {
+      const a = getDB().active;
+      if (document.visibilityState === 'hidden') {
+        if (!a) return;
+        const at = Date.now();
+        scheduleRests(a.exercises.filter((b) => timerState(a.timers[b.id], at) === 'running').map((b) => ({ id: b.id, ends: a.timers[b.id].endsAt!, label: exerciseName(b.exerciseId) })));
+      } else {
+        void reclaimRests().then((rests) => {
+          if (rests?.length) workouts.mutate((w) => { for (const r of rests) if (w.timers[r.id]) w.timers[r.id] = { ...w.timers[r.id], endsAt: r.ends, pausedRemainingSec: null }; });
+        });
+      }
+    };
+    document.addEventListener('visibilitychange', onVisibility);
+    return () => document.removeEventListener('visibilitychange', onVisibility);
   }, []);
 
   const running = a?.exercises
