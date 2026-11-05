@@ -182,6 +182,13 @@ export const workouts = {
     });
     return w;
   },
+  /** Replaces a finished workout after a manual edit from history. */
+  updateWorkout(w: Workout) {
+    update((d) => {
+      const i = d.workouts.findIndex((x) => x.id === w.id);
+      if (i >= 0) d.workouts[i] = w;
+    });
+  },
   deleteWorkout(id: ID) {
     update((d) => void (d.workouts = d.workouts.filter((w) => w.id !== id)));
   },
