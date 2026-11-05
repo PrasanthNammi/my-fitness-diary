@@ -17,9 +17,6 @@ jobs:
         run: npm ci
       - name: Install Worker dependencies
         run: npx --yes pnpm@11.25.0 --dir hosting install --frozen-lockfile
-      - name: Restore retained media
-        run: |
-          if test -d dist; then cp -an dist/. public/; fi
       - name: Check TypeScript
         run: npx tsc -p frontend/tsconfig.json --noEmit
       - name: Run regression tests

@@ -19,8 +19,8 @@ for(const e of catalogue.exercises){for(const key of [...e.muscle_groups.primary
 const source=fs.readFileSync('frontend/App.tsx','utf8');assert.ok(source.includes("if (b === 'muscles')"));
 console.log('PASS muscle statistics: completed working sets, secondary credit, deduplication, unknown mapping, exact date boundaries, weekly/monthly buckets, empty states, immutable history and catalogue coverage');
 // Anatomy stays a neutral base with dynamic regions and is cached on demand.
-assert.ok(fs.existsSync('public/legacy/anatomy/muscles-neutral.svg'));
+assert.ok(fs.existsSync('public/legacy/anatomy/muscles-neutral.png'));
 const sw=fs.readFileSync('public/sw.js','utf8'),assets=JSON.parse(sw.match(/const ASSETS=(.*);/)[1]),core=JSON.parse(sw.match(/const CORE=(.*);/)[1]);
-assert.ok(assets.includes('/legacy/anatomy/muscles-neutral.svg'));assert.ok(!core.includes('/legacy/anatomy/muscles-neutral.svg'));
+assert.ok(assets.includes('/legacy/anatomy/muscles-neutral.png'));assert.ok(!core.includes('/legacy/anatomy/muscles-neutral.png'));
 assert.ok(fs.readFileSync('frontend/screens/progress/MuscleAnatomy.tsx','utf8').includes('counts[m]>0'));
 console.log('PASS dynamic anatomy and lazy offline-cache inclusion');
