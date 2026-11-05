@@ -324,6 +324,9 @@ button.list-row:hover { background: #fafbfc; }
 
 .toast-wrap { position: fixed; z-index: 200; left: 0; right: 0; top: calc(var(--safe-t) + 10px); display: flex; justify-content: center; pointer-events: none; padding: 0 16px; }
 .toast { background: var(--ink); color: #fff; padding: 10px 16px; border-radius: 10px; font-size: 14px; box-shadow: var(--shadow-pop); animation: slide 0.2s; max-width: 420px; }
+/* Rest timer: overlays the fixed global header while a rest runs. */
+.rest-bar{position:absolute;inset:0;z-index:2;display:flex;align-items:center;gap:6px;padding:0 10px 0 16px;background:var(--accent);color:#fff;animation:rest-in .15s ease-out}@keyframes rest-in{from{opacity:0}}.rest-bar-label{font-size:12px;opacity:.85}.rest-bar-time{font-size:20px;font-weight:700;line-height:1.1}.rest-bar-btn{min-width:48px;min-height:40px;border:0;border-radius:10px;background:rgba(255,255,255,.18);color:#fff;font-weight:600;font-size:14px;display:grid;place-items:center}
+@media(prefers-reduced-motion:reduce){.rest-bar{animation:none}}
 @media (min-width: 900px) { .toast-wrap { top: 16px; padding-left: 232px; } }
 
 /* ── Date strip ─────────────────────────────────────────────── */
