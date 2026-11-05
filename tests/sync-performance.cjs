@@ -46,5 +46,22 @@ function harness(){const storage=new Map(),events={},docEvents={},timers=new Map
  }
  // A failed logout retains both the session and its local recovery copy.
  h=harness();h.seed('alice',documentFor(1),3);h.remote(Promise.resolve({data:{payload:documentFor(1),revision:3}}));await h.boot();h.c.cloud.client.auth={signOut:async()=>({error:Error('offline')})};await h.c.performFormaSignOut();assert.equal(h.c.cloud.user.id,'alice');assert(h.storage.has('forma.account.alice'));
- console.log('PASS cached-first startup, offline journaling/recovery, account isolation, conflict baselines, GET/POST races, lifecycle flush and safe logout cleanup');
+ // Going to the background uploads at once: a workout finished just before the app is swiped away
+ // reaches the cloud, so another copy (second phone, or Safari vs the home-screen app) has it.
+ let shared={payload:{...documentFor(1),sessions:[{id:'yesterday',sets:[]}]},revision:3};
+ const connect=x=>{x.c.window.formaSupabase.rpc=async(name,{document,expected_revision})=>{await new Promise(r=>setImmediate(r));if(expected_revision!==shared.revision)return{data:[{conflict:true}]};shared={payload:copy(document),revision:shared.revision+1};return{data:[{saved_revision:shared.revision}]}};x.remote(Promise.resolve({data:copy(shared)}))};
+ h=harness();connect(h);h.seed('alice',copy(shared.payload),3);await h.boot();
+ h.c.state={...h.c.state,sessions:[...h.c.state.sessions,{id:'today',sets:[]}]};h.c.cloud.patchKeys=['sessions'];h.c.save();
+ assert.equal(h.timers.size>0,true);h.c.document.hidden=true;h.docEvents.visibilitychange();await new Promise(r=>setTimeout(r,20));h.timers.clear();
+ assert.deepEqual(shared.payload.sessions.map(x=>x.id),['yesterday','today']);assert.equal(h.c.cloud.dirty,false);
+ let other=harness();connect(other);await other.boot();assert.equal(other.c.state.sessions.at(-1).id,'today');
+ // An edit made while already in the background (e.g. a last typed value flushed on hide) also goes straight up.
+ h.c.state={...h.c.state,water:{test:5}};h.c.cloud.patchKeys=['water'];h.c.save();await new Promise(r=>setTimeout(r,20));assert.equal(shared.payload.water.test,5);
+ // Closing or reloading a visible page uploads at once too.
+ h.c.document.hidden=false;h.c.state={...h.c.state,water:{test:6}};h.c.cloud.patchKeys=['water'];h.c.save();h.events.pagehide();await new Promise(r=>setTimeout(r,20));assert.equal(shared.payload.water.test,6);
+ // In the foreground, edits are still batched rather than uploaded one by one.
+ h.c.state={...h.c.state,water:{test:7}};h.c.cloud.patchKeys=['water'];h.c.save();await new Promise(r=>setTimeout(r,20));assert.equal(shared.payload.water.test,6);
+ // After failures, background uploads respect the retry back-off instead of hammering the server.
+ h.c.window.formaSupabase.rpc=async()=>{throw Error('Failed to fetch')};await h.c.syncCloud();const until=h.c.cloud.retryAt;let tries=0;h.c.window.formaSupabase.rpc=async()=>{tries++;return{error:Error('x')}};h.c.document.hidden=true;h.docEvents.visibilitychange();await new Promise(r=>setTimeout(r,20));assert.equal(tries,0);assert(until>Date.now());
+ console.log('PASS cached-first startup, offline journaling/recovery, account isolation, conflict baselines, GET/POST races, lifecycle flush, immediate background upload and safe logout cleanup');
 })().catch(e=>{console.error(e);process.exit(1)});
