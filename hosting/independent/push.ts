@@ -35,12 +35,15 @@ export class PushHub extends DurableObject<Record<string, unknown>> {
   /** Sends to every device of this user; forgets devices the push service says are gone. */
   private async broadcast(message: Record<string, unknown>, topic: string, ttl: number) {
     const vapid = this.vapid();
-    await Promise.all(this.devices().map(async sub => {
+    const statuses = await Promise.all(this.devices().map(async sub => {
       try {
         const status = await sendPush(sub, message, vapid, fetch, {ttl, topic, urgency: 'high'});
         if (status === 404 || status === 410) this.sql.exec('DELETE FROM devices WHERE endpoint=?', sub.endpoint);
-      } catch { /* one device failing must not stop the others */ }
+        return status;
+      } catch {return 0; /* one device failing must not stop the others */}
     }));
+    // Counts and push-service status codes only (no endpoints, users or content): visible in `wrangler tail`.
+    console.log(JSON.stringify({push: topic, devices: statuses.length, statuses}));
   }
 
   async addDevice(sub: PushSubscription, subject: string, allowLocal: boolean) {
