@@ -3,7 +3,8 @@ import { X } from 'lucide-react';
 import type { ActiveWorkout } from '../domain/types';
 import { resetTimer, timerRemaining, timerState } from '../domain/training';
 import { getDB, useDB } from '../data/store';
-import { reclaimRests, scheduleRests } from '../lib/push';
+import { reclaimRests, scheduleRests, type PendingRest } from '../lib/push';
+import { closeRestNotification, closeRestingNotification, restNotificationsOn, showRestOver, showResting } from '../lib/restNotification';
 import { exerciseName, workouts } from '../data/repositories';
 import { chime, primeChime } from '../lib/chime';
 import { mss } from '../lib/format';
@@ -24,9 +25,28 @@ function useRestAlerts(a: ActiveWorkout | null, now: number) {
         chime();
         navigator.vibrate?.([120, 60, 120]);
         toast(`Rest over · ${exerciseName(b.exerciseId)}`);
+        // In the background, "Rest over" goes to the notification bar; on screen the chime is enough.
+        if (restNotificationsOn()) void (document.visibilityState === 'hidden' ? showRestOver(b.id, exerciseName(b.exerciseId)) : closeRestNotification());
       }
     }
   }, [a, now]);
+}
+
+const runningRests = (a: ActiveWorkout | null, at: number): PendingRest[] => !a ? [] : a.exercises
+  .filter((b) => timerState(a.timers[b.id], at) === 'running')
+  .map((b) => ({ id: b.id, ends: a.timers[b.id].endsAt!, label: exerciseName(b.exerciseId) }))
+  .sort((x, y) => x.ends - y.ends);
+
+/** −15s / +15s on a running rest; +15s on a finished rest starts 15 s more from now. */
+function adjustRest(id: string, sec: number) {
+  workouts.mutate((w) => {
+    const t = w.timers[id], now = Date.now();
+    if (t?.endsAt == null) return;
+    const base = sec > 0 ? Math.max(t.endsAt, now) : t.endsAt;
+    w.timers[id] = { ...t, endsAt: Math.max(now, base + sec * 1000), pausedRemainingSec: null };
+  });
+  // Still in the background (a notification button): move the backup push too.
+  if (document.visibilityState === 'hidden') scheduleRests(runningRests(getDB().active, Date.now()));
 }
 
 /** While a rest timer runs, the top header shows the time left with −15s / +15s / skip. */
@@ -43,11 +63,8 @@ export function RestBar() {
   // including any −15s / +15s pressed on the notification.
   useEffect(() => {
     const onVisibility = () => {
-      const a = getDB().active;
       if (document.visibilityState === 'hidden') {
-        if (!a) return;
-        const at = Date.now();
-        scheduleRests(a.exercises.filter((b) => timerState(a.timers[b.id], at) === 'running').map((b) => ({ id: b.id, ends: a.timers[b.id].endsAt!, label: exerciseName(b.exerciseId) })));
+        scheduleRests(runningRests(getDB().active, Date.now()));
       } else {
         void reclaimRests().then((rests) => {
           if (rests?.length) workouts.mutate((w) => { for (const r of rests) if (w.timers[r.id]) w.timers[r.id] = { ...w.timers[r.id], endsAt: r.ends, pausedRemainingSec: null }; });
@@ -57,6 +74,21 @@ export function RestBar() {
     document.addEventListener('visibilitychange', onVisibility);
     return () => document.removeEventListener('visibilitychange', onVisibility);
   }, []);
+  // The ticking "Resting" notification, and −15s / +15s pressed on it (relayed by the service worker).
+  useEffect(() => {
+    let shown = '', resting = false;
+    const tick = () => {
+      const next = runningRests(getDB().active, Date.now())[0];
+      if (next && restNotificationsOn()) {
+        const left = Math.max(0, Math.ceil((next.ends - Date.now()) / 1000)), key = `${next.id}:${left}`;
+        if (key !== shown) { shown = key; resting = true; void showResting(next.id, next.label, left).catch(() => undefined); }
+      } else if (resting) { resting = false; shown = ''; if (!next) void closeRestingNotification(); }
+    };
+    const timer = setInterval(tick, 1000);
+    const onMessage = (e: MessageEvent) => { if (e.data?.type === 'MFD_REST_ADJUST' && typeof e.data.id === 'string' && [-15, 15].includes(e.data.sec)) { adjustRest(e.data.id, e.data.sec); tick(); } };
+    navigator.serviceWorker?.addEventListener('message', onMessage);
+    return () => { clearInterval(timer); navigator.serviceWorker?.removeEventListener('message', onMessage); };
+  }, []);
 
   const running = a?.exercises
     .map((b) => ({ id: b.id, exerciseId: b.exerciseId, t: a.timers[b.id] }))
@@ -64,10 +96,7 @@ export function RestBar() {
     .sort((x, y) => x.t.endsAt! - y.t.endsAt!)[0];
   if (!running) return null;
 
-  const adjust = (sec: number) => workouts.mutate((w) => {
-    const t = w.timers[running.id];
-    if (t?.endsAt != null) w.timers[running.id] = { ...t, endsAt: Math.max(Date.now(), t.endsAt + sec * 1000) };
-  });
+  const adjust = (sec: number) => adjustRest(running.id, sec);
   const skip = () => workouts.mutate((w) => {
     const t = w.timers[running.id];
     if (t) w.timers[running.id] = resetTimer(t);
