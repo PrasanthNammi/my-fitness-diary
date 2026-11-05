@@ -1,12 +1,12 @@
 import {WorkoutClock} from './WorkoutClock';
 import { prepareActiveBlock, replaceExerciseBlock } from '../../domain/training';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { ChevronDown, Dumbbell, Pencil, Plus, Trash2 } from 'lucide-react';
-import type { ActiveWorkout as AW, ExerciseBlock, RestTimer, Workout } from '../../domain/types';
-import { countSets, pauseTimer, resetTimer, startTimer, timerState, workingVolume } from '../../domain/training';
+import type { ExerciseBlock, RestTimer, Workout } from '../../domain/types';
+import { countSets, pauseTimer, resetTimer, startTimer, workingVolume } from '../../domain/training';
 import { ConfirmSheet, Empty, Field, Notice, Sheet, toast } from '../../components/ui';
 import { useDB } from '../../data/store';
-import { exerciseName, routineFromWorkout, training, workouts } from '../../data/repositories';
+import { routineFromWorkout, training, workouts } from '../../data/repositories';
 import { duration, fmtVolume } from '../../lib/format';
 import { useNow } from '../../lib/hooks';
 import { goBack, navigate } from '../../lib/router';
@@ -16,24 +16,6 @@ import {
   FolderChoice, folderNameError, joinSuperset, leaveSuperset, moveBlock, resolveFolderChoice, SupersetSheet, supersetLetters,
   type FolderChoiceValue,
 } from './common';
-
-/** Fires a short vibration + toast once when an exercise's rest timer runs out. */
-function useRestAlerts(a: AW | null, now: number) {
-  const fired = useRef(new Set<string>());
-  useEffect(() => {
-    if (!a) return;
-    for (const b of a.exercises) {
-      const t = a.timers[b.id];
-      if (!t || t.endsAt === null) continue;
-      const key = `${b.id}:${t.endsAt}`;
-      if (timerState(t, now) === 'done' && !fired.current.has(key) && now - t.endsAt < 5000) {
-        fired.current.add(key);
-        navigator.vibrate?.([120, 60, 120]);
-        toast(`Rest over · ${exerciseName(b.exerciseId)}`);
-      }
-    }
-  }, [a, now]);
-}
 
 export function ActiveWorkoutScreen() {
   const a = useDB((d) => d.active);
@@ -48,7 +30,6 @@ export function ActiveWorkoutScreen() {
   const [finishOpen, setFinishOpen] = useState(false);
   const [renameOpen, setRenameOpen] = useState(false);
   const [saved, setSaved] = useState<Workout | null>(null);
-  useRestAlerts(a, now);
 
   const letters = useMemo(() => supersetLetters(a?.exercises ?? []), [a?.exercises]);
 

@@ -2,6 +2,8 @@ import { MuscleStats } from './screens/progress/MuscleStats';
 import { useWorkoutLimit } from './lib/useWorkoutLimit';
 import { RoutineOverview } from './screens/training/RoutineOverview';
 import {SyncStatus} from './components/SyncStatus';
+import { RestBar } from './components/RestBar';
+import { AiAddedNotice } from './components/AiAddedNotice';
 import { useEffect } from 'react';
 import { BarChart3, CalendarDays, Dumbbell, Settings, UtensilsCrossed, ChevronUp } from 'lucide-react';
 import { useDB } from './data/store';
@@ -117,13 +119,14 @@ export function App() {
         <div className="logo"><LogoFull width={168} /></div>
         {navItems()}
       </nav>
-      <header className="global-header"><img className="header-logo" src="/legacy/logo.svg" width="86" height="44" alt="My Fitness Diary"/><SyncStatus/><button className="icon-btn" aria-label="Settings" title="Settings" onClick={()=>navigate('/settings')}><Settings/></button></header>
+      <header className="global-header"><img className="header-logo" src="/legacy/logo.svg" width="86" height="44" alt="My Fitness Diary"/><SyncStatus/><button className="icon-btn" aria-label="Settings" title="Settings" onClick={()=>navigate('/settings')}><Settings/></button><RestBar/></header>
       <main className={`main${focused ? ' no-nav' : ''}${showResume && !focused ? ' has-resume' : ''}`}>
         <Routes key={accountKey} route={route} />
       </main>
       {showResume && !focused && <ResumeBar />}
       {!focused && <nav className="bottom-nav" aria-label="Main">{navItems()}</nav>}
       <ToastHost />
+      <AiAddedNotice />
     </div>
   );
 }
