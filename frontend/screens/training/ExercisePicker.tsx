@@ -1,9 +1,12 @@
-import {MUSCLES as MUSCLE_GROUP_NAMES} from '../../domain/muscleStats';
+import {MUSCLES as MUSCLE_GROUP_NAMES,emptyCounts,muscleMapping,type Muscle} from '../../domain/muscleStats';
+import {MuscleAnatomy} from '../progress/MuscleAnatomy';
+import {exerciseThumbnail} from '../../catalogue/media';
+import type {Level} from '../../catalogue/exercise';
 import {installNativeCatalogue,loadMfdCatalogue,getCatalogue,mapEntry,migrateExerciseIds} from '../../catalogue/runtime';
 import {ExerciseGuide,ExercisePage} from './ExercisePage';
 import {engine} from '../../adapters/engine';
 import { useMemo, useState, useEffect } from 'react';
-import { ChevronDown, ChevronLeft, Dumbbell, FileText, ImageOff, Minus, Plus, Search, SearchX } from 'lucide-react';
+import { ChevronDown, ChevronLeft, Dumbbell, FileText, ImageOff, Minus, PersonStanding, Plus, Search, SearchX, X } from 'lucide-react';
 import type { Exercise, ExerciseBlock, ExerciseSource, TrackingMode } from '../../domain/types';
 import { TRACKING_LABEL, trackingFields } from '../../domain/training';
 import { EQUIPMENT, MUSCLES, SOURCE_LABEL, SOURCE_ORDER } from '../../data/exerciseCatalog';
@@ -35,29 +38,63 @@ function Stepper({ label, value, onChange, min = 0, max = 50 }: { label: string;
   );
 }
 
-type Filter = { muscle: string | null; equipment: string | null; source: ExerciseSource | null };
+type Filter = { group: string | null; muscle: Muscle | null; equipment: string | null; level: Level | null; source: ExerciseSource | null };
+type SheetKey = 'equipment' | 'level' | 'source';
+const NO_FILTER: Filter = { group: null, muscle: null, equipment: null, level: null, source: null };
+const MEDIA = '/catalogue/app_media';
+const LEVELS: Level[] = ['beginner', 'intermediate', 'advanced'];
+const LEVEL_LABEL: Record<Level, string> = { beginner: 'Beginner', intermediate: 'Intermediate', advanced: 'Advanced' };
+// Broad groups shown first: name, muscles, and a common beginner-friendly exercise with a photo for the tile.
+const GROUPS: [string, Muscle[], string][] = [
+  ['Chest', ['chest'], 'bench_press_barbell'],
+  ['Back', ['lats', 'upper_back', 'traps', 'lower_back'], 'bent_over_row_barbell'],
+  ['Shoulders', ['shoulders'], 'lateral_raise_dumbbell'],
+  ['Arms', ['biceps', 'triceps', 'forearms'], 'bicep_curl_dumbbell'],
+  ['Legs', ['quadriceps', 'hamstrings', 'calves'], 'squat_barbell'],
+  ['Glutes', ['glutes', 'abductors', 'adductors'], 'glute_bridge'],
+  ['Core', ['abdominals'], 'crunch_bodyweight'],
+  ['Cardio', ['cardio'], 'treadmill'],
+];
+const groupMuscles = (g: string | null) => GROUPS.find(([name]) => name === g)?.[1] || null;
+const groupOf = (m: Muscle) => GROUPS.find(([, list]) => list.includes(m))?.[0] || null;
+const thumbnail = (ex: Exercise) => (ex.entry ? exerciseThumbnail(ex.entry, MEDIA) : ex.mediaUrl);
+
+function Thumb({ src }: { src: string | null }) {
+  const [failed, setFailed] = useState(false);
+  useEffect(() => setFailed(false), [src]);
+  return <div className="ex-thumb" aria-hidden="true">{src && !failed ? <img src={src} alt="" loading="lazy" decoding="async" width="48" height="48" onError={() => setFailed(true)} /> : <Dumbbell />}</div>;
+}
 
 /** Shared exercise picker used by the routine editor and the active workout. */
 export function ExercisePicker({ open, onClose, onAdd, browse, replace = false, initialSets = 3 }: { open: boolean; onClose: () => void; onAdd: (b: ExerciseBlock) => void; browse?:boolean; replace?:boolean; initialSets?:number }) {
   const custom = useDB((d) => d.customExercises);
+  const history = useDB((d) => d.workouts);
+  const lastDone = useMemo(() => { const m = new Map<string, number>(); for (const w of history) for (const b of w.exercises) if (w.startedAt > (m.get(b.exerciseId) ?? -1)) m.set(b.exerciseId, w.startedAt); return m; }, [history]);
   const settings = useDB((d) => d.settings);
   const [q, setQ] = useState('');
   const [loading,setLoading]=useState(!getCatalogue()),[loadError,setLoadError]=useState(false);
   const load=()=>{setLoading(true);setLoadError(false);loadMfdCatalogue().then(()=>{const e=engine();if(e?.peek().ready&&!e.peek().reconciling)installNativeCatalogue(e);setLoading(false)}).catch(()=>{setLoading(false);setLoadError(true)})};
   useEffect(()=>{if(open&&!getCatalogue())load()},[open]);
 
-  const [filter, setFilter] = useState<Filter>({ muscle: null, equipment: null, source: null });
-  const [filterSheet, setFilterSheet] = useState<keyof Filter | null>(null);
+  const [filter, setFilter] = useState<Filter>(NO_FILTER);
+  const [filterSheet, setFilterSheet] = useState<SheetKey | null>(null);
+  const [bodyMap, setBodyMap] = useState(false);
   const [selected, setSelected] = useState<Exercise | null>(null);
   const [creating, setCreating] = useState(false);
 
   const all = useMemo(() => exercises.all(), [custom]); // eslint-disable-line react-hooks/exhaustive-deps
   const results = useMemo(() => {
     const cat=getCatalogue();const ids=new Map((cat?.search(q,{},2000)||[]).map((e,i)=>[e.id,i]));const words=q.toLowerCase().trim().split(/\s+/);
-    return all.filter(e=>e.source==='mfd'?ids.has(e.id):e.source==='custom'&&!e.id.startsWith('history:')&&words.every(w=>e.name.toLowerCase().includes(w))).filter(e=>(!filter.muscle||e.primaryMuscle===filter.muscle||e.secondaryMuscles.includes(filter.muscle))&&(!filter.equipment||e.equipment.toLowerCase().includes(filter.equipment.toLowerCase()))&&(!filter.source||e.source===filter.source)).sort((a,b)=>(ids.get(a.id)??-1)-(ids.get(b.id)??-1));
+    // Match an exercise's main muscle only, so a group lists what mainly trains it.
+    const muscles=filter.muscle?[filter.muscle]:groupMuscles(filter.group);
+    return all.filter(e=>e.source==='mfd'?ids.has(e.id):e.source==='custom'&&!e.id.startsWith('history:')&&words.every(w=>e.name.toLowerCase().includes(w))).filter(e=>(!muscles||muscles.includes(muscleMapping(e).primary[0]))&&(!filter.level||e.entry?.level===filter.level)&&(!filter.equipment||e.equipment.toLowerCase().includes(filter.equipment.toLowerCase()))&&(!filter.source||e.source===filter.source)).sort((a,b)=>(ids.get(a.id)??-1)-(ids.get(b.id)??-1));
   },[all,q,filter]);
   const [expanded,setExpanded]=useState<Set<string>>(new Set());
-  const families=useMemo(()=>{const rows=new Map<string,Exercise[]>();for(const ex of results){const key=ex.entry?.family_id||ex.id;const group=rows.get(key)||[];group.push(ex);rows.set(key,group)}return [...rows].map(([id,list])=>({id,list:list.sort((a,b)=>Number(!!b.entry?.is_default_variation)-Number(!!a.entry?.is_default_variation))}))},[results]);
+  const families=useMemo(()=>{const byFamily=new Map<string,Exercise[]>();for(const ex of results){const key=ex.entry?.family_id||ex.id;const group=byFamily.get(key)||[];group.push(ex);byFamily.set(key,group)}const rows=[...byFamily].map(([id,list])=>({id,list:list.sort((a,b)=>(lastDone.get(b.id)??-1)-(lastDone.get(a.id)??-1)||Number(!!b.entry?.is_default_variation)-Number(!!a.entry?.is_default_variation))})).map(f=>({...f,thumb:thumbnail(f.list[0]),done:lastDone.get(f.list[0].id)??-1}));
+    // When browsing (no search): exercises you have logged first (most recent first), then ones with a picture, beginner before advanced.
+    // A search keeps the catalogue's relevance order.
+    const rank=(f:typeof rows[number])=>(f.thumb?0:3)+(f.list[0].entry?LEVELS.indexOf(f.list[0].entry.level):1);
+    return q.trim()?rows:rows.sort((a,b)=>b.done-a.done||rank(a)-rank(b))},[results,q,lastDone]);
 
   const close = () => {
     setSelected(null);
@@ -69,13 +106,19 @@ export function ExercisePicker({ open, onClose, onAdd, browse, replace = false, 
   useEffect(()=>setVisible(80),[q,filter]);
   const grouped = SOURCE_ORDER.map((s) => [s, results.slice(0,visible).filter((r) => r.source === s)] as const).filter(([, l]) => l.length);
 
-  const filterOptions: Record<keyof Filter, string[]> = {
-    muscle: [...new Set(all.map(e=>e.primaryMuscle))].sort(),
+  const filterOptions: Record<SheetKey, string[]> = {
     equipment: [...new Set(Object.values(getCatalogue()?.meta.equipment||{}))].sort(),
+    level: LEVELS,
     source: SOURCE_ORDER,
   };
-  const filterLabel = (k: keyof Filter) =>
-    filter[k] ? (k === 'source' ? SOURCE_LABEL[filter[k] as ExerciseSource] : filter[k]) : k === 'muscle' ? 'Muscle' : k === 'equipment' ? 'Equipment' : 'Source';
+  const optionLabel = (k: SheetKey, o: string) => (k === 'source' ? SOURCE_LABEL[o as ExerciseSource] : k === 'level' ? LEVEL_LABEL[o as Level] : o);
+  const filterLabel = (k: SheetKey) => (filter[k] ? optionLabel(k, filter[k]!) : k === 'level' ? 'Level' : k === 'equipment' ? 'Equipment' : 'Source');
+  const filtered = Object.values(filter).some(Boolean);
+  const subMuscles = groupMuscles(filter.group);
+  const muscleLabel = filter.muscle ? MUSCLE_GROUP_NAMES[filter.muscle] : filter.group;
+  const mapCounts = useMemo(() => { const c = emptyCounts(); for (const m of filter.muscle ? [filter.muscle] : subMuscles || []) c[m] = 1; return c; }, [filter.muscle, subMuscles]);
+  const catalogueReady = !loading && !!getCatalogue();
+  const tileImage = (id: string) => { const e = getCatalogue()?.get(id); return e ? exerciseThumbnail(e, MEDIA) : null; };
 
   let title = replace ? 'Replace exercise' : 'Exercise';
   if (selected) title = 'Exercise';
@@ -130,23 +173,45 @@ export function ExercisePicker({ open, onClose, onAdd, browse, replace = false, 
                 data-autofocus
               />
             </label>
-            <div className="chips" style={{ marginTop: 8 }}>
-              {(['muscle', 'equipment'] as const).map((k) => (
+            <div className="chips picker-filters" style={{ marginTop: 8 }}>
+              <button className="chip" aria-pressed={bodyMap} onClick={() => setBodyMap(v => !v)}><PersonStanding /> Body</button>
+              {(filter.group || filter.muscle) && (
+                <button className="chip" aria-pressed aria-label={`Remove ${muscleLabel} filter`} onClick={() => setFilter({ ...filter, group: null, muscle: null })}>{muscleLabel} <X /></button>
+              )}
+              {(['level', 'equipment'] as const).map((k) => (
                 <button key={k} className="chip" aria-pressed={!!filter[k]} onClick={() => setFilterSheet(k)}>
                   {filterLabel(k)} <ChevronDown />
                 </button>
               ))}
-              {(filter.muscle || filter.equipment || filter.source) && (
-                <button className="chip" onClick={() => setFilter({ muscle: null, equipment: null, source: null })}>Clear</button>
+              {filtered && (
+                <button className="chip" onClick={() => setFilter(NO_FILTER)}>Clear</button>
               )}
             </div>
           </div>
+          {catalogueReady && !q.trim() && (
+            <div className="muscle-browse">
+              {bodyMap && <MuscleAnatomy pick counts={mapCounts} selected={filter.muscle} onSelect={(m) => setFilter({ ...filter, group: groupOf(m), muscle: filter.muscle === m ? null : m })} />}
+              <div className="muscle-tiles" role="group" aria-label="Muscle groups">
+                {GROUPS.map(([g, , id]) => { const src = tileImage(id); return (
+                  <button key={g} className="muscle-tile" aria-pressed={filter.group === g} onClick={() => setFilter({ ...filter, group: filter.group === g ? null : g, muscle: null })}>
+                    {src ? <img src={src} alt="" loading="lazy" decoding="async" width="96" height="72" /> : <Dumbbell />}<span>{g}</span>
+                  </button>
+                ); })}
+              </div>
+              {subMuscles && subMuscles.length > 1 && (
+                <div className="chips picker-filters" role="group" aria-label={`${filter.group} muscles`}>
+                  <button className="chip" aria-pressed={!filter.muscle} onClick={() => setFilter({ ...filter, muscle: null })}>All {filter.group?.toLowerCase()}</button>
+                  {subMuscles.map((m) => <button key={m} className="chip" aria-pressed={filter.muscle === m} onClick={() => setFilter({ ...filter, muscle: m })}>{MUSCLE_GROUP_NAMES[m]}</button>)}
+                </div>
+              )}
+            </div>
+          )}
           {loading?<div className="exercise-empty" role="status" aria-label="Loading catalogue"><Dumbbell className="spin"/></div>:loadError?<button className="icon-btn" aria-label="Retry catalogue" onClick={load}>↻</button>:results.length === 0 ? (
             <Empty icon={SearchX} title="No exercises found" action={<button className="btn btn-secondary btn-sm" onClick={() => setCreating(true)}>Create custom exercise</button>}>
               Try a different search or clear filters.
             </Empty>
           ) : (
-            families.slice(0,visible).map(({id,list})=>{const ex=list[0];const variants=ex.entry?getCatalogue()?.family(ex.id).map(mapEntry)||list:list;return <div key={id} className="catalogue-family"><div className="row"><button className="ex-row grow" onClick={()=>setSelected(ex)}><div className="ex-thumb" aria-hidden="true"><Dumbbell/></div><div className="grow"><div className="nm">{ex.name}</div><div className="mt">{ex.equipment} · {ex.primaryMuscle}</div></div></button>{variants.length>1&&<button className="icon-btn" aria-label={`Variations of ${ex.entry?.family_name}`} aria-expanded={expanded.has(id)} onClick={()=>setExpanded(prev=>{const next=new Set(prev);next.has(id)?next.delete(id):next.add(id);return next})}><ChevronDown size={18}/><small>{variants.length}</small></button>}</div>{expanded.has(id)&&variants.filter(e=>e.id!==ex.id).map(e=><button key={e.id} className="ex-row catalogue-variation" onClick={()=>setSelected(e)}><div className="grow"><div className="nm">{e.name}</div><div className="mt">{e.equipment}</div></div><Plus size={16}/></button>)}</div>})
+            families.slice(0,visible).map(({id,list,thumb})=>{const ex=list[0];const variants=ex.entry?getCatalogue()?.family(ex.id).map(mapEntry)||list:list;return <div key={id} className="catalogue-family"><div className="row"><button className="ex-row grow" onClick={()=>setSelected(ex)}><Thumb src={thumb}/><div className="grow"><div className="nm">{ex.name}</div><div className="mt">{ex.equipment} · {ex.primaryMuscle}{ex.entry?` · ${LEVEL_LABEL[ex.entry.level]}`:''}</div></div></button>{variants.length>1&&<button className="icon-btn" aria-label={`Variations of ${ex.entry?.family_name}`} aria-expanded={expanded.has(id)} onClick={()=>setExpanded(prev=>{const next=new Set(prev);next.has(id)?next.delete(id):next.add(id);return next})}><ChevronDown size={18}/><small>{variants.length}</small></button>}</div>{expanded.has(id)&&variants.filter(e=>e.id!==ex.id).map(e=><button key={e.id} className="ex-row catalogue-variation" onClick={()=>setSelected(e)}><div className="grow"><div className="nm">{e.name}</div><div className="mt">{e.equipment}</div></div><Plus size={16}/></button>)}</div>})
           )}
           {families.length>visible&&<button className="btn btn-secondary" aria-label="More exercises" onClick={()=>setVisible(v=>v+80)}><Plus/></button>}
           <Sheet open={!!filterSheet} onClose={() => setFilterSheet(null)} title={filterSheet ? filterLabel(filterSheet) : ''}>
@@ -157,7 +222,7 @@ export function ExercisePicker({ open, onClose, onAdd, browse, replace = false, 
                 </button>
                 {filterOptions[filterSheet].map((o) => (
                   <button key={o} className="option" aria-pressed={filter[filterSheet] === o} onClick={() => (setFilter({ ...filter, [filterSheet]: o }), setFilterSheet(null))}>
-                    <span className="strong">{filterSheet === 'source' ? SOURCE_LABEL[o as ExerciseSource] : o}</span>
+                    <span className="strong">{optionLabel(filterSheet, o)}</span>
                   </button>
                 ))}
               </div>

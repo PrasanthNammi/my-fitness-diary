@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Activity, BarChart3, ChevronRight, ClipboardList, HeartPulse, Plus, Scale, Sparkles, Trash2 } from 'lucide-react';
+import { Activity, BarChart3, ChevronRight, ClipboardList, HeartPulse, Pencil, Plus, Scale, Sparkles, Trash2 } from 'lucide-react';
 import type { Workout } from '../../domain/types';
 import { e1rm, setLabels, trackingFields, workingVolume } from '../../domain/training';
 import { AiBadge, ConfirmSheet, Empty, Field, OverflowMenu, Segmented, SelectField, Sheet, TopBar, toast } from '../../components/ui';
@@ -329,9 +329,10 @@ export function SessionDetail({ id }: { id: string }) {
   const sets = w.exercises.reduce((n, b) => n + b.sets.length, 0);
   return (
     <>
-      <TopBar title={w.title} back="/progress" bordered actions={
-        <OverflowMenu title={w.title} actions={[{ label: 'Delete workout', icon: Trash2, danger: true, onSelect: () => setDel(true) }]} />
-      } />
+      <TopBar title={w.title} back="/progress" bordered actions={<>
+        <button className="btn btn-ghost btn-sm" onClick={() => navigate(`/progress/session/${w.id}/edit`)}><Pencil /> Edit</button>
+        <OverflowMenu title={w.title} actions={[{ label: 'Edit workout', icon: Pencil, onSelect: () => navigate(`/progress/session/${w.id}/edit`) }, { label: 'Delete workout', icon: Trash2, danger: true, onSelect: () => setDel(true) }]} />
+      </>} />
       <div className="screen">
         <p className="small muted" style={{ margin: '10px 0 6px' }}>{longDate(w.startedAt)}</p>
         <div className="wo-summary">

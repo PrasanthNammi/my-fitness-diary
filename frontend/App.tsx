@@ -19,6 +19,7 @@ import { RoutineEditor } from './screens/training/RoutineEditor';
 import { ActiveWorkoutScreen } from './screens/training/ActiveWorkout';
 import { FoodScreen } from './screens/food/FoodScreen';
 import { ProgressScreen, SessionDetail } from './screens/progress/ProgressScreen';
+import { WorkoutEditor } from './screens/progress/WorkoutEditor';
 import { CoachScreen } from './screens/coach/CoachScreen';
 import { AiAssistants } from './screens/ai/AiAssistants';
 import {EngineSurface} from './Runtime';
@@ -64,6 +65,7 @@ function Routes({ route }: { route: string[] }) {
       return <FoodScreen />;
     case 'progress':
       if (b === 'muscles') return <MuscleStats view={c} />;
+      if (b === 'session' && c && d === 'edit') return <WorkoutEditor key={c} id={c} />;
       if (b === 'session' && c) return <SessionDetail id={c} />;
       return <EngineSurface screen="progress"/>;
     case 'friends':return <FriendsScreen username={b==='u'?c:undefined}/>;
