@@ -16,10 +16,13 @@ export function integrationUpstream(config: IntegrationConfig, fetcher: typeof f
 // /mcp behind the Worker's OAuth server: the provider already verified the AI app's opaque
 // token for this resource. The stored Supabase session reads the diary; the RPC still
 // enforces live session, Worker client, audience and this connection's section consent.
-export function createConnectorMcpService(config: IntegrationConfig, fetcher: typeof fetch, gate: RateGate) {
+/** Called after an AI app successfully adds something (used for phone notifications). */
+export type OnWrite = (userId: string, connection: string, operation: string, args: Record<string, unknown>) => Promise<void>;
+const ADDS = new Set(['log_workout', 'create_routine', 'log_meal', 'log_weight']);
+export function createConnectorMcpService(config: IntegrationConfig, fetcher: typeof fetch, gate: RateGate, onWrite?: OnWrite) {
   const raw = integrationUpstream(config, fetcher);
   const challenge = `Bearer error="invalid_token", resource_metadata="${config.authOrigin}/.well-known/oauth-protected-resource/mcp"`;
-  return async (request: Request, props: ConnectorProps, scope: string[]): Promise<Response> => {
+  return async (request: Request, props: ConnectorProps, scope: string[], ctx?: ExecutionContext): Promise<Response> => {
     try {
       if (!props?.sb?.access || !props.connection) return privateJson({error: 'Invalid or missing MCP access token'}, 401, {'WWW-Authenticate': challenge});
       if (!await gate.allow('all') || !await gate.allow(await tokenKey(props.userId + ' ' + props.connection))) return privateJson({error: 'Rate limited'}, 429, {'Retry-After': '60'});
@@ -28,6 +31,7 @@ export function createConnectorMcpService(config: IntegrationConfig, fetcher: ty
         const r = await raw('/rest/v1/rpc/mfd_mcp', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({operation, args: {...args, connection: props.connection}})}, props.sb.access);
         if (r.status === 401) expired = true;
         if (r.status === 429) throttled = true;
+        if (r.ok && onWrite && ADDS.has(operation)) ctx?.waitUntil(onWrite(props.userId, props.connection, operation, args));
         return r;
       };
       const response = await serveMcp(request, {origin: config.authOrigin, writes: false, sections: PERMISSIONS.filter(s => scope.includes(s)), call});

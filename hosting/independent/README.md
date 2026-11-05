@@ -79,3 +79,25 @@ Pending records add sensitive ephemeral PKCE material/owner UUIDs, alarms and me
 ### Pre-OAuth maintenance candidate
 
 `preoauth-worker.ts` / `preoauth-deployment.proposed.jsonc` is a separate exact-origin, pre-oauth-only release with no upstream fetch/auth/MCP tool handler. Empty client inventory is intentional for this entrypoint, never for the full validator. All known auth/MCP operations503; discovery200 within shared private quota; missing/failed quota denies. No runtime secrets or publishable key. Deployment not authorized. Exact commands/hashes/costs/stop procedure: docs/PHASE-C1B-PREOAUTH-DEPLOYMENT-READINESS.md.
+
+## Phone notifications (`push.ts`, `webpush.ts`)
+
+Rest-timer alerts while MFD is in the background, and one message when an AI app
+adds something. One SQLite `PushHub` Durable Object per user holds that user's
+push subscriptions (max 5), pending rests (max 10, at most 2 h ahead) and the
+AI-message preference. `/push/*` is called server-to-server by the MFD app
+(`/api/push/*` in `hosting/worker/mfd.ts`) with the user's Supabase token; browser
+calls (any `Origin`) are refused. Endpoints are limited to browser push services.
+
+Each deployed Worker needs, in its (ignored) wrangler config:
+
+```jsonc
+"durable_objects": {"bindings": [..., {"name": "MFD_PUSH", "class_name": "PushHub"}]},
+"migrations": [..., {"tag": "push-v1", "new_sqlite_classes": ["PushHub"]}]
+```
+
+and one secret, a P-256 private key as a JWK (`wrangler secret put MFD_VAPID_JWK`).
+Keep the same key for the life of the Worker: changing it breaks every device's
+subscription. Without the secret or binding, `/push/*` answers 503 and AI tool calls
+are unaffected. Tests: `tests/connector-webpush.cjs` (RFC 8291 vector, VAPID) and
+`.sites-runtime/sandbox/connector/push-e2e.mjs` (33 checks against a fake push service).

@@ -6,11 +6,13 @@ import {AUTHORIZE, TOKEN, REGISTER, refreshUpstream, type ConnectorProps} from '
 import {PERMISSIONS} from '../worker/mcp';
 import {privateJson} from './service';
 export {AbuseCoordinator} from './coordinator';
+export {PushHub} from './push';
+import {aiNotifier, handlePush} from './push';
 const IDLE_EXPIRY = 90 * 86400;
 // Only immutable deployment inputs/handler construction are cached, never users,
 // bearer tokens, verified sessions or consent. Mutated inputs/bindings invalidate.
 const keys=['MFD_ENV','MFD_MCP_WRITES','MFD_SUPABASE_URL','MFD_OAUTH_ISSUER','MFD_MCP_RESOURCE_URL','MFD_AUTH_ORIGIN','MFD_SUPABASE_PUBLISHABLE_KEY','MFD_ALLOWED_CLIENT_IDS','MFD_CLIENT_REDIRECTS','MFD_ABUSE'] as const;
-type Entry={values:unknown[];fetcher:typeof fetch;service:ReturnType<typeof createColocatedService>;provider:OAuthProvider<Record<string,unknown>>};
+type Entry={values:unknown[];fetcher:typeof fetch;config:IntegrationConfig;service:ReturnType<typeof createColocatedService>;provider:OAuthProvider<Record<string,unknown>>};
 
 // AI apps connect to this Worker's OAuth server (Client ID Metadata Documents; self-registration
 // only without an app list, i.e. the sandbox) and get opaque tokens valid only at /mcp.
@@ -18,7 +20,7 @@ type Entry={values:unknown[];fetcher:typeof fetch;service:ReturnType<typeof crea
 export function connectorProvider(config: IntegrationConfig, service: ReturnType<typeof createColocatedService>, fetcher: typeof fetch) {
   return new OAuthProvider<Record<string,unknown>>({
     apiRoute: '/mcp',
-    apiHandler: {fetch: (request: Request, _env: unknown, ctx: ExecutionContext) => {const c = ctx as ExecutionContext & {props: ConnectorProps; auth?: {scope: string[]}}; return service.connectorMcp(request, c.props, c.auth?.scope ?? []);}},
+    apiHandler: {fetch: (request: Request, _env: unknown, ctx: ExecutionContext) => {const c = ctx as ExecutionContext & {props: ConnectorProps; auth?: {scope: string[]}}; return service.connectorMcp(request, c.props, c.auth?.scope ?? [], ctx);}},
     defaultHandler: {fetch: (request: Request, env: Record<string,unknown>) => service.auth(request, env.OAUTH_PROVIDER as never)},
     authorizeEndpoint: AUTHORIZE, tokenEndpoint: TOKEN, ...(config.aiClients ? {} : {clientRegistrationEndpoint: REGISTER}),
     scopesSupported: PERMISSIONS,
@@ -37,16 +39,20 @@ export function connectorProvider(config: IntegrationConfig, service: ReturnType
     },
   });
 }
-export function connectorWorker(configOf: (env: Record<string, unknown>) => IntegrationConfig, gates?: Parameters<typeof createColocatedService>[3]) {
+// `localPush` lets the sandbox use a local fake push service; deployed Workers only accept browser push services.
+export function connectorWorker(configOf: (env: Record<string, unknown>) => IntegrationConfig, gates?: Parameters<typeof createColocatedService>[3], {localPush = false} = {}) {
   const entries=new WeakMap<Record<string,unknown>,Entry>();
   return {async fetch(request: Request, env: Record<string, unknown>, ctx: ExecutionContext) {
     try {
       const fetcher=globalThis.fetch;
       let entry=entries.get(env);
       if(!entry || keys.slice(0,-1).some(key=>typeof env[key]!=='string') || entry.fetcher!==fetcher || keys.some((key,index)=>env[key]!==entry!.values[index])) {
-        const config=configOf(env),service=createColocatedService(config,env.MFD_ABUSE as CoordinatorNamespace | undefined,fetcher.bind(globalThis),gates);
-        entry={values:keys.map(key=>env[key]),fetcher,service,provider:connectorProvider(config,service,fetcher.bind(globalThis))};entries.set(env,entry);
+        const config=configOf(env),service=createColocatedService(config,env.MFD_ABUSE as CoordinatorNamespace | undefined,fetcher.bind(globalThis),gates,aiNotifier(env));
+        entry={values:keys.map(key=>env[key]),fetcher,config,service,provider:connectorProvider(config,service,fetcher.bind(globalThis))};entries.set(env,entry);
       }
+      // Phone notifications: server-to-server from the MFD app, authenticated per user (push.ts).
+      const url=new URL(request.url);
+      if(url.pathname.startsWith('/push/')) return url.origin===entry.config.authOrigin ? await handlePush(request,env,entry.config,fetcher.bind(globalThis),localPush) : privateJson({error:'Wrong service origin'},421);
       const denied=await entry.service.guard(request,true);
       if(denied) return denied;
       return await entry.provider.fetch(request,env,ctx);

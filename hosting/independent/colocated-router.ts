@@ -2,7 +2,7 @@ import type {GoogleTransaction} from './google-transactions';
 import {iconResponse} from './icon';
 import type {IntegrationConfig} from './config';
 import {createAuthService} from './auth';
-import {createConnectorMcpService, createMcpService, privateJson} from './service';
+import {createConnectorMcpService, createMcpService, privateJson, type OnWrite} from './service';
 import {AUTHORIZE, UPSTREAM_CALLBACK, TOKEN, REGISTER} from './connector';
 import {localRateGate, type RateGate} from './limits';
 
@@ -11,12 +11,12 @@ export interface CoordinatorNamespace {
   get(id: unknown): {consume(kind: string): Promise<boolean>; createGoogle?(browser:string,flow:GoogleTransaction):Promise<boolean>; takeGoogle?(browser:string,id:string):Promise<GoogleTransaction|null>};
 }
 const localMcp = localRateGate(), localAuth = localRateGate(30);
-export function createColocatedService(config: IntegrationConfig, namespace: CoordinatorNamespace | undefined, fetcher: typeof fetch, gates: {mcp: RateGate; auth: RateGate} = {mcp: localMcp, auth: localAuth}) {
+export function createColocatedService(config: IntegrationConfig, namespace: CoordinatorNamespace | undefined, fetcher: typeof fetch, gates: {mcp: RateGate; auth: RateGate} = {mcp: localMcp, auth: localAuth}, onWrite?: OnWrite) {
   const stub=()=>{if(!namespace) throw Error('Missing transaction coordinator');return namespace.get(namespace.idFromName('mfd-staging-shared-v1'));};
   async function timed<T>(operation:Promise<T>) {let timer:ReturnType<typeof setTimeout>|undefined;try{return await Promise.race([operation,new Promise<never>((_,reject)=>{timer=setTimeout(()=>reject(Error('Transaction timeout')),2000);})]);}finally{if(timer!==undefined)clearTimeout(timer);}}
   const transactions={create:async(browser:string,flow:GoogleTransaction)=>{const target=stub();if(!target.createGoogle)throw Error('Missing transaction RPC');return timed(target.createGoogle(browser,flow));},take:async(browser:string,id:string)=>{const target=stub();if(!target.takeGoogle)throw Error('Missing transaction RPC');return timed(target.takeGoogle(browser,id));}};
   const mcp = createMcpService(config,fetcher,gates.mcp), auth = createAuthService(config,fetcher,gates.auth,transactions);
-  const connectorMcp = createConnectorMcpService(config,fetcher,gates.mcp);
+  const connectorMcp = createConnectorMcpService(config,fetcher,gates.mcp,onWrite);
   // Shared origin/route/quota guard. null = allowed; the caller then routes the request.
   async function guard(request: Request, connector = false): Promise<Response | null> {
     try {
