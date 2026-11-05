@@ -60,5 +60,6 @@ export async function sendPush(sub: PushSubscription, message: unknown, vapid: V
   const headers: Record<string, string> = {'Content-Encoding': 'aes128gcm', 'Content-Type': 'application/octet-stream', TTL: String(options.ttl ?? 300), Urgency: options.urgency ?? 'high', Authorization: await vapidHeader(sub.endpoint, vapid)};
   if (options.topic) headers.Topic = options.topic;
   const r = await fetcher(sub.endpoint, {method: 'POST', headers, body, signal: AbortSignal.timeout(10000)});
+  await r.body?.cancel(); // only the status matters; release the connection right away
   return r.status;
 }
