@@ -9,7 +9,8 @@ import {knownPushService, sendPush, vapidPublicKey, type PushSubscription, type 
 type Rest = {id: string; ends: number; label: string};
 type Prefs = {ai: boolean};
 const MAX_DEVICES = 5, MAX_RESTS = 10, MAX_AHEAD = 2 * 3600_000;
-const ID = /^[\w-]{1,64}$/;
+// Rest IDs are the app's exercise-block IDs, e.g. "<workout uuid>:0".
+const ID = /^[\w:.-]{1,100}$/;
 
 export interface PushNamespace {idFromName(name: string): DurableObjectId; get(id: DurableObjectId): DurableObjectStub<PushHub>}
 export function vapidOf(env: Record<string, unknown>, subject: string): Vapid | null {
