@@ -56,7 +56,7 @@ export function PortionEditor({
       title={food.name}
       headerActions={
         <button className="icon-btn" aria-pressed={isFav} aria-label={isFav ? 'Remove from favourites' : 'Add to favourites'} onClick={() => foods.toggleFavourite(food.id, food)}>
-          <Star fill={isFav ? '#e0a800' : 'none'} color={isFav ? '#b8860b' : 'currentColor'} />
+          <Star fill={isFav ? 'var(--pr)' : 'none'} color={isFav ? 'var(--pr-text)' : 'currentColor'} />
         </button>
       }
       footer={

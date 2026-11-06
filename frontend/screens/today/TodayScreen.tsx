@@ -107,7 +107,7 @@ export function TodayScreen() {
 
         <section className="card card-pad" aria-label="Water">
           <div className="row-between">
-            <div className="row"><Droplet size={18} color="#3b82c4" /><span className="strong">Water</span></div>
+            <div className="row"><Droplet size={18} color="var(--water)" /><span className="strong">Water</span></div>
             <span className="tnum small"><span className="strong">{fmtInt(water)}</span> / {fmtInt(t?.waterMl ?? 2500)} ml</span>
           </div>
           <div className="row-between" style={{ marginTop: 8 }}>
