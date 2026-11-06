@@ -41,8 +41,9 @@ function harness(){const storage=new Map(),events={},docEvents={},timers=new Map
  // Successful logout removes synced local copies, but never discards pending work.
  for(const pending of [false,true]){
   h=harness();h.seed('alice',documentFor(1),3);h.remote(Promise.resolve({data:{payload:documentFor(1),revision:3}}));await h.boot();
-  h.c.closeModal=()=>{};h.c.cloud.client.auth={signOut:async()=>({error:null})};h.c.cloud.dirty=pending;
+  h.c.closeModal=()=>{};h.c.cloud.client.auth={signOut:async()=>({error:null})};h.c.cloud.dirty=pending;h.storage.set('mfd-feed-v1:alice','{}');
   await h.c.performFormaSignOut();assert.equal(h.c.cloud.user,null);assert.equal(h.c.state.water.test,0);assert.equal(h.storage.has('forma.account.alice'),pending);
+  assert(!h.storage.has('mfd-feed-v1:alice'),'friends feed copy is removed on logout');
  }
  // A failed logout retains both the session and its local recovery copy.
  h=harness();h.seed('alice',documentFor(1),3);h.remote(Promise.resolve({data:{payload:documentFor(1),revision:3}}));await h.boot();h.c.cloud.client.auth={signOut:async()=>({error:Error('offline')})};await h.c.performFormaSignOut();assert.equal(h.c.cloud.user.id,'alice');assert(h.storage.has('forma.account.alice'));

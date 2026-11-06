@@ -11,6 +11,17 @@ All four row-level security policies compare auth.uid() with user_id. Anonymous 
 
 Verified using two synthetic users inside a rolled-back SQL transaction: owner read, other-user read/update denial, and stale-save rejection. No test accounts remain. Supabase security advisor reported no findings.
 
+## Incremental Friends feed
+
+`social-incremental.sql` (run after `social.sql`, `social-photos.sql` and `private-exercises.sql`; safe to re-run, and the app works before and after it):
+
+- The feed copy of a workout (`mfd_social_workouts`) is rewritten only when that workout changed.
+- Feed workouts carry `updated_at` and reactions carry `created_at` (server time). Removed workouts and reactions leave a row in `mfd_social_removals`, readable by the same people as the original. pg_cron deletes these rows after 30 days.
+- A workout photo change bumps its workout's `updated_at`.
+- `mfd_social_totals(owner)` returns workout count and volume for Compare, under the caller's own permissions.
+
+The app (`frontend/lib/socialFeed.ts`) keeps the last 7 days of the feed on the device and asks only for changes since its last check. Profiles load 20 workouts at a time. Tests: `database/tests/social-incremental.sql` (rolled-back transaction) and `tests/social-feed.cjs`.
+
 # Required dashboard configuration
 
 Authentication > URL Configuration:
