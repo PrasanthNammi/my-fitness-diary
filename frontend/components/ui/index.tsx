@@ -1,19 +1,34 @@
 import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { Check, ChevronDown, ChevronLeft, CircleAlert, Info, MoreHorizontal, X, CircleCheck, TriangleAlert, type LucideIcon } from 'lucide-react';
-import logoMark from '../../assets/mfd-logo.svg?raw';
 
 import { goBack } from '../../lib/router';
 import { aiSource } from '../../domain/aiSource';
 import type { AddedBy } from '../../domain/types';
 
-// ── Logos (embedded exactly as supplied) ─────────────────────────
-export function LogoMark({ width = 120 }: { width?: number }) {
-  return <div className="logo-full" style={{ width }} role="img" aria-label="MFD" dangerouslySetInnerHTML={{ __html: logoMark.replace('role="img"', 'aria-hidden="true"') }} />;
+// ── Logo ─────────────────────────────────────────────────────────
+// The mark: a white flame and diary line on the brand orange. Drawn inline so the lettering
+// follows Light/Dark (currentColor). public/legacy/logo*.svg and the PNG icons are the same design.
+export const LOGO_FLAME = 'M16.6 6.5c.6 3.1 3.9 4.9 3.9 9.2a4.6 4.6 0 0 1-9.2.3c0-1.7.8-3 1.8-3.9.1 1.4.8 2.4 1.9 2.6-.5-3.1.4-5.8 1.6-8.2Z';
+export function LogoMark({ width = 30 }: { width?: number }) {
+  return (
+    <svg className="logo-mark" width={width} height={width} viewBox="0 0 32 32" role="img" aria-label="MFD">
+      <rect width="32" height="32" rx="9" fill="var(--brand)" />
+      <path d={LOGO_FLAME} fill="#fff" />
+      <rect x="9" y="23" width="14" height="2.4" rx="1.2" fill="#fff" opacity=".85" />
+    </svg>
+  );
 }
-
-/** Full lockup. Waits for its two fonts so lettering never renders in a fallback face. */
-export function LogoFull({width=220}:{width?:number}){return <img src="/legacy/logo-full.svg" width={width} alt="My Fitness Diary"/>}
+/** Mark plus "MFD"; `width` is the overall width, as before. `full` adds "My Fitness Diary". */
+export function LogoFull({ width = 220, full = false }: { width?: number; full?: boolean }) {
+  const size = Math.round(width / (full ? 4.6 : 2.6));
+  return (
+    <span className="logo-lockup" style={{ fontSize: size * 0.62 }} role="img" aria-label="My Fitness Diary">
+      <LogoMark width={size} />
+      <span className="logo-word" aria-hidden="true">MFD{full && <small>My Fitness Diary</small>}</span>
+    </span>
+  );
+}
 
 // ── Top bar ──────────────────────────────────────────────────────
 export function TopBar({
