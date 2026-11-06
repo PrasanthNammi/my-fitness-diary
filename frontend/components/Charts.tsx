@@ -116,7 +116,7 @@ export function BarChart({
               width={bw * 0.64}
               height={Math.max(0, H - pad.b - y(b.value))}
               rx="3"
-              fill={i === s ? 'var(--accent)' : '#9fcfb4'}
+              fill={i === s ? 'var(--accent)' : 'var(--accent-line)'}
             />
           </g>
         ))}

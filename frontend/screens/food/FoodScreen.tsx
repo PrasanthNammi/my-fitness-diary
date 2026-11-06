@@ -121,7 +121,7 @@ function FoodPicker({ meal, date, onClose, onAdded }: { meal: Meal | null; date:
           <span className="mt ellipsis">{f.brand ?? (f.origin === 'custom' ? 'My food' : 'Generic')} · {refText(f)}</span>
         </button>
         <button className="icon-btn" aria-pressed={fav} aria-label={fav ? `Remove ${f.name} from favourites` : `Add ${f.name} to favourites`} onClick={() => foods.toggleFavourite(f.id, f)}>
-          <Star fill={fav ? '#e0a800' : 'none'} color={fav ? '#b8860b' : 'currentColor'} />
+          <Star fill={fav ? 'var(--pr)' : 'none'} color={fav ? 'var(--pr-text)' : 'currentColor'} />
         </button>
         {f.origin === 'custom' && (!(f as any).sharedId||(f as any).creatorId===engine()?.peek().user?.id) && (
           <OverflowMenu small title={f.name} label={`Options for ${f.name}`} actions={[
