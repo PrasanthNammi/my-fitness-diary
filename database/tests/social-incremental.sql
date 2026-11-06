@@ -4,24 +4,24 @@
 begin;
 select set_config('test.a',gen_random_uuid()::text,true),set_config('test.b',gen_random_uuid()::text,true),set_config('test.c',gen_random_uuid()::text,true);
 insert into auth.users(id) values(current_setting('test.a')::uuid),(current_setting('test.b')::uuid),(current_setting('test.c')::uuid);
-create temp table session_json(id text,j jsonb) on commit drop;
-insert into session_json select 'w'||i,jsonb_build_object('id','w'||i,'name','Workout '||i,'date',current_date,'started',1700000000000+i*86400000,'finished',1700000000000+i*86400000+3600000,
- 'sets',jsonb_build_array(jsonb_build_object('exercise','Bench','type','normal','kg',60,'reps',10,'done',true),jsonb_build_object('exercise','Bench','type','warmup','kg',20,'reps',10,'done',true))) from generate_series(1,3) i;
-insert into public.forma_workspaces(user_id,payload) values(current_setting('test.a')::uuid,jsonb_build_object('sessions',(select jsonb_agg(j order by id) from session_json)));
-create temp table versions as select workout_id,ctid::text as v from public.mfd_social_workouts where owner_id=current_setting('test.a')::uuid;
-grant select on versions to authenticated;
+-- Test state lives in transaction-local settings (no temporary tables: the Supabase SQL editor
+-- doesn't keep them between statements).
+select set_config('test.sessions',(select jsonb_agg(jsonb_build_object('id','w'||i,'name','Workout '||i,'date',current_date,'started',1700000000000+i*86400000,'finished',1700000000000+i*86400000+3600000,
+ 'sets',jsonb_build_array(jsonb_build_object('exercise','Bench','type','normal','kg',60,'reps',10,'done',true),jsonb_build_object('exercise','Bench','type','warmup','kg',20,'reps',10,'done',true))) order by i) from generate_series(1,3) i)::text,true);
+insert into public.forma_workspaces(user_id,payload) values(current_setting('test.a')::uuid,jsonb_build_object('sessions',current_setting('test.sessions')::jsonb));
+select set_config('test.versions',(select jsonb_object_agg(workout_id,ctid::text) from public.mfd_social_workouts where owner_id=current_setting('test.a')::uuid)::text,true);
 
 -- Adding one workout writes one row; the three existing rows are untouched.
-update public.forma_workspaces set payload=jsonb_build_object('sessions',(select jsonb_agg(j order by id) from session_json)||jsonb_build_array(jsonb_build_object('id','w4','name','New','date',current_date,'started',1700500000000,'sets','[]'::jsonb))) where user_id=current_setting('test.a')::uuid;
+update public.forma_workspaces set payload=jsonb_build_object('sessions',current_setting('test.sessions')::jsonb||jsonb_build_array(jsonb_build_object('id','w4','name','New','date',current_date,'started',1700500000000,'sets','[]'::jsonb))) where user_id=current_setting('test.a')::uuid;
 do $$declare n int;begin
  select count(*) into n from public.mfd_social_workouts where owner_id=current_setting('test.a')::uuid;if n<>4 then raise exception 'Expected 4 feed rows, got %',n;end if;
- select count(*) into n from public.mfd_social_workouts w join versions v using(workout_id) where w.owner_id=current_setting('test.a')::uuid and w.ctid::text<>v.v;if n<>0 then raise exception 'Unchanged workouts were rewritten (%)',n;end if;
+ select count(*) into n from public.mfd_social_workouts w where w.owner_id=current_setting('test.a')::uuid and current_setting('test.versions')::jsonb ? w.workout_id and w.ctid::text<>(current_setting('test.versions')::jsonb->>w.workout_id);if n<>0 then raise exception 'Unchanged workouts were rewritten (%)',n;end if;
 end$$;
 
 -- Editing one workout rewrites only that one.
 update public.forma_workspaces set payload=jsonb_set(payload,'{sessions,0,name}','"Renamed"') where user_id=current_setting('test.a')::uuid;
 do $$declare n int;begin
- select count(*) into n from public.mfd_social_workouts w join versions v using(workout_id) where w.owner_id=current_setting('test.a')::uuid and w.ctid::text<>v.v;if n<>1 then raise exception 'Expected 1 rewritten workout, got %',n;end if;
+ select count(*) into n from public.mfd_social_workouts w where w.owner_id=current_setting('test.a')::uuid and current_setting('test.versions')::jsonb ? w.workout_id and w.ctid::text<>(current_setting('test.versions')::jsonb->>w.workout_id);if n<>1 then raise exception 'Expected 1 rewritten workout, got %',n;end if;
  select count(*) into n from public.mfd_social_workouts where owner_id=current_setting('test.a')::uuid and data->>'name'='Renamed';if n<>1 then raise exception 'Edit not projected';end if;
 end$$;
 
@@ -66,13 +66,13 @@ end$$;
 -- A photo change marks its workout as changed.
 select set_config('request.jwt.claim.sub',current_setting('test.a'),true);
 reset role;
-create temp table before_photo as select ctid::text as v from public.mfd_social_workouts where owner_id=current_setting('test.a')::uuid and workout_id='w3';
+select set_config('test.photo_ctid',(select ctid::text from public.mfd_social_workouts where owner_id=current_setting('test.a')::uuid and workout_id='w3'),true);
 set local role authenticated;
 insert into storage.objects(bucket_id,name) values('mfd-workout-photos',current_setting('test.a')||'/p.jpg');
 insert into public.mfd_workout_photos(workout_id,path) values('w3',current_setting('test.a')||'/p.jpg');
 reset role;
 do $$declare n int;begin
- select count(*) into n from public.mfd_social_workouts w,before_photo b where w.owner_id=current_setting('test.a')::uuid and w.workout_id='w3' and w.ctid::text=b.v;if n<>0 then raise exception 'Photo did not mark its workout';end if;
+ select count(*) into n from public.mfd_social_workouts w where w.owner_id=current_setting('test.a')::uuid and w.workout_id='w3' and w.ctid::text=current_setting('test.photo_ctid');if n<>0 then raise exception 'Photo did not mark its workout';end if;
 end$$;
 select 'PASS: only changed workouts rewritten, removals recorded, friend-only change feed, reaction times, photo marks workout, Compare totals respect permissions' as result;
 rollback;

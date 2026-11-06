@@ -11,6 +11,7 @@ lock table public.forma_workspaces in exclusive mode;-- no saves during the few 
 create table if not exists mfd_private.workspaces_before_compaction(user_id uuid primary key,payload jsonb not null,revision bigint not null,copied_at timestamptz not null default now());
 -- A previous copy is never overwritten.
 insert into mfd_private.workspaces_before_compaction(user_id,payload,revision) select user_id,payload,revision from public.forma_workspaces on conflict(user_id) do nothing;
+alter table mfd_private.workspaces_before_compaction enable row level security;-- no policies: owner only
 revoke all on mfd_private.workspaces_before_compaction from public,anon,authenticated;
 
 -- Raw rows first (from the original diaries), then the compact diaries. The write trigger raises
