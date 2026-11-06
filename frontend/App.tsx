@@ -12,7 +12,7 @@ import { useDB } from './data/store';
 import { useRoute, navigate } from './lib/router';
 import { useNow } from './lib/hooks';
 import { duration } from './lib/format';
-import { LogoFull, ToastHost } from './components/ui';
+import { LogoFull, LogoMark, ToastHost } from './components/ui';
 import { AuthScreen } from './screens/auth/AuthScreen';
 import { Onboarding } from './screens/auth/Onboarding';
 import { TodayScreen } from './screens/today/TodayScreen';
@@ -137,11 +137,11 @@ export function App() {
   return (
     <div className="app">
       <nav className="sidebar" aria-label="Main">
-        <div className="logo"><LogoFull width={168} full /></div>
+        <div className="logo"><LogoFull width={168} /></div>
         {navItems()}
       </nav>
       <header className="global-header">
-        <span className="header-logo"><LogoFull width={86} /></span>
+        <span className="header-logo"><LogoMark width={86} /></span>
         <SyncStatus />
         <button className="icon-btn ai-btn" aria-label="AI assistants" title="AI assistants" onClick={() => setHub(true)}><Sparkles /></button>
         <AvatarButton />

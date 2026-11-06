@@ -735,10 +735,6 @@ ol.steps { margin: 0; padding-left: 20px; display: flex; flex-direction: column;
    Comes last on purpose: it replaces the earlier frame rules above. */
 :root { --tabbar-h: 64px; --tabbar-gap: 10px; --frame-bottom: calc(var(--tabbar-h) + var(--tabbar-gap) + var(--safe-b)); }
 
-.logo-lockup { display: inline-flex; align-items: center; gap: 0.45em; color: var(--text); font-weight: 800; letter-spacing: -0.02em; line-height: 1; }
-.logo-mark { display: block; flex: none; }
-.logo-word { display: flex; flex-direction: column; }
-.logo-word small { font-size: 0.42em; font-weight: 600; color: var(--muted); letter-spacing: 0; margin-top: 0.3em; }
 .global-header { background: color-mix(in srgb, var(--bg) 92%, transparent); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); border-bottom-color: transparent; }
 .global-header .header-logo { display: flex; align-items: center; width: auto; height: auto; margin-right: auto; }
 .ai-btn { color: var(--ai-text); }
@@ -791,9 +787,11 @@ ol.steps { margin: 0; padding-left: 20px; display: flex; flex-direction: column;
 .ai-hub .btn:has(svg) { font-size: 14px; gap: 6px; }
 .ai-hub .btn svg { width: 16px; height: 16px; }
 
-/* Sign-in keeps the original MFD wordmark (navy letters, two-tone flame). Dark mode shows the same
-   file with light lettering (logo-classic-dark.svg); the flame is unchanged. */
-.logo-classic { display: block; width: 220px; max-width: 100%; margin: 0 auto; }
+/* The original MFD wordmark (navy letters, two-tone flame). Dark mode shows the same drawing with
+   light lettering (logo-dark.svg / logo-full-dark.svg); the flame is unchanged. */
+.logo-classic { display: block; max-width: 100%; }
+.auth .logo-classic, .settings-logo .logo-classic { margin: 0 auto; }
+.global-header .header-logo .logo-classic img { width: 86px; height: 44px; object-fit: contain; object-position: left center; }
 .logo-classic img { display: block; height: auto; max-width: 100%; }
 .logo-classic-dark, :root[data-theme="dark"] .logo-classic-light { display: none !important; }
 :root[data-theme="dark"] .logo-classic-dark { display: block !important; }
