@@ -29,3 +29,18 @@ jobs:
           node tests/workout-clock.cjs
           node tests/food-actions.cjs
           node tests/food-summary.cjs
+  database:
+    # Postgres + PostgREST in Docker with Supabase stand-ins: every SQL test, the JavaScript/SQL
+    # equivalence proof, the sync engine end to end, and a verified compaction rehearsal.
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.13.1'
+          cache: npm
+      - name: Install client dependencies
+        run: npm ci
+      - name: Database and sync tests
+        run: ./database/tests/run.sh
