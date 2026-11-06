@@ -328,6 +328,12 @@ button.list-row:hover { background: #fafbfc; }
 .rest-bar{position:absolute;inset:0;z-index:2;display:flex;align-items:center;gap:6px;padding:0 10px 0 16px;background:var(--accent);color:#fff;animation:rest-in .15s ease-out}@keyframes rest-in{from{opacity:0}}.rest-bar-label{font-size:12px;opacity:.85}.rest-bar-time{font-size:20px;font-weight:700;line-height:1.1}.rest-bar-btn{min-width:48px;min-height:40px;border:0;border-radius:10px;background:rgba(255,255,255,.18);color:#fff;font-weight:600;font-size:14px;display:grid;place-items:center}
 @media(prefers-reduced-motion:reduce){.rest-bar{animation:none}}
 @media (min-width: 900px) { .toast-wrap { top: 16px; padding-left: 232px; } }
+/* "New version available": floats over the header until tapped or dismissed. */
+.update-banner{position:fixed;z-index:150;left:12px;right:12px;top:calc(var(--safe-t) + 8px);max-width:420px;margin:0 auto;display:flex;align-items:center;gap:8px;padding:6px 6px 6px 14px;background:var(--surface);color:var(--ink);border:1px solid var(--line);border-radius:12px;box-shadow:var(--shadow-pop);font-size:14px;font-weight:600;animation:slide .2s}
+.update-banner-text{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.update-banner .icon-btn{flex:none}
+@media (min-width: 900px){.update-banner{top:12px;left:244px}}
+@media(prefers-reduced-motion:reduce){.update-banner{animation:none}}
 
 /* ── Date strip ─────────────────────────────────────────────── */
 .date-strip { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; }
