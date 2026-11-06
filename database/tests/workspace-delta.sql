@@ -2,12 +2,14 @@
 begin;
 select set_config('test.a',gen_random_uuid()::text,true),set_config('test.b',gen_random_uuid()::text,true);
 insert into auth.users(id) values(current_setting('test.a')::uuid),(current_setting('test.b')::uuid);
-create function pg_temp.base() returns jsonb language sql as $$select jsonb_build_object('profile',jsonb_build_object('name','A'),'meals','[]'::jsonb,'weights','[]'::jsonb,'checkins','[]'::jsonb,'chat','[]'::jsonb,'routines','[]'::jsonb,
+-- Test state lives in transaction-local settings (no temporary objects: the Supabase SQL editor
+-- doesn't keep them between statements).
+select set_config('test.base',(jsonb_build_object('profile',jsonb_build_object('name','A'),'meals','[]'::jsonb,'weights','[]'::jsonb,'checkins','[]'::jsonb,'chat','[]'::jsonb,'routines','[]'::jsonb,
  'sessions',jsonb_build_array(jsonb_build_object('id','w1','name','Upper','started',1,'sets',jsonb_build_array(jsonb_build_object('id','s1','exercise','Bench','kg',60,'reps',8,'rpe',null,'floors',null,'steps',null,'done',true))),
-  jsonb_build_object('id','w2','name','Lower','started',2,'hevyRows',jsonb_build_array(jsonb_build_object('title','Lower','weight_kg','100')),'sets','[]'::jsonb)))$$;
+  jsonb_build_object('id','w2','name','Lower','started',2,'hevyRows',jsonb_build_array(jsonb_build_object('title','Lower','weight_kg','100')),'sets','[]'::jsonb))))::text,true);
 
 -- Insert: stored compact, raw rows moved, revision 1, no change record for the first revision.
-insert into public.forma_workspaces(user_id,payload) values(current_setting('test.a')::uuid,pg_temp.base());
+insert into public.forma_workspaces(user_id,payload) values(current_setting('test.a')::uuid,current_setting('test.base')::jsonb);
 do $$declare p jsonb;n int;begin
  select payload into p from public.forma_workspaces where user_id=current_setting('test.a')::uuid;
  if p->'sessions'->0->'sets'->0 ? 'rpe' or p->'sessions'->0->'sets'->0 ? 'floors' then raise exception 'Null fields not compacted';end if;
@@ -18,20 +20,19 @@ do $$declare p jsonb;n int;begin
 end$$;
 
 -- A connector-style write (jsonb_set + revision+1) and a writer that forgets the revision both log.
-create temp table snap as select revision snap_rev,payload snap_doc from public.forma_workspaces where user_id=current_setting('test.a')::uuid;
+select set_config('test.snap',(select payload::text from public.forma_workspaces where user_id=current_setting('test.a')::uuid),true);
 update public.forma_workspaces set payload=jsonb_set(payload,'{meals}',payload->'meals'||jsonb_build_array(jsonb_build_object('id','m1','name','Oats','kcal',300))),revision=revision+1 where user_id=current_setting('test.a')::uuid;
 update public.forma_workspaces set payload=jsonb_set(payload,'{profile,name}','"Renamed"') where user_id=current_setting('test.a')::uuid;
 do $$declare r bigint;p jsonb;n int;rebuilt jsonb;begin
  select revision,payload into r,p from public.forma_workspaces where user_id=current_setting('test.a')::uuid;
  if r<>3 then raise exception 'Revision not raised for a writer that forgot (got %)',r;end if;
  select count(*) into n from public.forma_workspace_changes where user_id=current_setting('test.a')::uuid and revision in(2,3);if n<>2 then raise exception 'Missing change records';end if;
- select (select snap_doc from snap) into rebuilt;
+ rebuilt:=current_setting('test.snap')::jsonb;
  for n in 2..3 loop select mfd_private.workspace_apply(rebuilt,ops) into rebuilt from public.forma_workspace_changes where user_id=current_setting('test.a')::uuid and revision=n;end loop;
  if rebuilt<>p then raise exception 'Change records do not rebuild the diary';end if;
 end$$;
 
--- The owner's phone: pull, patch, conflicts, validation. Grant the temp table to the role first.
-grant select on snap to authenticated;
+-- The owner's phone: pull, patch, conflicts, validation.
 set local role authenticated;
 select set_config('request.jwt.claim.sub',current_setting('test.a'),true);
 do $$declare j jsonb;r record;n int;begin
