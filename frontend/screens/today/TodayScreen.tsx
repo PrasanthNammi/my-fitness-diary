@@ -58,14 +58,7 @@ export function TodayScreen() {
 
   return (
     <>
-      <TopBar
-        title={profile ? `Hi, ${profile.name}` : 'Today'}
-        actions={
-          <button className="icon-btn" aria-label="AI assistants" onClick={() => navigate('/coach')}>
-            <Sparkles />
-          </button>
-        }
-      />
+      <TopBar title={profile ? `Hi, ${profile.name}` : 'Overview'} />
       <div className="screen stack">
         <DateStrip date={date} />
 

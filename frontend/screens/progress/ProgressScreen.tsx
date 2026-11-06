@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Activity, BarChart3, ChevronRight, ClipboardList, HeartPulse, Pencil, Plus, Scale, Sparkles, Trash2 } from 'lucide-react';
+import { Activity, BarChart3, ChevronRight, ClipboardList, HeartPulse, Pencil, Plus, Scale, Trash2 } from 'lucide-react';
 import type { Workout } from '../../domain/types';
 import { e1rm, setLabels, trackingFields, workingVolume } from '../../domain/training';
 import { AiBadge, ConfirmSheet, Empty, Field, OverflowMenu, Segmented, SelectField, Sheet, TopBar, toast } from '../../components/ui';
@@ -25,7 +25,7 @@ export function ProgressScreen() {
 
   return (
     <>
-      <TopBar title="Progress" actions={<button className="icon-btn" aria-label="Open coach" onClick={() => navigate('/coach')}><Sparkles /></button>} />
+      <TopBar title="Progress" />
       <div className="screen stack">
         <Segmented label="Progress view" value={tab} onChange={setTab} options={[
           { value: 'history', label: 'History' },
