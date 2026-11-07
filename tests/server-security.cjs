@@ -31,5 +31,29 @@ const jar='__Host-mfd-access='+token+'; __Host-mfd-refresh=refresh-private';
  r=await handle(new Request(localOrigin+'/api/auth/oauth',{method:'POST',headers:{Origin:localOrigin,'Content-Type':'application/json'},body:'{}'}),localDeps);
  assert.equal(r.status,200);assert.equal(new URL((await r.json()).url).searchParams.get('redirect_to'),localOrigin+'/');
  r=await handle(new Request(localOrigin+'/api/auth/login',{method:'POST',headers:{Origin:'https://evil.example','Content-Type':'application/json'},body:JSON.stringify({email:'a@b.c',password:'secret'})}),localDeps);assert.equal(r.status,403);
- console.log('PASS server headers, HttpOnly cookies, CSRF, PKCE, refresh, migration, logout failure, proxy identity, private caching and limits');
+ // Resend the sign-up confirmation: same-origin only, a valid email only, fresh PKCE verifier cookie, nothing leaked.
+ calls=[];r=await handle(req('/api/auth/resend','POST',{email:'new@example.invalid'},{Origin:'https://evil.example'}),deps);assert.equal(r.status,403);assert.equal(calls.length,0);
+ calls=[];r=await handle(req('/api/auth/resend','POST',{email:'not-an-email'}),deps);assert.equal(r.status,400);assert.equal(calls.length,0);
+ calls=[];reply=()=>Response.json({});r=await handle(req('/api/auth/resend','POST',{email:'new@example.invalid'}),deps);assert.equal(r.status,200);assert.deepEqual(await r.json(),{sent:true});
+ assert.equal(calls.length,1);assert(String(calls[0].url).startsWith('https://djyozltkmbzhwuvemxuy.supabase.co/auth/v1/resend?redirect_to='+encodeURIComponent(origin+'/')));
+ {const sentBody=JSON.parse(calls[0].init.body);assert.equal(sentBody.type,'signup');assert.equal(sentBody.email,'new@example.invalid');assert.equal(sentBody.code_challenge_method,'s256');assert(sentBody.code_challenge.length>=43)}
+ {const ck=r.headers.getSetCookie();assert.equal(ck.length,1);assert(ck[0].includes('HttpOnly; Secure; SameSite=Lax'))}
+ // Forgot password: same-origin, valid email, fresh PKCE + reset marker; the emailed link lands on "Set a new password".
+ calls=[];r=await handle(req('/api/auth/recover','POST',{email:'a@b.c'},{Origin:'https://evil.example'}),deps);assert.equal(r.status,403);assert.equal(calls.length,0);
+ calls=[];reply=()=>Response.json({});r=await handle(req('/api/auth/recover','POST',{email:'a@b.c'}),deps);assert.equal(r.status,200);assert.deepEqual(await r.json(),{sent:true});
+ assert(String(calls[0].url).startsWith('https://djyozltkmbzhwuvemxuy.supabase.co/auth/v1/recover?redirect_to='));assert.equal(JSON.parse(calls[0].init.body).code_challenge_method,'s256');
+ {const ck=r.headers.getSetCookie();assert.equal(ck.length,2);assert(ck.some(v=>v.startsWith('__Host-mfd-reset=1')));for(const v of ck)assert(v.includes('HttpOnly; Secure; SameSite=Lax'))}
+ reply=()=>Response.json(issued);
+ r=await handle(new Request(origin+'/?code=abc',{headers:{Cookie:'__Host-mfd-pkce=verifier; __Host-mfd-reset=1'}}),deps);assert.equal(r.status,303);assert.equal(r.headers.get('Location'),origin+'/#/set-password');assert(r.headers.getSetCookie().some(v=>v.startsWith('__Host-mfd-reset=;')));
+ r=await handle(new Request(origin+'/?code=abc',{headers:{Cookie:'__Host-mfd-pkce=verifier'}}),deps);assert.equal(r.headers.get('Location'),origin+'/','ordinary sign-in link goes home');
+ // A new sign-in clears a pending reset marker.
+ r=await handle(req('/api/auth/login','POST',{email:'a@b.c',password:'secret'},{Cookie:'__Host-mfd-reset=1'}),deps);assert(r.headers.getSetCookie().some(v=>v.startsWith('__Host-mfd-reset=;')));
+ // New password: signed in only, 12+ characters, sent with the user's own token.
+ calls=[];r=await handle(req('/api/auth/password','POST',{password:'long-enough-pass'}),deps);assert.equal(r.status,401);assert.equal(calls.length,0);
+ calls=[];r=await handle(req('/api/auth/password','POST',{password:'short'},{Cookie:jar}),deps);assert.equal(r.status,400);assert.equal(calls.length,0);
+ calls=[];reply=()=>Response.json({id:'alice'});r=await handle(req('/api/auth/password','POST',{password:'long-enough-pass'},{Cookie:jar}),deps);assert.equal(r.status,200);
+ assert.equal(calls[0].url,'https://djyozltkmbzhwuvemxuy.supabase.co/auth/v1/user');assert.equal(calls[0].init.method,'PUT');assert.equal(calls[0].init.headers.get('Authorization'),'Bearer '+token);
+ reply=()=>Response.json(issued);
+ reply=()=>Response.json(issued);
+ console.log('PASS server headers, HttpOnly cookies, CSRF, PKCE, refresh, migration, sign-up resend, password reset, logout failure, proxy identity, private caching and limits');
 })().catch(e=>{console.error(e);process.exit(1)});

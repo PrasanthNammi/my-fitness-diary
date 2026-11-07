@@ -14,7 +14,7 @@ import { useNow } from './lib/hooks';
 import { duration, mss } from './lib/format';
 import { timerRemaining, timerState } from './domain/training';
 import { LogoFull, LogoMark, ToastHost } from './components/ui';
-import { AuthScreen } from './screens/auth/AuthScreen';
+import { AuthScreen, SetPasswordScreen } from './screens/auth/AuthScreen';
 import { Onboarding } from './screens/auth/Onboarding';
 import { TodayScreen } from './screens/today/TodayScreen';
 import { TrainingHome } from './screens/training/TrainingHome';
@@ -117,6 +117,8 @@ export function App() {
   }, [route]);
 
   if (!signedIn) return (<><AuthScreen /><ToastHost /></>);
+  // Opened from a password-reset email: choose the new password first.
+  if (route[0] === 'set-password') return (<><SetPasswordScreen onDone={() => navigate('/', { replace: true })} /><ToastHost /></>);
   if (!profile) return (<><Onboarding /><ToastHost /></>);
 
   const top = route[0] ?? 'today';
