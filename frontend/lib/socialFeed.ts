@@ -2,18 +2,19 @@
  * Friends feed kept on the device and updated incrementally.
  * - The feed holds the last 7 days; it's saved per account so the next app open shows it at once.
  * - After the first load, each check asks only for what changed since the last one: new or edited
- *   workouts (a photo change marks its workout), new reactions, and removal records.
+ *   workouts (a photo change marks its workout), new reactions and comments, and removal records.
  * - When the set of friends changes (accept, remove, block), the 7-day window reloads in full.
  * - Profiles keep full history, loaded 20 workouts at a time and kept in memory only.
  * Server times are used throughout. Changes can commit slightly out of order, so after the newest
  * change moves, one later check (at least OVERLAP afterwards) looks back by OVERLAP; then it's settled.
  */
 export const FEED_DAYS=7,PROFILE_PAGE=20;
-const DAY=86400000,OVERLAP=30000,FULL_AFTER=25*DAY,STORAGE='mfd-feed-v1:';
+const DAY=86400000,OVERLAP=30000,FULL_AFTER=25*DAY,STORAGE='mfd-feed-v2:';
 export type FeedRow={owner_id:string;workout_id:string;started_at:string;updated_at:string;data:any};
 export type FeedReaction={user_id:string;owner_id:string;workout_id:string;created_at:string};
-type Removal={kind:'workout'|'reaction';owner_id:string;workout_id:string;user_id?:string|null;removed_at:string};
-type Saved={v:1;owners:string;cursor:string|null;cursorAt:number;settled:boolean;checked:number;rows:FeedRow[];reactions:FeedReaction[];photos:Record<string,string>};
+export type FeedComment={id:string;user_id:string;owner_id:string;workout_id:string;body:string;created_at:string};
+type Removal={kind:'workout'|'reaction'|'comment';owner_id:string;workout_id:string;user_id?:string|null;comment_id?:string|null;removed_at:string};
+type Saved={v:2;owners:string;cursor:string|null;cursorAt:number;settled:boolean;checked:number;rows:FeedRow[];reactions:FeedReaction[];comments:FeedComment[];photos:Record<string,string>};
 const key=(owner:string,workout:string)=>owner+':'+workout;
 const reactionKey=(r:{user_id?:string|null;owner_id:string;workout_id:string})=>r.user_id+':'+r.owner_id+':'+r.workout_id;
 const time=(iso:string|null|undefined)=>iso?Date.parse(iso):0;
@@ -22,7 +23,7 @@ const micros=(iso:string|null|undefined)=>{if(!iso)return 0;const f=/\.(\d+)/.ex
 async function rows(query:any){const {data,error}=await query;if(error)throw error;return (data||[]) as any[]}
 
 export class SocialFeed{
- rows=new Map<string,FeedRow>();reactions=new Map<string,FeedReaction>();photos=new Map<string,string>();
+ rows=new Map<string,FeedRow>();reactions=new Map<string,FeedReaction>();comments=new Map<string,FeedComment>();photos=new Map<string,string>();
  private cursor:string|null=null;private cursorAt=0;private settled=false;private owners='';private checked=0;
  private oldest=new Map<string,string>();private complete=new Set<string>();
  constructor(private uid:string,private now:()=>number=()=>Date.now(),private storage:Pick<Storage,'getItem'|'setItem'|'removeItem'>|null=safeStorage()){this.restore()}
@@ -35,6 +36,11 @@ export class SocialFeed{
  hasMore(owner:string){return !this.complete.has(owner)}
  reactionList(){return [...this.reactions.values()]}
  photoFor(owner:string,workout:string){return this.photos.get(key(owner,workout))}
+ /** Comments on one workout, oldest first. */
+ commentsFor(owner:string,workout:string){const k=key(owner,workout);return [...this.comments.values()].filter(x=>key(x.owner_id,x.workout_id)===k).sort((a,b)=>micros(a.created_at)-micros(b.created_at))}
+ /** After this device adds or deletes a comment: apply it at once, the next check confirms. */
+ comment(x:FeedComment){if(this.rows.has(key(x.owner_id,x.workout_id)))this.comments.set(x.id,x);this.save()}
+ uncomment(id:string){this.comments.delete(id);this.save()}
 
  /** Brings the feed up to date. `visible` = ids of accepted, unblocked friends. Returns changed workout keys. */
  async sync(c:any,visible:string[]):Promise<string[]>{
@@ -58,8 +64,9 @@ export class SocialFeed{
   if(page.length<PROFILE_PAGE)this.complete.add(owner);
   if(page.length){
    const ids=page.map(r=>r.workout_id);
-   const [reactions,photos]=await Promise.all([rows(c.from('mfd_reactions').select('*').eq('owner_id',owner).in('workout_id',ids)),rows(c.from('mfd_workout_photos').select('*').eq('owner_id',owner).in('workout_id',ids))]);
+   const [reactions,photos,comments]=await Promise.all([rows(c.from('mfd_reactions').select('*').eq('owner_id',owner).in('workout_id',ids)),rows(c.from('mfd_workout_photos').select('*').eq('owner_id',owner).in('workout_id',ids)),rows(c.from('mfd_comments').select('*').eq('owner_id',owner).in('workout_id',ids))]);
    for(const r of reactions)this.reactions.set(reactionKey(r),r);
+   for(const x of comments)this.comments.set(x.id,x);
    for(const p of photos)this.photos.set(key(p.owner_id,p.workout_id),p.path);
   }
   return page.length;
@@ -68,19 +75,21 @@ export class SocialFeed{
  /** After this device adds or removes its own reaction: apply it at once, the next check confirms. */
  react(owner:string,workout:string,on:boolean){const r={user_id:this.uid,owner_id:owner,workout_id:workout,created_at:new Date(this.now()).toISOString()};if(on)this.reactions.set(reactionKey(r),r);else this.reactions.delete(reactionKey(r));this.save()}
 
- clear(){this.rows.clear();this.reactions.clear();this.photos.clear();this.cursor=null;this.cursorAt=0;this.settled=false;this.owners='';this.checked=0;this.oldest.clear();this.complete.clear();try{this.storage?.removeItem(STORAGE+this.uid)}catch{}}
+ clear(){this.rows.clear();this.reactions.clear();this.comments.clear();this.photos.clear();this.cursor=null;this.cursorAt=0;this.settled=false;this.owners='';this.checked=0;this.oldest.clear();this.complete.clear();try{this.storage?.removeItem(STORAGE+this.uid)}catch{}}
 
  private async full(c:any,owners:string[]){
   const start=this.windowStart();
-  const [workouts,reactions]=await Promise.all([
+  const [workouts,reactions,comments]=await Promise.all([
    rows(c.from('mfd_social_workouts').select('*').gte('started_at',start).order('started_at',{ascending:false}).limit(500)),
-   // Reactions on this week's workouts can't be older than the workouts themselves.
-   rows(c.from('mfd_reactions').select('*').gte('created_at',start))]);
-  this.rows.clear();this.reactions.clear();this.photos.clear();this.oldest.clear();this.complete.clear();
+   // Reactions and comments on this week's workouts can't be older than the workouts themselves.
+   rows(c.from('mfd_reactions').select('*').gte('created_at',start)),
+   rows(c.from('mfd_comments').select('*').gte('created_at',start).order('created_at').limit(2000))]);
+  this.rows.clear();this.reactions.clear();this.comments.clear();this.photos.clear();this.oldest.clear();this.complete.clear();
   const allowed=new Set(owners);
   for(const r of workouts)if(allowed.has(r.owner_id))this.rows.set(key(r.owner_id,r.workout_id),r);
   for(const r of reactions)if(this.rows.has(key(r.owner_id,r.workout_id)))this.reactions.set(reactionKey(r),r);
-  this.moveCursor(latest(null,[...workouts.map(r=>r.updated_at),...reactions.map(r=>r.created_at)]),true);
+  for(const x of comments)if(this.rows.has(key(x.owner_id,x.workout_id)))this.comments.set(x.id,x);
+  this.moveCursor(latest(null,[...workouts.map(r=>r.updated_at),...reactions.map(r=>r.created_at),...comments.map(x=>x.created_at)]),true);
   return [...this.rows.keys()];
  }
 
@@ -93,18 +102,21 @@ export class SocialFeed{
   let changes=c.from('mfd_social_workouts').select('*').gt('updated_at',since);
   changes=profiles.length?changes.or(`started_at.gte.${startIso},owner_id.in.(${profiles.join(',')})`):changes.gte('started_at',startIso);
   const changed=new Set<string>();
-  const [workouts,reactions,removals]=await Promise.all([
+  const [workouts,reactions,removals,comments]=await Promise.all([
    rows(changes.order('updated_at').limit(500)),
    rows(c.from('mfd_reactions').select('*').gt('created_at',since).order('created_at').limit(1000)),
-   rows(c.from('mfd_social_removals').select('*').gt('removed_at',since).order('removed_at').limit(1000))]) as [FeedRow[],FeedReaction[],Removal[]];
+   rows(c.from('mfd_social_removals').select('*').gt('removed_at',since).order('removed_at').limit(1000)),
+   rows(c.from('mfd_comments').select('*').gt('created_at',since).order('created_at').limit(1000))]) as [FeedRow[],FeedReaction[],Removal[],FeedComment[]];
   // Apply in server-time order, so "removed, then added again" ends up present (and the reverse absent).
   const events=[...workouts.map(r=>({t:micros(r.updated_at),apply:()=>{const k=key(r.owner_id,r.workout_id);if(this.rows.has(k)||time(r.started_at)>=start||this.inLoadedProfile(r)){this.rows.set(k,r);changed.add(k)}}})),
    ...reactions.map(r=>({t:micros(r.created_at),apply:()=>{if(this.rows.has(key(r.owner_id,r.workout_id)))this.reactions.set(reactionKey(r),r)}})),
+   ...comments.map(x=>({t:micros(x.created_at),apply:()=>{if(this.rows.has(key(x.owner_id,x.workout_id)))this.comments.set(x.id,x)}})),
    ...removals.map(x=>({t:micros(x.removed_at),apply:()=>{const k=key(x.owner_id,x.workout_id);
     if(x.kind==='workout'){const row=this.rows.get(k);if(row&&micros(row.updated_at)<=micros(x.removed_at)){this.rows.delete(k);this.photos.delete(k);changed.delete(k);for(const [rk,r] of this.reactions)if(key(r.owner_id,r.workout_id)===k)this.reactions.delete(rk)}}
+    else if(x.kind==='comment'){if(x.comment_id)this.comments.delete(x.comment_id)}
     else{const rk=reactionKey(x),r=this.reactions.get(rk);if(r&&micros(r.created_at)<=micros(x.removed_at))this.reactions.delete(rk)}}}))].sort((a,b)=>a.t-b.t);
   for(const e of events)e.apply();
-  const moved=this.moveCursor(latest(this.cursor,[...workouts.map(r=>r.updated_at),...reactions.map(r=>r.created_at),...removals.map(r=>r.removed_at)]));
+  const moved=this.moveCursor(latest(this.cursor,[...workouts.map(r=>r.updated_at),...reactions.map(r=>r.created_at),...comments.map(x=>x.created_at),...removals.map(r=>r.removed_at)]));
   // A look-back check made OVERLAP after the cursor last moved has caught every late commit.
   if(!moved&&lookBack&&started-this.cursorAt>=OVERLAP)this.settled=true;
   return [...changed];
@@ -127,18 +139,19 @@ export class SocialFeed{
   const start=time(this.windowStart());
   for(const [k,r] of this.rows)if(!owners.has(r.owner_id)||(time(r.started_at)<start&&!this.oldest.has(r.owner_id)))this.rows.delete(k);
   for(const [k,r] of this.reactions)if(!this.rows.has(key(r.owner_id,r.workout_id)))this.reactions.delete(k);
+  for(const [k,x] of this.comments)if(!this.rows.has(key(x.owner_id,x.workout_id)))this.comments.delete(k);
   for(const k of [...this.photos.keys()])if(!this.rows.has(k))this.photos.delete(k);
   for(const o of [...this.oldest.keys()])if(!owners.has(o)){this.oldest.delete(o);this.complete.delete(o)}
  }
 
  private sorted(list:FeedRow[]){return list.sort((a,b)=>time(b.started_at)-time(a.started_at))}
 
- private restore(){try{const raw=this.storage?.getItem(STORAGE+this.uid);if(!raw)return;const s=JSON.parse(raw) as Saved;if(s.v!==1)return;
+ private restore(){try{const raw=this.storage?.getItem(STORAGE+this.uid);if(!raw)return;const s=JSON.parse(raw) as Saved;if(s.v!==2)return;
   this.owners=s.owners;this.cursor=s.cursor;this.cursorAt=s.cursorAt||0;this.settled=!!s.settled;this.checked=s.checked;
-  for(const r of s.rows)this.rows.set(key(r.owner_id,r.workout_id),r);for(const r of s.reactions)this.reactions.set(reactionKey(r),r);for(const [k,p] of Object.entries(s.photos))this.photos.set(k,p)}catch{this.clear()}}
+  for(const r of s.rows)this.rows.set(key(r.owner_id,r.workout_id),r);for(const r of s.reactions)this.reactions.set(reactionKey(r),r);for(const x of s.comments||[])this.comments.set(x.id,x);for(const [k,p] of Object.entries(s.photos))this.photos.set(k,p)}catch{this.clear()}}
  /** Only the 7-day feed is saved on the device; profile pages stay in memory. */
  private save(){const feed=this.feed(),keep=new Set(feed.map(r=>key(r.owner_id,r.workout_id)));
-  const s:Saved={v:1,owners:this.owners,cursor:this.cursor,cursorAt:this.cursorAt,settled:this.settled,checked:this.checked,rows:feed,reactions:this.reactionList().filter(r=>keep.has(key(r.owner_id,r.workout_id))),photos:Object.fromEntries([...this.photos].filter(([k])=>keep.has(k)))};
+  const s:Saved={v:2,owners:this.owners,cursor:this.cursor,cursorAt:this.cursorAt,settled:this.settled,checked:this.checked,rows:feed,reactions:this.reactionList().filter(r=>keep.has(key(r.owner_id,r.workout_id))),comments:[...this.comments.values()].filter(x=>keep.has(key(x.owner_id,x.workout_id))),photos:Object.fromEntries([...this.photos].filter(([k])=>keep.has(k)))};
   try{this.storage?.setItem(STORAGE+this.uid,JSON.stringify(s))}catch{}}
 }
 function latest(current:string|null,times:(string|null|undefined)[]){let best=current;for(const t of times)if(t&&micros(t)>micros(best))best=t;return best}
