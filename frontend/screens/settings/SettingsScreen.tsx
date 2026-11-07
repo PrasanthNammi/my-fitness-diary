@@ -11,7 +11,8 @@ import { auth } from '../../adapters/auth';
 import { ACTIVITY_FACTORS, GOALS } from '../../domain/nutrition';
 import type { CoachProvider } from '../../domain/types';
 import { useTargets } from '../../data/selectors';
-import { fmtInt, mss, parseMss, todayISO } from '../../lib/format';
+import { fmtInt, fmtNum, mss, parseDecimal, parseMss, todayISO } from '../../lib/format';
+import { PLATE_CHOICES, plateSetup } from '../../domain/plates';
 import { navigate } from '../../lib/router';
 import { draftFromProfile, ProfileFields, profileFromDraft, validateDraft, type ProfileDraft } from '../auth/Onboarding';
 
@@ -142,7 +143,7 @@ function UnitSettings() {
   const [err, setErr] = useState<string | null>(null);
   return (
     <>
-      <TopBar title="Units" back="/settings" bordered />
+      <TopBar title="Units & workout" back="/settings" bordered />
       <div className="screen stack" style={{ paddingTop: 12 }}>
         <div className="field"><span className="label">Weight</span>
           <Segmented label="Weight unit" value={s.weightUnit} onChange={(v) => profileRepo.updateSettings({ weightUnit: v })} options={[{ value: 'kg', label: 'Kilograms (kg)' }, { value: 'lb', label: 'Pounds (lb)' }]} />
@@ -159,9 +160,38 @@ function UnitSettings() {
             profileRepo.updateSettings({ defaultRestSec: v });
           }} />
         </Field>
-        <p className="xs muted" style={{ margin: 0 }}>Values are stored in metric and converted for display.</p>
+        <label className="list-row setting-switch">
+          <span className="grow row-title">Keep screen on during workouts</span>
+          <input type="checkbox" checked={s.keepAwake !== false} onChange={(e) => profileRepo.updateSettings({ keepAwake: e.target.checked })} />
+        </label>
+        <PlateSettings />
       </div>
     </>
+  );
+}
+
+/** Bar and plates for the plate calculator, in the weight unit in use. */
+function PlateSettings() {
+  const s = useDB((d) => d.settings);
+  const setup = plateSetup(s), unit = setup.unit;
+  const [bar, setBar] = useState(String(setup.bar));
+  const [err, setErr] = useState<string | null>(null);
+  useEffect(() => { setBar(String(setup.bar)); setErr(null); }, [unit, setup.bar]);
+  const save = (next: { bar?: number; plates?: number[] }) => profileRepo.updateSettings({ plates: { unit, bar: next.bar ?? setup.bar, plates: next.plates ?? setup.plates } });
+  const toggle = (p: number) => { const has = setup.plates.includes(p); if (has && setup.plates.length === 1) return; save({ plates: has ? setup.plates.filter((x) => x !== p) : [...setup.plates, p] }); };
+  return (
+    <div className="field"><span className="label">Plates</span>
+      <Field label={`Bar (${unit})`} htmlFor="u-bar" error={err}>
+        <input id="u-bar" className="input" inputMode="decimal" value={bar} onChange={(e) => setBar(e.target.value)} onBlur={() => {
+          const v = parseDecimal(bar);
+          if (v === null || v < 0 || v > 100) return setErr('Enter the bar weight.');
+          setErr(null); save({ bar: v });
+        }} />
+      </Field>
+      <div className="plate-choices" role="group" aria-label={`Plates you have (${unit})`}>
+        {PLATE_CHOICES[unit].map((p) => <button key={p} type="button" className="chip" aria-pressed={setup.plates.includes(p)} onClick={() => toggle(p)}>{fmtNum(p, 2)}</button>)}
+      </div>
+    </div>
   );
 }
 

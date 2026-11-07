@@ -43,3 +43,22 @@ export function installKeyboardInset() {
     setTimeout(() => t.scrollIntoView({ block: 'nearest', behavior: 'smooth' }), 260);
   });
 }
+
+/**
+ * Keeps the screen on while `on` (Screen Wake Lock). Browsers release the lock when the app is hidden,
+ * so it is taken again when the app comes back. Does nothing where the browser has no wake lock.
+ */
+export function useWakeLock(on: boolean) {
+  useEffect(() => {
+    const api = (navigator as Navigator & { wakeLock?: { request(type: 'screen'): Promise<{ release(): Promise<void>; released: boolean }> } }).wakeLock;
+    if (!on || !api) return;
+    let lock: { release(): Promise<void>; released: boolean } | null = null, stopped = false;
+    const take = () => {
+      if (stopped || document.visibilityState !== 'visible' || (lock && !lock.released)) return;
+      api.request('screen').then((l) => { if (stopped) void l.release().catch(() => {}); else lock = l; }).catch(() => {});
+    };
+    take();
+    document.addEventListener('visibilitychange', take);
+    return () => { stopped = true; document.removeEventListener('visibilitychange', take); void lock?.release().catch(() => {}); };
+  }, [on]);
+}
