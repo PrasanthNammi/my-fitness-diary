@@ -4,6 +4,7 @@ import {
   Calculator, ChevronRight, Database, Download, KeyRound, LogOut, Plug, Ruler, Sparkles, Upload, User, UserRound,
 } from 'lucide-react';
 import { ConfirmSheet, Field, LogoFull, Notice, Segmented, SelectField, Sheet, TopBar, toast } from '../../components/ui';
+import { InfoButton } from '../../components/ui';
 import { emptyDB, getDB, isDB, replaceDB, useDB, type DB } from '../../data/store';
 import { body, profileRepo } from '../../data/repositories';
 import { auth } from '../../adapters/auth';
@@ -80,7 +81,7 @@ function ProfileSettings() {
       <div className="screen" style={{ paddingTop: 12 }}>
         {saveError&&<p role="alert">{saveError}</p>}
         <ProfileFields d={d} set={(p) => setD((x) => ({ ...x, ...p }))} unit={unit} errors={errors} show={show} groups={['about', 'body', 'activity', 'goal', 'training']} />
-        <Field label="Daily water goal" htmlFor="profile-water" error={show ? waterError : null} hint="Litres per day"><input id="profile-water" className="input" type="number" inputMode="decimal" min="0.25" max="10" step="0.05" value={water} onChange={e=>setWater(e.target.value)} /></Field>
+        <Field label="Daily water goal" htmlFor="profile-water" error={show ? waterError : null}><div className="with-suffix"><input id="profile-water" className="input" type="number" inputMode="decimal" min="0.25" max="10" step="0.05" value={water} onChange={e=>setWater(e.target.value)} /><span className="suffix">L</span></div></Field>
         {show && !valid && <div style={{ marginTop: 12 }}><Notice tone="error">Check the highlighted fields.</Notice></div>}
         <button className="btn btn-primary btn-block" style={{ marginTop: 16 }} disabled={busy} onClick={async () => {
           setShow(true);
@@ -114,7 +115,7 @@ function TargetDetails() {
           {row('Fat', `${t.fat} g`)}
           {row('Water', `${fmtInt(t.waterMl)} ml`)}
         </div>
-        <div className="section-title" style={{ margin: '6px 0 0' }}><h2>How it’s calculated</h2></div>
+        <div className="section-title" style={{ margin: '6px 0 0' }}><h2>How it’s calculated</h2><InfoButton title="Estimates" lines={['These targets are estimates; individual needs vary.', 'If your weight trend doesn’t match your goal over a few weeks, adjust your profile.']} /></div>
         <div className="card card-pad">
           {row('1. BMR (Mifflin–St Jeor)', `${fmtInt(calc.bmr)} kcal`)}
           <p className="xs muted" style={{ margin: '0 0 6px' }}>
@@ -129,9 +130,6 @@ function TargetDetails() {
           {row('6. Carbohydrate', 'Remaining calories ÷ 4')}
           {row('Water', 'Your daily goal · editable in Profile')}
         </div>
-        <p className="xs muted" style={{ margin: 0 }}>
-          These are estimates. Individual needs vary; adjust your profile if your weight trend doesn’t match your goal over a few weeks.
-        </p>
         <button className="btn btn-secondary btn-block" onClick={() => navigate('/settings/profile')}>Edit profile & goals</button>
       </div>
     </>
