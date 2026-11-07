@@ -5,6 +5,7 @@ import {toast} from '../components/ui';
 import {saveIdentity} from '../adapters/profile';
 import {engine} from '../adapters/engine';
 import {foodOut,foodIn} from '../adapters/compat';
+import {withServingWeight} from '../domain/nutrition';
 // Mock repositories backed by the local store. Each interface is what a future
 // Supabase implementation would satisfy; screens only talk to these objects.
 
@@ -249,6 +250,15 @@ export const diary = {
     update((d) => {
       const e = d.diary.find((x) => x.id === id);
       if (e) Object.assign(e, patch);
+    });
+  },
+  /** Sets what one serving of a food weighs on every logged copy of it, and on the saved food. Nutrition is unchanged. */
+  setServingWeight(foodId: ID, weight: number) {
+    update((d) => {
+      for (const e of d.diary) if (e.food.id === foodId) e.food = withServingWeight(e.food, weight);
+      // Only touch the lists that hold this food, so nothing else is marked as changed.
+      if (d.customFoods.some((f) => f.id === foodId)) d.customFoods = d.customFoods.map((f) => (f.id === foodId ? withServingWeight(f, weight) : f));
+      if (d.settings.favouriteFoods?.some((f) => f.id === foodId)) d.settings.favouriteFoods = d.settings.favouriteFoods.map((f) => (f.id === foodId ? withServingWeight(f, weight) : f));
     });
   },
   remove(id: ID) {

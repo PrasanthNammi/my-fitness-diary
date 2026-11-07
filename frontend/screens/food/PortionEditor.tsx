@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Star, Trash2 } from 'lucide-react';
+import { Star, Trash2, X } from 'lucide-react';
 import type { Food, Meal, PortionUnit } from '../../domain/types';
 import { allowedUnits, nutrientsFor } from '../../domain/nutrition';
 import { Field, SelectField, Sheet } from '../../components/ui';
@@ -22,7 +22,7 @@ function macroShare(n: { protein: number; carbs: number; fat: number }) {
 }
 
 export function PortionEditor({
-  open, onClose, food, initial, onSubmit, onDelete, submitLabel,
+  open, onClose, food, initial, onSubmit, onDelete, submitLabel, onServingWeight,
 }: {
   open: boolean;
   onClose: () => void;
@@ -31,6 +31,8 @@ export function PortionEditor({
   onSubmit: (v: { amount: number; unit: PortionUnit; meal: Meal }) => void;
   onDelete?: () => void;
   submitLabel: string;
+  /** Saves what one serving weighs, which makes both servings and grams available. */
+  onServingWeight?: (weight: number) => void;
 }) {
   const favs = useDB((d) => d.favouriteFoodIds);
   const energyUnit = useDB((d) => d.settings.energyUnit);
@@ -38,6 +40,7 @@ export function PortionEditor({
   const [unit, setUnit] = useState<PortionUnit>('g');
   const [meal, setMeal] = useState<Meal>('breakfast');
   const [tried, setTried] = useState(false);
+  const [weightDraft, setWeightDraft] = useState<string | null>(null);
 
   useEffect(() => {
     if (!open || !food || !initial) return;
@@ -45,7 +48,8 @@ export function PortionEditor({
     setUnit(initial.unit);
     setMeal(initial.meal);
     setTried(false);
-  }, [open, food, initial]);
+    setWeightDraft(null);
+  }, [open, food?.id, initial?.amount, initial?.unit, initial?.meal]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const n = parseDecimal(amount);
   const err = n === null ? 'Enter an amount.' : n <= 0 ? 'Amount must be more than 0.' : n > 5000 ? 'That amount looks too large.' : null;
@@ -97,6 +101,25 @@ export function PortionEditor({
             }}
           />
         </div>
+        {onServingWeight && (() => {
+          const per = food.refUnit === 'serving' ? 'g' : food.refUnit;
+          const w = parseDecimal(weightDraft ?? '');
+          const wErr = w === null || w <= 0 ? 'Enter a weight.' : w > 5000 ? 'That looks too large.' : null;
+          if (weightDraft !== null) return (
+            <div className="serving-weight-edit">
+              <label htmlFor="pe-serving">1 {food.servingLabel ?? 'serving'} =</label>
+              <input id="pe-serving" className="input tnum" inputMode="decimal" value={weightDraft} onChange={(e) => setWeightDraft(e.target.value)} aria-invalid={!!weightDraft && !!wErr} autoFocus />
+              <span>{per}</span>
+              <button type="button" className="btn btn-primary btn-sm" disabled={!!wErr} onClick={() => { if (w && !wErr) { onServingWeight(w); setWeightDraft(null); } }}>Save</button>
+              <button type="button" className="icon-btn" aria-label="Cancel" onClick={() => setWeightDraft(null)}><X /></button>
+            </div>
+          );
+          return food.servingSize ? (
+            <div className="serving-weight"><span className="tnum">1 {food.servingLabel ?? 'serving'} = {fmtNum(food.servingSize, 1)} {per}</span><button type="button" className="btn btn-link" onClick={() => setWeightDraft(String(food.servingSize))}>Change</button></div>
+          ) : (
+            <button type="button" className="btn btn-link serving-weight-add" onClick={() => setWeightDraft('')}>{food.refUnit === 'serving' ? 'Log in grams too' : 'Log in servings too'}</button>
+          );
+        })()}
         <div className="field">
           <span className="label" id="pe-meal">Meal</span>
           <div className="meal-choice" role="group" aria-labelledby="pe-meal">

@@ -7,7 +7,7 @@ import {Camera,Copy,Flag} from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Pencil, Plus, ScanBarcode, Search, SearchX, Star, Trash2, UtensilsCrossed } from 'lucide-react';
 import type { DiaryEntry, Food, Meal, PortionUnit } from '../../domain/types';
-import { allowedUnits } from '../../domain/nutrition';
+import { allowedUnits, withServingWeight } from '../../domain/nutrition';
 import { AiBadge, ConfirmSheet, Empty, OverflowMenu, Segmented, Sheet, TopBar, toast } from '../../components/ui';
 import { DateStrip } from '../../components/DateStrip';
 import { useDB } from '../../data/store';
@@ -82,7 +82,7 @@ export function FoodScreen() {
     <FoodPicker meal={pickerMeal} date={date} onClose={()=>setPickerMeal(null)} onAdded={added}/>
     <CopyMealSheet entries={copyMeal?byMeal[copyMeal]:[]} meal={copyMeal} date={date} onClose={()=>setCopyMeal(null)}/>
     <NutritionSummary open={summary} onClose={()=>setSummary(false)} date={date}/>
-    <PortionEditor open={!!editing} onClose={()=>setEditing(null)} food={editing?.food??null} initial={editing?{amount:editing.amount,unit:editing.unit,meal:editing.meal}:null} submitLabel="Update entry" onSubmit={v=>{if(!editing)return;diary.updateEntry(editing.id,v);toast('Entry updated');setEditing(null)}} onDelete={()=>{if(!editing)return;remove(editing);setEditing(null)}}/>
+    <PortionEditor open={!!editing} onClose={()=>setEditing(null)} food={editing?.food??null} initial={editing?{amount:editing.amount,unit:editing.unit,meal:editing.meal}:null} submitLabel="Update entry" onSubmit={v=>{if(!editing)return;diary.updateEntry(editing.id,v);toast('Entry updated');setEditing(null)}} onDelete={()=>{if(!editing)return;remove(editing);setEditing(null)}} onServingWeight={w=>{if(!editing)return;diary.setServingWeight(editing.food.id,w);setEditing(e=>e?{...e,food:withServingWeight(e.food,w)}:e);toast('Serving weight saved')}}/>
   </div>;
 }
 
@@ -219,6 +219,7 @@ function FoodPicker({ meal, date, onClose, onAdded }: { meal: Meal | null; date:
         food={chosen}
         initial={chosen && meal ? { ...defaultPortion(chosen), meal } : null}
         submitLabel="Add entry"
+        onServingWeight={(w) => { if (!chosen) return; diary.setServingWeight(chosen.id, w); setChosen(withServingWeight(chosen, w)); toast('Serving weight saved'); }}
         onSubmit={(v) => {
           if (!chosen) return;
           const entry = diary.add(date, v.meal, chosen, v.amount, v.unit);

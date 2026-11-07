@@ -28,6 +28,7 @@ jobs:
           node tests/nutrition-preferences.cjs
           node tests/workout-clock.cjs
           node tests/food-actions.cjs
+          node tests/serving-weight.cjs
           node tests/food-summary.cjs
   database:
     # Postgres + PostgREST in Docker with Supabase stand-ins: every SQL test, the JavaScript/SQL
