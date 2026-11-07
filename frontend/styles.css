@@ -319,7 +319,8 @@ button.list-row:hover { background: var(--row-alt); }
 .ai-steps { list-style: none; margin: 0; padding: 0; counter-reset: s; display: grid; gap: 14px; }
 .ai-steps li { display: grid; grid-template-columns: 28px minmax(0, 1fr); column-gap: 12px; counter-increment: s; }
 .ai-steps li::before { content: counter(s); grid-row: span 2; width: 28px; height: 28px; border-radius: 50%; display: grid; place-items: center; font-weight: 700; font-size: 13px; background: var(--field); color: var(--ink-2); }
-.badge.ai { height: 18px; margin-left: 6px; vertical-align: middle; background: transparent; border: 1px solid var(--line); color: var(--ink-2); font-weight: 600; }
+.badge.ai { display: inline-flex; align-items: center; gap: 3px; height: 20px; padding: 0 7px; margin-left: 6px; vertical-align: middle; background: var(--ai-soft); border: 0; color: var(--ai-text); font-weight: 700; flex: none; }
+.badge.ai svg { width: 10px; height: 10px; }
 
 .notice {
   display: flex; gap: 10px; padding: 10px 12px; border-radius: 10px; font-size: 13px; line-height: 1.45;
@@ -1577,3 +1578,9 @@ button.social-person { cursor: pointer; border-left: 0; border-right: 0; }
 .plates-chip { align-self: flex-start; margin: 8px 0 0; height: 34px; font-weight: 700; }
 .plates-chip svg { width: 15px; height: 15px; }
 .plate-sheet > .eyebrow { margin-bottom: -8px; }
+
+/* Exercise page tabs as chips (Lovable) */
+.exercise-tabs.tab-chips { display: flex; gap: 6px; padding: 10px 16px; border-bottom: 0; background: none; }
+.exercise-tabs.tab-chips button.chip { color: var(--ink-2); }
+.exercise-tabs.tab-chips button.chip[aria-selected='true'] { color: var(--on-ink); }
+@media (min-width: 800px) { .exercise-tabs.tab-chips { padding-left: max(20px, calc((100vw - 720px) / 2)); padding-right: max(20px, calc((100vw - 720px) / 2)); } }

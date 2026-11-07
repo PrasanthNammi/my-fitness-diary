@@ -8,6 +8,7 @@ import { diary, workouts as workoutRepo } from '../../data/repositories';
 import { aiAdded, aiAddedRecently, aiAgo, type AiAdded } from '../../domain/aiActivity';
 import { addDays, duration, energyValue, fmtEnergy, fmtInt, fmtNum, fmtVolume, kgTo, todayISO, toISODate } from '../../lib/format';
 import { workingVolume } from '../../domain/training';
+import { fibreTarget } from '../../domain/nutrition';
 import { navigate } from '../../lib/router';
 import { weightTrend } from '../../domain/weeklyRecap';
 import { WeekRecap } from './WeekRecap';
@@ -140,7 +141,7 @@ export function TodayScreen() {
             </div>
             <div className="fibre-row">
               <i style={{ background: 'var(--fibre)' }} /><span className="muted">Fibre</span>
-              <strong className="tnum">{fibre.grams === null ? '—' : Number(fibre.grams.toFixed(1))} / {Math.round(t.kcal / 1000 * 14)} g</strong>
+              <strong className="tnum">{fibre.grams === null ? '—' : Number(fibre.grams.toFixed(1))} / {fibreTarget(t.kcal)} g</strong>
               {(fibre.grams === null || fibre.missing) && entries.length > 0 && <span className="chip-warn">Incomplete<InfoButton title="Fibre" lines={['Some foods logged on this day have no fibre value, so the total may be low.']} /></span>}
             </div>
           </section>

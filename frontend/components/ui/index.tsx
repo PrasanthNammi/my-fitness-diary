@@ -1,6 +1,6 @@
 import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
-import { Check, ChevronDown, ChevronLeft, CircleAlert, Info, MoreHorizontal, X, CircleCheck, TriangleAlert, type LucideIcon } from 'lucide-react';
+import { Check, ChevronDown, ChevronLeft, CircleAlert, Info, MoreHorizontal, X, CircleCheck, TriangleAlert, type LucideIcon, Sparkles } from 'lucide-react';
 
 import { goBack } from '../../lib/router';
 import { aiSource } from '../../domain/aiSource';
@@ -290,7 +290,7 @@ export function Notice({ tone = 'info', children }: { tone?: 'info' | 'warn' | '
 /** Small label on entries an AI assistant added through the connector. */
 export function AiBadge({ addedBy }: { addedBy?: AddedBy }) {
   const name = aiSource(addedBy);
-  return name ? <span className="badge ai">Added by {name}</span> : null;
+  return name ? <span className="badge ai" title={`Added by ${name}`} aria-label={`Added by ${name}`}><Sparkles aria-hidden="true" />{name}</span> : null;
 }
 
 export function Empty({ icon: Icon, title, children, action }: { icon?: LucideIcon; title: string; children?: ReactNode; action?: ReactNode }) {

@@ -11,7 +11,7 @@ import {
   BODY_LIMITS, bodySeries, buckets, checkinNumber, localISO, RANGES, rangeStart, recoveryCheckins, summary, workoutsInRange,
   type RangeDays, type StatMetric,
 } from '../../domain/progressStats';
-import { fmtInt, fmtNum, kgTo, mss, parseDecimal, todayISO, toKg } from '../../lib/format';
+import { cmTo, fmtInt, fmtNum, kgTo, mss, parseDecimal, todayISO, toCm, toKg } from '../../lib/format';
 import { navigate } from '../../lib/router';
 import { MuscleStats } from './MuscleStats';
 import { averageSeries } from '../../domain/weeklyRecap';
@@ -266,7 +266,8 @@ function WeightCard({ from }: { from: string | null }) {
 
 /** Latest waist, hips, arms and chest with the change since the previous value; tap one for its chart. */
 function MeasurementsCard({ from }: { from: string | null }) {
-  const checkins = useDB((d) => d.checkins);
+  const checkins = useDB((d) => d.checkins), lu = useDB((d) => d.settings.lengthUnit ?? 'cm');
+  const len = (cm: number) => cmTo(cm, lu);
   const [adding, setAdding] = useState(false), [focus, setFocus] = useState<Measure | null>(null), [removing, setRemoving] = useState<string | null>(null), [allRows, setAllRows] = useState(false);
   // Newest first; on the same day the one entered later comes first.
   const rows = useMemo(() => checkins.map((c, i) => [c, i] as const).filter(([c]) => MEASURES.some((k) => checkinNumber(c[k]) !== null)).sort((a, b) => b[0].date.localeCompare(a[0].date) || b[1] - a[1]).map(([c]) => c), [checkins]);
@@ -285,14 +286,14 @@ function MeasurementsCard({ from }: { from: string | null }) {
           return (
             <button key={k} type="button" className="measure-tile" aria-pressed={focus === k} onClick={() => setFocus(focus === k ? null : k)}>
               <span className="k">{cap(k)}</span>
-              <span className="v tnum">{cur !== undefined ? fmtNum(cur, 1) : '—'}<small> cm</small></span>
-              {diff !== null && <span className={`d tnum ${diff <= 0 ? 'down' : 'up'}`}>{diff > 0 ? '+' : ''}{fmtNum(diff, 1)} cm</span>}
+              <span className="v tnum">{cur !== undefined ? fmtNum(len(cur), 1) : '—'}<small> {lu}</small></span>
+              {diff !== null && <span className={`d tnum ${diff <= 0 ? 'down' : 'up'}`}>{diff > 0 ? '+' : ''}{fmtNum(len(diff), 1)} {lu}</span>}
             </button>
           );
         })}
       </div>
       {focus && (series.length >= 2
-        ? <LineChart label={cap(focus)} points={series.map((r) => ({ x: new Date(r.date + 'T12:00:00').getTime(), y: r.value }))} unit="cm" height={140} format={(v) => fmtNum(v, 1)} />
+        ? <LineChart label={cap(focus)} points={series.map((r) => ({ x: new Date(r.date + 'T12:00:00').getTime(), y: len(r.value) }))} unit={lu} height={140} format={(v) => fmtNum(v, 1)} />
         : <p className="small muted">{series.length ? `One ${focus} entry in this range` : `No ${focus} entries in this range`}</p>)}
       {inRange.length > 0 && <>
         <span className="eyebrow">History</span>
@@ -300,30 +301,30 @@ function MeasurementsCard({ from }: { from: string | null }) {
           {inRange.slice(0, allRows ? undefined : 6).map((r) => (
             <div key={r.id} className="progress-history-row measure-row">
               <span>{shortDay(r.date)}</span>
-              <span className="tnum muted">{MEASURES.filter((k) => checkinNumber(r[k]) !== null).map((k) => `${k[0].toUpperCase()} ${fmtNum(checkinNumber(r[k])!, 1)}`).join(' · ')}</span>
+              <span className="tnum muted">{MEASURES.filter((k) => checkinNumber(r[k]) !== null).map((k) => `${k[0].toUpperCase()} ${fmtNum(len(checkinNumber(r[k])!), 1)}`).join(' · ')}</span>
               <button className="icon-btn" aria-label={`Remove measurements from ${day(r.date)}`} onClick={() => setRemoving(r.id)}><Trash2 /></button>
             </div>
           ))}
           {inRange.length > 6 && !allRows && <button className="btn btn-link progress-more" onClick={() => setAllRows(true)}>Show all {inRange.length}</button>}
         </div>
       </>}
-      <MeasurementsSheet open={adding} onClose={() => setAdding(false)} last={rows[0]} />
+      <MeasurementsSheet open={adding} onClose={() => setAdding(false)} last={rows[0]} unit={lu} />
       <ConfirmSheet open={!!removing} onClose={() => setRemoving(null)} danger title="Remove these measurements?" confirmLabel="Remove"
         onConfirm={() => { if (removing) { body.removeMeasurements(removing); toast('Measurements removed'); } }} />
     </section>
   );
 }
 
-function MeasurementsSheet({ open, onClose, last }: { open: boolean; onClose: () => void; last?: CheckIn }) {
+function MeasurementsSheet({ open, onClose, last, unit }: { open: boolean; onClose: () => void; last?: CheckIn; unit: 'cm' | 'in' }) {
   const blank = { waist: '', hips: '', arms: '', chest: '' };
   const [f, setF] = useState<Record<Measure, string>>(blank), [date, setDate] = useState(todayISO()), [err, setErr] = useState<string | null>(null);
   const save = () => {
     const vals: Partial<Record<Measure, number>> = {};
     for (const k of MEASURES) {
       if (!f[k].trim()) continue;
-      const n = parseDecimal(f[k]), [lo, hi] = BODY_LIMITS[k];
+      const typed = parseDecimal(f[k]), n = typed === null ? null : toCm(typed, unit), [lo, hi] = BODY_LIMITS[k];
       if (n === null || n < lo || n > hi) return setErr(`${cap(k)} looks wrong.`);
-      vals[k] = Math.round(n * 10) / 10;
+      vals[k] = Math.round(n * 100) / 100;
     }
     if (!Object.keys(vals).length) return setErr('Enter at least one measurement.');
     if (!date || date > todayISO()) return setErr('Choose today or an earlier day.');
@@ -332,7 +333,7 @@ function MeasurementsSheet({ open, onClose, last }: { open: boolean; onClose: ()
   return (
     <Sheet open={open} onClose={onClose} title="New measurements" footer={<><button className="btn btn-secondary" onClick={onClose}>Cancel</button><button className="btn btn-primary" onClick={save}>Save</button></>}>
       <div className="grid-2">
-        {MEASURES.map((k) => <Field key={k} label={`${cap(k)} (cm)`} htmlFor={'ms-' + k}><input id={'ms-' + k} className="input tnum" inputMode="decimal" value={f[k]} placeholder={last && checkinNumber(last[k]) !== null ? String(checkinNumber(last[k])) : ''} onChange={(e) => { setF({ ...f, [k]: e.target.value }); setErr(null); }} /></Field>)}
+        {MEASURES.map((k) => <Field key={k} label={`${cap(k)} (${unit})`} htmlFor={'ms-' + k}><input id={'ms-' + k} className="input tnum" inputMode="decimal" value={f[k]} placeholder={last && checkinNumber(last[k]) !== null ? fmtNum(cmTo(checkinNumber(last[k])!, unit), 1) : ''} onChange={(e) => { setF({ ...f, [k]: e.target.value }); setErr(null); }} /></Field>)}
       </div>
       <Field label="Date" htmlFor="ms-date"><input id="ms-date" className="input" type="date" max={todayISO()} value={date} onChange={(e) => setDate(e.target.value)} /></Field>
       {err && <p className="err" role="alert">{err}</p>}

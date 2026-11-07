@@ -24,7 +24,7 @@ function useRestAlerts(a: ActiveWorkout | null, now: number) {
       if (timerState(t, now) === 'done' && !fired.current.has(key) && now - t.endsAt < 5000) {
         fired.current.add(key);
         chime();
-        navigator.vibrate?.([120, 60, 120]);
+        if (getDB().settings.vibrate !== false) navigator.vibrate?.([120, 60, 120]);
         toast(`Rest over · ${exerciseName(b.exerciseId)}`);
         // In the background, "Rest over" goes to the notification bar; on screen the chime is enough.
         if (restNotificationsOn()) void (document.visibilityState === 'hidden' ? showRestOver(b.id, exerciseName(b.exerciseId)) : closeRestNotification());

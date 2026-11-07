@@ -27,8 +27,8 @@ const HEAD: Record<Field, (u: string) => string> = {
 
 /** A numeric cell that keeps a local draft while typing and commits parsed values. */
 function CellInput({
-  field, value, unit, onCommit, label, placeholder, onFocusChange,
-}: { field: Field; value: number | null; unit: 'kg' | 'lb'; onCommit: (v: number | null) => void; label: string; placeholder?: string; onFocusChange?: (focused: boolean) => void }) {
+  field, value, unit, onCommit, label, placeholder, onFocusChange, onDraft,
+}: { field: Field; value: number | null; unit: 'kg' | 'lb'; onCommit: (v: number | null) => void; label: string; placeholder?: string; onFocusChange?: (focused: boolean) => void; onDraft?: (v: number | null) => void }) {
   const toText = (v: number | null) => {
     if (v == null) return '';
     if (field === 'timeSec') return mss(v);
@@ -72,7 +72,7 @@ function CellInput({
       onChange={(e) => {
         setText(e.target.value);
         const v = parse(e.target.value);
-        if(v!==undefined){pending.current=v;clearTimeout(timer.current);timer.current=setTimeout(flush,180)}
+        if(v!==undefined){onDraft?.(v);pending.current=v;clearTimeout(timer.current);timer.current=setTimeout(flush,180)}
       }}
       onBlur={(e) => {
         focused.current = false;
@@ -158,13 +158,15 @@ export function ExerciseBlockView(p: BlockProps) {
   const [trackOpen, setTrackOpen] = useState(false);
   const [detailOpen, setDetailOpen] = useState(false);
   const [noteOpen, setNoteOpen] = useState(false);
-  const [platesOpen, setPlatesOpen] = useState(false);
-  const chipPressed = useRef(false);
+  const [platesOpen, setPlatesOpenState] = useState(false), [plateKey, setPlateKey] = useState(0);
+  // Each opening starts fresh (the weight typed in the sheet last time is not kept).
+  const setPlatesOpen = (on: boolean) => { if (on) setPlateKey((k) => k + 1); setPlatesOpenState(on); };
+  const chipPressed = useRef(false), drafts = useRef<Record<string, number | null>>({});
   const [focusSet, setFocusSet] = useState<string | null>(null), [plateKg, setPlateKg] = useState<number | null>(null);
   const openPlatesFor = (setId: string) => {
-    const typed = document.activeElement instanceof HTMLInputElement ? parseDecimal(document.activeElement.value) : null;
-    const set = block.sets.find((x) => x.id === setId);
-    setPlateKg(typed != null ? toKg(typed, weightUnit) : set?.weightKg ?? set?.suggested?.weightKg ?? null);
+    // The number being typed (kept as it is typed, in kg), else the set's saved or suggested weight.
+    const set = block.sets.find((x) => x.id === setId), typed = drafts.current[setId];
+    setPlateKg(typed != null ? typed : set?.weightKg ?? set?.suggested?.weightKg ?? null);
     setPlatesOpen(true);
   };
   // Barbell-type exercises get the plate calculator, for the next set still to do (or the last one).
@@ -297,6 +299,7 @@ export function ExerciseBlockView(p: BlockProps) {
                   label={`Set ${label} ${HEAD[f](weightUnit)}`}
                   placeholder={active ? suggestedText(f, s.suggested?.[f] ?? prev?.[f] ?? null, weightUnit) : f === 'timeSec' ? 'm:ss' : '–'}
                   onCommit={(v) => patchSet(s.id, { [f]: v })}
+                  onDraft={f === 'weightKg' && loadable ? (v) => { drafts.current[s.id] = v; } : undefined}
                   onFocusChange={f === 'weightKg' && loadable ? (on) => (on ? setFocusSet(s.id) : setTimeout(() => setFocusSet((cur) => (cur === s.id ? null : cur)), 250)) : undefined}
                 />
               ))}
@@ -347,7 +350,7 @@ export function ExerciseBlockView(p: BlockProps) {
         onReset={() => p.onTimer?.('reset')}
       />
       <TrackingSheet open={trackOpen} onClose={() => setTrackOpen(false)} value={block.tracking} onChange={(m) => p.onChange({ ...block, tracking: m })} />
-      {loadable && <PlateSheet open={platesOpen} onClose={() => setPlatesOpen(false)} weightKg={plateKg ?? (plateSet ? plateSet.weightKg ?? plateSet.suggested?.weightKg ?? null : null)} />}
+      {loadable && <PlateSheet key={plateKey} open={platesOpen} onClose={() => setPlatesOpen(false)} weightKg={plateKg ?? (plateSet ? plateSet.weightKg ?? plateSet.suggested?.weightKg ?? null : null)} />}
       {detailOpen&&ex&&<ExercisePage exercise={ex} onClose={()=>setDetailOpen(false)}/>}
     </section>
   );
