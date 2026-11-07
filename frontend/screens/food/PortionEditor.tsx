@@ -15,6 +15,12 @@ export function refText(f: Food): string {
   return `${fmtInt(f.kcal)} kcal ${ref}`;
 }
 
+/** Share of macro energy (protein and carbs 4 kcal/g, fat 9), in percent. */
+function macroShare(n: { protein: number; carbs: number; fat: number }) {
+  const p = n.protein * 4, c = n.carbs * 4, f = n.fat * 9, sum = p + c + f || 1;
+  return { protein: (p / sum) * 100, carbs: (c / sum) * 100, fat: (f / sum) * 100 };
+}
+
 export function PortionEditor({
   open, onClose, food, initial, onSubmit, onDelete, submitLabel,
 }: {
@@ -91,17 +97,26 @@ export function PortionEditor({
             }}
           />
         </div>
-        <SelectField label="Meal" value={meal} options={MEALS.map((m) => ({ value: m.id, label: m.label }))} onChange={setMeal} />
-        <div className="nutri-grid" aria-live="polite">
-          <div><div className="v">{nut ? fmtInt(nut.kcal * eMul) : '—'}</div><div className="k">{energyUnit}</div></div>
-          <div><div className="v">{nut ? fmtNum(nut.protein, 1) : '—'}</div><div className="k">Protein g</div></div>
-          <div><div className="v">{nut ? fmtNum(nut.carbs, 1) : '—'}</div><div className="k">Carbs g</div></div>
-          <div><div className="v">{nut ? fmtNum(nut.fat, 1) : '—'}</div><div className="k">Fat g</div></div>
+        <div className="field">
+          <span className="label" id="pe-meal">Meal</span>
+          <div className="meal-choice" role="group" aria-labelledby="pe-meal">
+            {MEALS.map((m) => <button key={m.id} type="button" aria-pressed={meal === m.id} onClick={() => setMeal(m.id)}>{m.label}</button>)}
+          </div>
+        </div>
+        <div className="portion-nutrition" aria-live="polite">
+          <div className="portion-ring" style={{ ['--p' as string]: nut ? `${macroShare(nut).protein}` : '0', ['--c' as string]: nut ? `${macroShare(nut).carbs}` : '0' }}>
+            <div className="portion-ring-inner"><b className="tnum">{nut ? fmtInt(nut.kcal * eMul) : '—'}</b><span>{energyUnit}</span></div>
+          </div>
+          <div className="portion-macros">
+            {([['Protein', nut?.protein, 'var(--protein)', nut ? macroShare(nut).protein : null], ['Carbs', nut?.carbs, 'var(--carbs)', nut ? macroShare(nut).carbs : null], ['Fat', nut?.fat, 'var(--fat)', nut ? macroShare(nut).fat : null], ['Fibre', nut?.fibre, 'var(--fibre)', null]] as const).map(([k, v, color, pct]) => (
+              <div key={k}><i style={{ background: color }} /><span className="grow">{k}</span><b className="tnum">{v == null ? '—' : `${fmtNum(v, 1)} g`}</b><small className="tnum">{pct == null ? '' : `${Math.round(pct)}%`}</small></div>
+            ))}
+          </div>
         </div>
         {nut && (
-          <div>
-            {([['Sugars', nut.sugars], ['Saturates', nut.saturates], ['Fibre', nut.fibre], ['Salt', nut.salt]] as const).map(([k, v]) => (
-              <div key={k} className="kv"><span className="k">{k}</span><span className="v">{v === null ? <span className="muted" title="Not on label">Not provided</span> : `${fmtNum(v, 1)} g`}</span></div>
+          <div className="portion-extra">
+            {([['Sugars', nut.sugars], ['Saturates', nut.saturates], ['Salt', nut.salt]] as const).map(([k, v]) => (
+              <div key={k} className="kv"><span className="k">{k}</span><span className="v tnum">{v === null ? <span className="muted" title="Not on the label">—</span> : `${fmtNum(v, 1)} g`}</span></div>
             ))}
           </div>
         )}

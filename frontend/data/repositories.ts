@@ -231,7 +231,8 @@ export const foods = {
 };
 
 export const diary = {
-  restore(entry: DiaryEntry) { update(d=>{if(!d.diary.some(e=>e.id===entry.id))d.diary.push(structuredClone(entry))}); },
+  /** Puts a removed entry back; `at` is its old position, so Undo returns it to the same place in its meal. */
+  restore(entry: DiaryEntry, at?: number) { update(d=>{if(d.diary.some(e=>e.id===entry.id))return;const i=at==null?d.diary.length:Math.max(0,Math.min(at,d.diary.length));d.diary.splice(i,0,structuredClone(entry))}); },
   add(date: ISODate, meal: Meal, food: Food, amount: number, unit: PortionUnit): DiaryEntry {
     const e: DiaryEntry = { id: uid(), date, meal, food, amount, unit, createdAt: Date.now() };
     update((d) => void d.diary.push(e));
