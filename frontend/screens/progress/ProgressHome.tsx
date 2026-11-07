@@ -69,7 +69,7 @@ function Summary({ from }: { from: string | null }) {
       <Calendar />
       <section className="card progress-card" aria-label="Muscles">
         <span className="eyebrow">Muscles</span>
-        {([['chart', 'Muscle distribution'], ['body', 'Body map'], ['sets', 'Sets per muscle']] as const).map(([view, label]) => (
+        {([['chart', 'Balance'], ['body', 'Body map'], ['sets', 'Trends']] as const).map(([view, label]) => (
           <button key={view} className="progress-link" onClick={() => navigate(`/progress/muscles/${view}`)}><span>{label}</span><ChevronRight aria-hidden="true" /></button>
         ))}
       </section>
