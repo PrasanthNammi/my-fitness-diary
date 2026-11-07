@@ -1584,3 +1584,30 @@ button.social-person { cursor: pointer; border-left: 0; border-right: 0; }
 .exercise-tabs.tab-chips button.chip { color: var(--ink-2); }
 .exercise-tabs.tab-chips button.chip[aria-selected='true'] { color: var(--on-ink); }
 @media (min-width: 800px) { .exercise-tabs.tab-chips { padding-left: max(20px, calc((100vw - 720px) / 2)); padding-right: max(20px, calc((100vw - 720px) / 2)); } }
+
+/* Sign-in headline (Lovable) */
+.auth-hero { text-align: left; margin: 8px 0 6px; }
+.auth-hero h1 { margin: 0; font-size: 32px; line-height: 1.05; font-weight: 800; letter-spacing: -0.02em; }
+.auth-hero h1 span { color: var(--accent); }
+.auth-hero p { margin: 10px 0 0; color: var(--muted); font-weight: 600; }
+
+/* AI assistants (Lovable) */
+.ai-connector { display: flex; flex-direction: column; gap: 4px; padding: 20px; border-radius: var(--r-lg); background: var(--ink); color: var(--on-ink); }
+.ai-connector strong { font-size: 18px; font-weight: 800; margin-top: 8px; }
+.ai-connector .sub { font-size: 14px; opacity: .7; }
+.ai-connector .ai-private { font-size: 11px; opacity: .6; margin-top: 4px; }
+.ai-connector-icon { width: 44px; height: 44px; border-radius: 50%; display: grid; place-items: center; background: var(--ai); color: #fff; flex: none; }
+.ai-connector-icon.soft { width: 40px; height: 40px; background: var(--ai-soft); color: var(--ai-text); }
+.ai-connector-icon svg { width: 20px; height: 20px; }
+.ai-connector .ai-link { display: flex; align-items: center; gap: 8px; margin-top: 12px; padding: 6px 6px 6px 14px; border-radius: 999px; background: rgba(127,127,127,.25); }
+.ai-connector .ai-link-url { flex: 1; min-width: 0; border: 0; background: none; color: inherit; font: 600 14px var(--font); text-align: left; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; cursor: pointer; padding: 0; }
+.ai-connector .btn { border-radius: 999px; gap: 6px; }
+.ai-connector .btn svg { width: 14px; height: 14px; }
+.ai-assistants .ai-steps { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 12px; }
+.ai-assistants .ai-steps li { display: flex; align-items: center; gap: 12px; font-size: 15px; font-weight: 600; }
+.ai-assistants .ai-steps .num { width: 28px; height: 28px; border-radius: 50%; display: grid; place-items: center; flex: none; background: var(--ai-soft); color: var(--ai-text); font-size: 13px; font-weight: 800; }
+.ai-assistants .btn-dark svg { width: 16px; height: 16px; }
+.ai-manage { display: flex; align-items: center; gap: 12px; color: var(--ink); text-decoration: none; }
+.ai-manage .row-title, .ai-manage .row-sub { display: block; }
+.ai-manage > svg { width: 16px; height: 16px; color: var(--muted); }
+.ai-assistants .ai-steps li::before { content: none; display: none; }
