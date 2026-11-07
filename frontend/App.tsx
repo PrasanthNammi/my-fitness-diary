@@ -21,11 +21,11 @@ import { TrainingHome } from './screens/training/TrainingHome';
 import { RoutineEditor } from './screens/training/RoutineEditor';
 import { ActiveWorkoutScreen } from './screens/training/ActiveWorkout';
 import { FoodScreen } from './screens/food/FoodScreen';
-import { ProgressScreen, SessionDetail } from './screens/progress/ProgressScreen';
+import { SessionDetail } from './screens/progress/SessionDetail';
+import { ProgressHome } from './screens/progress/ProgressHome';
 import { WorkoutEditor } from './screens/progress/WorkoutEditor';
 import { CoachScreen } from './screens/coach/CoachScreen';
 import { AiAssistants } from './screens/ai/AiAssistants';
-import {EngineSurface} from './Runtime';
 import {SettingsLive} from './screens/SettingsLive';
 import {FriendsScreen} from './screens/Friends';
 import {Users} from 'lucide-react';
@@ -89,7 +89,7 @@ function Routes({ route }: { route: string[] }) {
       // Old links: workout history now lives under Training.
       if (b === 'session' && c && d === 'edit') return <WorkoutEditor key={c} id={c} />;
       if (b === 'session' && c) return <SessionDetail id={c} />;
-      return <EngineSurface screen="progress"/>;
+      return <ProgressHome tab={b === 'exercises' || b === 'body' ? b : 'summary'} />;
     case 'friends':return <FriendsScreen username={b==='u'?c:undefined}/>;
     case 'coach':
       return <AiAssistants />;

@@ -181,7 +181,7 @@ export function TodayScreen() {
           </section>
         )}
 
-        <button className="card overview-card weight-card" aria-label="Body weight, open Progress" onClick={() => navigate('/progress')}>
+        <button className="card overview-card weight-card" aria-label="Body weight, open Progress" onClick={() => navigate('/progress/body')}>
           <span className="grow">
             <span className="eyebrow">Body weight</span>
             <span className="weight-now tnum"><b>{weight.last ? fmtNum(kgTo(weight.last.kg, s.weightUnit), 1) : '—'}</b> {s.weightUnit}</span>

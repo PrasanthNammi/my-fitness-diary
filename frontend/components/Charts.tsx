@@ -69,7 +69,7 @@ export function LineChart({
             <text x={pad.l - 6} y={yOf(t) + 4} textAnchor="end">{format(t)}</text>
           </g>
         ))}
-        <text x={pad.l - 6} y={10} textAnchor="end">{unit}</text>
+        <text x={2} y={10}>{unit}</text>
         <text x={pad.l} y={H - 6}>{fmtDate(minX)}</text>
         <text x={W - pad.r} y={H - 6} textAnchor="end">{fmtDate(maxX)}</text>
         <path d={d} fill="none" stroke="var(--accent)" strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" />
@@ -120,7 +120,7 @@ export function BarChart({
             />
           </g>
         ))}
-        <text x={pad.l - 6} y={10} textAnchor="end">{unit}</text>
+        <text x={2} y={10}>{unit}</text>
         <text x={pad.l} y={H - 6}>{bars[0].label}</text>
         <text x={W - pad.r} y={H - 6} textAnchor="end">{bars[bars.length - 1].label}</text>
       </svg>

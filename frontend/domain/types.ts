@@ -184,14 +184,22 @@ export interface WeightEntry {
   addedBy?: AddedBy;
 }
 
+/**
+ * A dated check-in, stored in the same shape the older screens used: recovery (sleep in hours, steps,
+ * energy and soreness 1–5, a note) and/or body measurements in cm. Older entries may hold numbers as text.
+ */
 export interface CheckIn {
   id: ID;
   date: ISODate;
-  sleep: number; // 1–5
-  energy: number;
-  soreness: number;
-  stress: number;
-  note: string;
+  sleep?: number | string | null; // hours
+  steps?: number | string | null;
+  energy?: number | null; // 1–5
+  soreness?: number | null; // 1–5
+  waist?: number | string | null; // cm
+  chest?: number | string | null;
+  hips?: number | string | null;
+  arms?: number | string | null;
+  note?: string;
 }
 
 // ── Coach ─────────────────────────────────────────────────────────

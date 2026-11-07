@@ -292,16 +292,42 @@ export const body = {
   deleteWeight(id: ID) {
     update((d) => void (d.weights = d.weights.filter((w) => w.id !== id)));
   },
-  saveCheckIn(c: Omit<CheckIn, 'id'>) {
+  /** Recovery check-in (sleep hours, energy, soreness, note). One per day: a second one updates it. */
+  saveCheckIn(c: { date: ISODate; sleep: number | null; energy: number | null; soreness: number | null; note: string }) {
     update((d) => {
-      const existing = d.checkins.find((x) => x.date === c.date);
+      const existing = d.checkins.find((x) => x.date === c.date && (x.sleep != null || x.energy != null || x.soreness != null || x.note));
       if (existing) Object.assign(existing, c);
-      else d.checkins.push({ ...c, id: uid() });
+      else d.checkins.push({ id: uid(), ...c });
       d.checkins.sort((a, b) => a.date.localeCompare(b.date));
     });
   },
+  /** Removes the recovery part of a check-in; measurements on the same row stay. */
   deleteCheckIn(id: ID) {
-    update((d) => void (d.checkins = d.checkins.filter((x) => x.id !== id)));
+    update((d) => {
+      d.checkins = d.checkins.flatMap((x) => {
+        if (x.id !== id) return [x];
+        const kept = { ...x, sleep: null, steps: null, energy: null, soreness: null, note: '' };
+        return ['waist', 'chest', 'hips', 'arms'].some((k) => kept[k as 'waist'] != null && kept[k as 'waist'] !== '') ? [kept] : [];
+      });
+    });
+  },
+  /** A body measurement in cm (waist, chest, hips or arms), as its own dated row like the older screen. */
+  addMeasurement(date: ISODate, field: 'waist' | 'chest' | 'hips' | 'arms', cm: number) {
+    update((d) => {
+      d.checkins.push({ id: uid(), date, [field]: cm, note: '' });
+      d.checkins.sort((a, b) => a.date.localeCompare(b.date));
+    });
+  },
+  /** Clears one measurement from a row; the row goes when nothing is left on it. */
+  removeMeasurement(id: ID, field: 'waist' | 'chest' | 'hips' | 'arms') {
+    update((d) => {
+      d.checkins = d.checkins.flatMap((x) => {
+        if (x.id !== id) return [x];
+        const kept = { ...x, [field]: null };
+        const left = ['waist', 'chest', 'hips', 'arms', 'sleep', 'steps', 'energy', 'soreness'].some((k) => kept[k as 'waist'] != null && kept[k as 'waist'] !== '') || !!kept.note?.trim();
+        return left ? [kept] : [];
+      });
+    });
   },
 };
 
