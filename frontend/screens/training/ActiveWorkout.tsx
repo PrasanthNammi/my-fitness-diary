@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { ChevronDown, Dumbbell, Pencil, Plus, Trash2 } from 'lucide-react';
 import type { ExerciseBlock, RestTimer, Workout } from '../../domain/types';
 import { countSets, pauseTimer, resetTimer, startTimer, workingVolume } from '../../domain/training';
-import { ConfirmSheet, Empty, Field, Notice, Sheet, toast } from '../../components/ui';
+import { ConfirmSheet, Empty, Field, InfoButton, Notice, Sheet, toast } from '../../components/ui';
 import { useDB } from '../../data/store';
 import { routineFromWorkout, training, workouts } from '../../data/repositories';
 import { duration, fmtVolume } from '../../lib/format';
@@ -73,21 +73,26 @@ export function ActiveWorkoutScreen() {
 
   return (
     <>
-      <header className="topbar bordered">
+      <header className="topbar bordered wo-top">
         <button className="icon-btn" aria-label="Minimise workout" onClick={() => goBack('/training')}><ChevronDown /></button>
-        <button className="btn btn-ghost btn-sm grow" style={{ justifyContent: 'flex-start', padding: '0 6px', minWidth: 0 }} onClick={() => setRenameOpen(true)} aria-label={`Workout title: ${a.title}. Rename`}>
-          <span className="ellipsis" style={{ fontSize: 16, fontWeight: 700 }}>{a.title}</span>
-          <Pencil size={14} className="muted" />
+        <button className="wo-title" onClick={() => setRenameOpen(true)} aria-label={`Workout title: ${a.title}. Rename`}>
+          <span className="ellipsis">{a.title}</span>
+          <Pencil aria-hidden="true" />
         </button>
         <WorkoutClock />
-        <button className="btn btn-primary btn-sm" style={{ marginRight: 4 }} onClick={() => setFinishOpen(true)}>Finish</button>
+        <button className="btn btn-primary btn-sm wo-finish" onClick={() => setFinishOpen(true)}>Finish</button>
       </header>
-      <div className="screen" style={{ paddingTop: 0 }}>
-        <p className="small muted">Faded values are suggestions. Tap ✓ to log a set; untouched sets won’t be saved. Workouts end automatically after 200 minutes.</p>
+      <div className="screen wo-screen">
         <div className="wo-summary" aria-label="Workout summary">
           <div><div className="k">Duration</div><div className="v accent-text">{duration(elapsed)}</div></div>
-          <div><div className="k">Volume</div><div className="v">{fmtVolume(workingVolume(a.exercises), weightUnit)}</div></div>
-          <div><div className="k">Sets</div><div className="v">{done}<span className="muted" style={{ fontWeight: 500 }}>/{total}</span></div></div>
+          <div><div className="k">Volume</div><div className="v">{volumeParts(fmtVolume(workingVolume(a.exercises), weightUnit))}</div></div>
+          <div><div className="k">Sets</div><div className="v">{done}<span className="muted">/{total}</span></div></div>
+          <InfoButton title="Logging sets" label="How logging works" lines={[
+            'Faded numbers are suggestions from last time. Type to change them, or tap ✓ to log them as they are.',
+            'Tap a set number to change its type (warm-up, drop, failure) or add RPE. Tap Previous to copy last time.',
+            'Only sets with ✓ are saved when you finish.',
+            'A workout ends by itself after 200 minutes.',
+          ]} />
         </div>
 
         {a.exercises.length === 0 ? (
@@ -119,12 +124,10 @@ export function ActiveWorkoutScreen() {
           ))
         )}
 
-        <button className="btn btn-primary btn-block" style={{ marginTop: 14 }} onClick={() => setPickerOpen(true)}>
-          <Plus /> Add Exercise
-        </button>
-        <button className="btn btn-danger btn-block" style={{ marginTop: 8 }} onClick={() => setConfirmDiscard(true)}>
-          <Trash2 /> Discard Workout
-        </button>
+        <div className="wo-actions">
+          <button className="btn btn-primary btn-block" onClick={() => setPickerOpen(true)}><Plus aria-hidden="true" /> Add exercise</button>
+          <button className="btn btn-danger-soft btn-block" onClick={() => setConfirmDiscard(true)}><Trash2 aria-hidden="true" /> Discard workout</button>
+        </div>
       </div>
 
       <ExercisePicker open={pickerOpen} onClose={() => setPickerOpen(false)} onAdd={(b) => setBlocks((l) => [...l, b])} />
@@ -253,4 +256,10 @@ function SaveAsRoutine({ workout, folders }: { workout: Workout; folders: import
       </div>
     </Sheet>
   );
+}
+
+/** "12,450 kg" as a number with a smaller unit, so the stat card stays on one line. */
+function volumeParts(text: string) {
+  const i = text.lastIndexOf(' ');
+  return i < 0 ? text : <>{text.slice(0, i)}<span className="u">{text.slice(i)}</span></>;
 }

@@ -9,6 +9,7 @@ import { exerciseName, workouts } from '../data/repositories';
 import { chime, primeChime } from '../lib/chime';
 import { mss } from '../lib/format';
 import { useNow } from '../lib/hooks';
+import { useRoute } from '../lib/router';
 import { toast } from './ui';
 
 /** Fires a chime, vibration and message once when an exercise's rest timer runs out (on any screen). */
@@ -49,9 +50,14 @@ function adjustRest(id: string, sec: number) {
   if (document.visibilityState === 'hidden') scheduleRests(runningRests(getDB().active, Date.now()));
 }
 
-/** While a rest timer runs, the top header shows the time left with −15s / +15s / skip. */
+/**
+ * Rest timers: chime, vibration and phone notifications on every screen. On the workout screen the
+ * running rest shows as a dock at the bottom (within thumb reach) with −15s / +15s / Skip; on other
+ * screens the Resume bar shows the time left.
+ */
 export function RestBar() {
   const a = useDB((d) => d.active);
+  const onWorkout = useRoute()[0] === 'workout';
   const ticking = !!a && Object.values(a.timers).some((t) => t.endsAt !== null);
   const now = useNow(500, ticking);
   useRestAlerts(a, now);
@@ -94,7 +100,7 @@ export function RestBar() {
     .map((b) => ({ id: b.id, exerciseId: b.exerciseId, t: a.timers[b.id] }))
     .filter((x) => timerState(x.t, now) === 'running')
     .sort((x, y) => x.t.endsAt! - y.t.endsAt!)[0];
-  if (!running) return null;
+  if (!running || !onWorkout) return null;
 
   const adjust = (sec: number) => adjustRest(running.id, sec);
   const skip = () => workouts.mutate((w) => {
@@ -103,15 +109,21 @@ export function RestBar() {
   });
   const name = exerciseName(running.exerciseId);
 
+  const left = timerRemaining(running.t, now), total = Math.max(1, running.t.durationSec), progress = Math.min(1, left / total);
+  const R = 21, C = 2 * Math.PI * R;
   return (
-    <div className="rest-bar" role="timer" aria-label={`Rest for ${name}`}>
+    <div className="rest-dock" role="timer" aria-label={`Rest for ${name}: ${mss(left)} left`}>
+      <svg className="rest-ring" viewBox="0 0 48 48" aria-hidden="true">
+        <circle cx="24" cy="24" r={R} className="rest-ring-track" />
+        <circle cx="24" cy="24" r={R} className="rest-ring-fill" strokeDasharray={C} strokeDashoffset={C * (1 - progress)} />
+      </svg>
       <div className="grow" style={{ minWidth: 0 }}>
-        <div className="rest-bar-label ellipsis">Rest · {name}</div>
-        <div className="rest-bar-time tnum">{mss(timerRemaining(running.t, now))}</div>
+        <div className="rest-dock-label ellipsis">Rest · {name}</div>
+        <div className="rest-dock-time tnum">{mss(left)}</div>
       </div>
-      <button className="rest-bar-btn" onClick={() => adjust(-15)} aria-label="15 seconds less">−15s</button>
-      <button className="rest-bar-btn" onClick={() => adjust(15)} aria-label="15 seconds more">+15s</button>
-      <button className="rest-bar-btn" onClick={skip} aria-label="Skip rest"><X size={18} /></button>
+      <button className="rest-dock-btn" onClick={() => adjust(-15)} aria-label="15 seconds less">−15</button>
+      <button className="rest-dock-btn" onClick={() => adjust(15)} aria-label="15 seconds more">+15</button>
+      <button className="rest-dock-btn skip" onClick={skip} aria-label="Skip rest"><X size={18} /></button>
     </div>
   );
 }
