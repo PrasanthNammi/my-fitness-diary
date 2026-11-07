@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 
-export interface Pt { x: number; y: number; label?: string }
+/** A point; `avg` (optional) is a smoothed value drawn as a second, bolder line (e.g. 7-day weight average). */
+export interface Pt { x: number; y: number; label?: string; avg?: number }
 
 function niceTicks(min: number, max: number, count = 4): number[] {
   if (min === max) {
@@ -28,7 +29,7 @@ export function LineChart({
   const pad = { l: 48, r: 10, t: 20, b: 24 };
   const [sel, setSel] = useState<number | null>(null);
   const { ticks, xs, ys, minX, maxX } = useMemo(() => {
-    const yv = points.map((p) => p.y);
+    const yv = points.flatMap((p) => (p.avg === undefined ? [p.y] : [p.y, p.avg]));
     const ticks = niceTicks(Math.min(...yv), Math.max(...yv));
     const minX = Math.min(...points.map((p) => p.x));
     const maxX = Math.max(...points.map((p) => p.x));
@@ -40,6 +41,8 @@ export function LineChart({
   const lo = ticks[0], hi = ticks[ticks.length - 1];
   const yOf = (v: number) => pad.t + (1 - (v - lo) / (hi - lo || 1)) * (H - pad.t - pad.b);
   const d = xs.map((x, i) => `${i ? 'L' : 'M'}${x.toFixed(1)},${ys[i].toFixed(1)}`).join(' ');
+  const smooth = points.every((p) => p.avg !== undefined) && points.length > 1;
+  const dAvg = smooth ? xs.map((x, i) => `${i ? 'L' : 'M'}${x.toFixed(1)},${yOf(points[i].avg!).toFixed(1)}`).join(' ') : '';
   const s = sel !== null && sel < points.length ? sel : points.length - 1;
 
   const pick = (clientX: number, rect: DOMRect) => {
@@ -52,7 +55,7 @@ export function LineChart({
   return (
     <figure style={{ margin: 0 }}>
       <div className="chart-tip tnum" aria-live="polite">
-        <span className="strong">{format(points[s].y)} {unit}</span> <span className="muted">· {points[s].label ?? fmtDate(points[s].x)}</span>
+        <span className="strong">{format(points[s].y)} {unit}</span>{smooth && <span className="muted"> · avg {format(points[s].avg!)}</span>} <span className="muted">· {points[s].label ?? fmtDate(points[s].x)}</span>
       </div>
       <svg
         className="chart"
@@ -72,8 +75,9 @@ export function LineChart({
         <text x={2} y={10}>{unit}</text>
         <text x={pad.l} y={H - 6}>{fmtDate(minX)}</text>
         <text x={W - pad.r} y={H - 6} textAnchor="end">{fmtDate(maxX)}</text>
-        <path d={d} fill="none" stroke="var(--accent)" strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" />
-        {points.length <= 40 && xs.map((x, i) => <circle key={i} cx={x} cy={ys[i]} r="2.5" fill="var(--accent)" />)}
+        <path d={d} fill="none" stroke={smooth ? 'var(--faint)' : 'var(--accent)'} strokeWidth={smooth ? 1.25 : 2} strokeLinejoin="round" strokeLinecap="round" />
+        {points.length <= 40 && xs.map((x, i) => <circle key={i} cx={x} cy={ys[i]} r={smooth ? 2 : 2.5} fill={smooth ? 'var(--faint)' : 'var(--accent)'} />)}
+        {smooth && <path className="chart-avg" d={dAvg} fill="none" stroke="var(--accent)" strokeWidth="2.5" strokeLinejoin="round" strokeLinecap="round" />}
         <line x1={xs[s]} x2={xs[s]} y1={pad.t} y2={H - pad.b} stroke="var(--ink-3)" strokeDasharray="3 3" />
         <circle cx={xs[s]} cy={ys[s]} r="5" fill="var(--surface)" stroke="var(--accent)" strokeWidth="2" />
       </svg>

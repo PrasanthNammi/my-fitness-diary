@@ -13,6 +13,7 @@ import {
 } from '../../domain/progressStats';
 import { fmtInt, fmtNum, kgTo, mss, parseDecimal, todayISO, toKg } from '../../lib/format';
 import { navigate } from '../../lib/router';
+import { averageSeries } from '../../domain/weeklyRecap';
 import { ExerciseThumb } from '../training/ExercisePicker';
 import { ExercisePage } from '../training/ExercisePage';
 import { Dumbbell } from 'lucide-react';
@@ -194,7 +195,12 @@ function Body({ from }: { from: string | null }) {
   const series = bodySeries(weights, checkins, field, from);
   const u = field === 'weight' ? unit : 'cm';
   const show = (v: number) => (field === 'weight' ? kgTo(v, unit) : v);
-  const latest = series.at(-1), change = series.length > 1 ? show(series.at(-1)!.value) - show(series[0].value) : null;
+  // Weight: each weigh-in also gets its 7-day average (from all weigh-ins, so the first days of a range are averaged too).
+  const avgOf = useMemo(() => new Map(averageSeries(weights).map((r) => [r.date, r.avg])), [weights]);
+  const avg = (date: string) => (field === 'weight' ? avgOf.get(date) : undefined);
+  const latest = series.at(-1);
+  const first = series[0], end = latest && avg(latest.date), start = first && avg(first.date);
+  const change = series.length > 1 ? (end !== undefined && start !== undefined ? show(end) - show(start) : show(latest!.value) - show(first.value)) : null;
   const label = BODY_FIELDS.find((f) => f.key === field)!.label;
   const recovery = recoveryCheckins(checkins, from).slice(0, 7);
   return (
@@ -208,10 +214,11 @@ function Body({ from }: { from: string | null }) {
           <button className="btn btn-primary btn-sm progress-add" onClick={() => setAdding(true)}><Plus aria-hidden="true" />Add</button>
         </div>
         <div className="progress-sub tnum">
+          {latest && end !== undefined && <span>Avg {fmtNum(show(end), 1)} {u}</span>}
           {change !== null && <span className={change === 0 ? '' : 'strong'}>{change > 0 ? '+' : ''}{fmtNum(change, 1)} {u} in this range</span>}
           {field === 'weight' && profile?.targetWeightKg ? <span>Goal {fmtNum(kgTo(profile.targetWeightKg, unit), 1)} {unit}</span> : null}
         </div>
-        {series.length >= 2 && <LineChart label={label} points={series.map((r) => ({ x: new Date(r.date + 'T12:00:00').getTime(), y: show(r.value) }))} unit={u} height={150} format={(v) => fmtNum(v, 1)} />}
+        {series.length >= 2 && <LineChart label={label} points={series.map((r) => { const a = avg(r.date); return { x: new Date(r.date + 'T12:00:00').getTime(), y: show(r.value), ...(a !== undefined ? { avg: show(a) } : {}) }; })} unit={u} height={150} format={(v) => fmtNum(v, 1)} />}
         <div className="progress-history">
           {[...series].reverse().slice(0, allRows ? undefined : 8).map((r) => (
             <div key={r.id + field} className="progress-history-row">

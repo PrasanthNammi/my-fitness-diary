@@ -9,6 +9,8 @@ import { aiAdded, aiAddedRecently, aiAgo, type AiAdded } from '../../domain/aiAc
 import { addDays, duration, energyValue, fmtEnergy, fmtInt, fmtNum, fmtVolume, kgTo, todayISO, toISODate } from '../../lib/format';
 import { workingVolume } from '../../domain/training';
 import { navigate } from '../../lib/router';
+import { weightTrend } from '../../domain/weeklyRecap';
+import { WeekRecap } from './WeekRecap';
 
 /** Energy split by where it comes from: protein and carbs 4 kcal/g, fat 9, fibre 2; "Other" is the rest. */
 export function calorieSegments(kcal: number, protein: number, carbs: number, fat: number, fibre: number) {
@@ -64,11 +66,11 @@ export function TodayScreen() {
     const from = addDays(date, -6);
     return allWorkouts.filter((w) => { const d = toISODate(new Date(w.startedAt)); return d >= from && d <= date; }).length;
   }, [allWorkouts, date]);
+  // Change over 4 weeks uses 7-day averages, so one heavy or light morning doesn't flip the arrow.
   const weight = useMemo(() => {
     const upto = weights.filter((w) => w.date <= date);
-    const last = upto[upto.length - 1];
-    const ref = upto.filter((w) => w.date <= addDays(date, -28)).pop();
-    return { last, change: last && ref ? last.kg - ref.kg : null, recent: upto.slice(-10) };
+    const trend = weightTrend(upto, date);
+    return { last: upto[upto.length - 1], avg: trend.avg, change: trend.change, recent: upto.slice(-10) };
   }, [weights, date]);
   // Food that ChatGPT or Claude added to this day in the last 24 hours, with Undo.
   const aiFood = aiAddedRecently(aiAdded(entries.map((e) => ({ id: e.id, kind: 'food' as const, label: `${e.food.name} · ${fmtEnergy(entryNutrients(e).kcal, eU)}`, addedBy: e.addedBy }))), now);
@@ -98,6 +100,8 @@ export function TodayScreen() {
             <button className="btn btn-soft btn-sm" onClick={() => setConfirm(a)}><Undo2 aria-hidden="true" />Undo</button>
           </div>
         ))}
+
+        {isToday && <WeekRecap />}
 
         {t && (
           <section className="card overview-card" aria-label="Calories and macros">
@@ -189,6 +193,7 @@ export function TodayScreen() {
               {weight.change !== null && (
                 <span className={`tnum ${towardTarget ? 'good' : 'neutral'}`}>{weight.change < 0 ? <TrendingDown aria-hidden="true" /> : <TrendingUp aria-hidden="true" />}{weight.change > 0 ? '+' : ''}{fmtNum(kgTo(weight.change, s.weightUnit), 1)} {s.weightUnit} · 4 wks</span>
               )}
+              {weight.avg !== null && <span className="muted tnum">Avg {fmtNum(kgTo(weight.avg, s.weightUnit), 1)}</span>}
               {profile && <span className="muted tnum">Goal {fmtNum(kgTo(profile.targetWeightKg, s.weightUnit), 1)} {s.weightUnit}</span>}
             </span>
           </span>
