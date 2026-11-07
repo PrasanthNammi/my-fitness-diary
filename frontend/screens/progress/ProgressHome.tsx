@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Activity, ChevronLeft, ChevronRight, Library, Moon, Pencil, Plus, Search, Trash2, Trophy, Zap } from 'lucide-react';
 import type { CheckIn, Exercise } from '../../domain/types';
 import { BarChart, LineChart } from '../../components/Charts';
-import { ConfirmSheet, Empty, Field, InfoButton, OverflowMenu, Segmented, Sheet, TopBar, toast } from '../../components/ui';
+import { ConfirmSheet, Empty, Field, InfoButton, OverflowMenu, Segmented, Sheet, TabChips, TopBar, toast } from '../../components/ui';
 import { useDB } from '../../data/store';
 import { body, exerciseName, exercises } from '../../data/repositories';
 import { openTool } from '../../adapters/engine';
@@ -38,9 +38,7 @@ export function ProgressHome({ tab = 'summary', view }: { tab?: Tab; view?: stri
         <div className="progress-range" role="group" aria-label="Time range">
           {RANGES.map((r) => <button key={r.days} type="button" aria-pressed={range === r.days} onClick={() => setRange(r.days)}>{r.label}</button>)}
         </div>
-        <div className="progress-tabs" role="tablist" aria-label="Progress view">
-          {TABS.map((t) => <button key={t.value} type="button" role="tab" className="chip" aria-selected={tab === t.value} aria-pressed={tab === t.value} onClick={() => go(t.value)}>{t.label}</button>)}
-        </div>
+        <TabChips label="Progress view" value={tab} options={TABS} onChange={go} fill />
         {tab === 'summary' && <Summary from={from} />}
         {tab === 'exercises' && <Exercises from={from} />}
         {tab === 'body' && <Body from={from} />}

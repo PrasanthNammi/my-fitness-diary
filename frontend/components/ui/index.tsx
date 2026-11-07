@@ -254,6 +254,15 @@ export function Field({
   );
 }
 
+/** Page-level tabs as chips (Training: Routines/History; Progress: Summary/Exercises/Body/Statistics). */
+export function TabChips<T extends string>({ value, options, onChange, label, fill }: { value: T; options: { value: T; label: string }[]; onChange: (v: T) => void; label: string; fill?: boolean }) {
+  return (
+    <div className={`tab-chips${fill ? ' fill' : ''}`} role="tablist" aria-label={label}>
+      {options.map((o) => <button key={o.value} type="button" role="tab" className="chip" aria-selected={value === o.value} onClick={() => onChange(o.value)}>{o.label}</button>)}
+    </div>
+  );
+}
+
 export function Segmented<T extends string>({
   value, options, onChange, label,
 }: { value: T; options: { value: T; label: string }[]; onChange: (v: T) => void; label: string }) {

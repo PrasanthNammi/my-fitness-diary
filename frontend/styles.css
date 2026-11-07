@@ -1502,10 +1502,10 @@ button.social-person { cursor: pointer; border-left: 0; border-right: 0; }
 .recap-tile.good .v { color: var(--success-text); }
 
 /* ── Progress, Lovable layout (8c) ── */
-.progress-tabs { display: flex; gap: 6px; }
-.progress-tabs::-webkit-scrollbar { display: none; }
-.progress-tabs .chip { flex: 1 1 auto; justify-content: center; min-width: 0; height: 36px; padding: 0 8px; font-size: 13px; font-weight: 700; }
-.progress-tabs .chip[aria-selected='true'] { background: var(--ink); border-color: var(--ink); color: var(--on-ink); }
+.tab-chips { display: flex; gap: 6px; }
+.tab-chips .chip { justify-content: center; min-width: 0; height: 36px; padding: 0 16px; font-size: 14px; font-weight: 700; }
+.tab-chips.fill .chip { flex: 1 1 auto; padding: 0 8px; font-size: 13px; }
+.tab-chips .chip[aria-selected='true'] { background: var(--ink); border-color: var(--ink); color: var(--on-ink); }
 .progress-cal-head .eyebrow { margin: 0; }
 .progress-cal { gap: 6px; }
 .progress-cal button { aspect-ratio: 1; max-height: none; border-radius: 50%; background: var(--surface-2); color: var(--ink-2); font-size: 12px; font-weight: 700; }
@@ -1570,3 +1570,10 @@ button.social-person { cursor: pointer; border-left: 0; border-right: 0; }
 .muscle-pick p { margin: 0; font-size: 14px; }
 .muscle-pick p b { font-size: 24px; }
 .muscle-top { display: flex; justify-content: space-between; gap: 8px; padding: 8px 0; border: 0; border-top: 1px solid var(--accent-line); background: none; color: var(--ink); font: inherit; font-weight: 600; text-align: left; cursor: pointer; }
+
+/* Page title with a line under it (Overview: "Hi, name") */
+.title-stack { display: flex; flex-direction: column; line-height: 1.15; }
+.title-stack small { font-size: 14px; font-weight: 600; color: var(--muted); letter-spacing: 0; margin-top: 2px; }
+.plates-chip { align-self: flex-start; margin: 8px 0 0; height: 34px; font-weight: 700; }
+.plates-chip svg { width: 15px; height: 15px; }
+.plate-sheet > .eyebrow { margin-bottom: -8px; }
