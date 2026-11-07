@@ -245,7 +245,7 @@ export function ExerciseBlockView(p: BlockProps) {
           const prev = active && p.history ? findPrevious(p.history, block.exerciseId, s.type, ordinalWithinType(block.sets, i)) : null;
           const label = labels[i];
           return (
-            <div key={s.id} className={`set-row${s.done ? ' done' : ''}`} role="row">
+            <div key={s.id} className={`set-row${active && s.done ? ' done' : ''}`} role="row">
               <button
                 className={`set-label ${s.type}`}
                 aria-label={`Set ${label}, ${s.type === 'normal' ? 'working' : s.type}. Change set type`}
