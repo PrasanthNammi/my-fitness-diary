@@ -77,13 +77,16 @@ function Routes({ route }: { route: string[] }) {
       if (b === 'routine' && c === 'new') return <RoutineEditor key={`new-${d}`} routineId={null} folderId={d && d !== 'root' ? d : null} />;
       if (b === 'routine' && c === 'edit' && d) return <RoutineEditor key={d} routineId={d} folderId={null} />;
       if (b === 'routine' && c === 'view' && d) return <RoutineOverview key={d} routineId={d} />;
-      return <TrainingHome />;
+      if (b === 'history' && c && d === 'edit') return <WorkoutEditor key={c} id={c} />;
+      if (b === 'history' && c) return <SessionDetail id={c} />;
+      return <TrainingHome tab={b === 'history' ? 'history' : 'routines'} />;
     case 'workout':
       return <ActiveWorkoutScreen />;
     case 'food':
       return <FoodScreen />;
     case 'progress':
       if (b === 'muscles') return <MuscleStats view={c} />;
+      // Old links: workout history now lives under Training.
       if (b === 'session' && c && d === 'edit') return <WorkoutEditor key={c} id={c} />;
       if (b === 'session' && c) return <SessionDetail id={c} />;
       return <EngineSurface screen="progress"/>;

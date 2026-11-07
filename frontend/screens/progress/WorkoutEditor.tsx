@@ -18,7 +18,7 @@ const timeValue = (t: number) => { const d = new Date(t); return `${pad(d.getHou
 export function WorkoutEditor({ id }: { id: string }) {
   const w = useDB((d) => d.workouts.find((x) => x.id === id));
   const weightUnit = useDB((d) => d.settings.weightUnit);
-  const back = `/progress/session/${id}`;
+  const back = `/training/history/${id}`;
 
   const [title, setTitle] = useState(w?.title ?? '');
   const [date, setDate] = useState(w ? dateValue(w.startedAt) : '');
@@ -35,7 +35,7 @@ export function WorkoutEditor({ id }: { id: string }) {
   if (!w) {
     return (
       <>
-        <TopBar title="Workout" back="/progress" />
+        <TopBar title="Workout" back="/training/history" />
         <div className="screen"><Empty icon={ClipboardList} title="Workout not found">It may have been deleted.</Empty></div>
       </>
     );

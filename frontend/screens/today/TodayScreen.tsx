@@ -126,7 +126,7 @@ export function TodayScreen() {
           ) : dayWorkouts.length > 0 ? (
             <div className="stack-sm" style={{ marginTop: 8 }}>
               {dayWorkouts.map((w) => (
-                <button key={w.id} className="list-row" style={{ padding: '6px 0', minHeight: 44 }} onClick={() => navigate(`/progress/session/${w.id}`)}>
+                <button key={w.id} className="list-row" style={{ padding: '6px 0', minHeight: 44 }} onClick={() => navigate(`/training/history/${w.id}`)}>
                   <div className="grow">
                     <div className="row-title ellipsis">{w.title}</div>
                     <div className="row-sub">{duration((w.endedAt - w.startedAt) / 1000)} · {fmtVolume(workingVolume(w.exercises), s.weightUnit)}<AiBadge addedBy={w.addedBy} /></div>

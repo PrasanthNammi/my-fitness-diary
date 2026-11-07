@@ -161,7 +161,7 @@ export function ActiveWorkoutScreen() {
           if (a.routineId === null) setSaved(w);
           else {
             toast('Workout saved');
-            navigate(`/progress/session/${w.id}`, { replace: true });
+            navigate(`/training/history/${w.id}`, { replace: true });
           }
         }}
       />
@@ -223,7 +223,7 @@ function SaveAsRoutine({ workout, folders }: { workout: Workout; folders: import
   const [tried, setTried] = useState(false);
   const nameErr = !name.trim() ? 'Enter a routine name.' : null;
   const folderErr = folder.kind === 'new' ? folderNameError(folder.name, folders) : null;
-  const goSummary = () => navigate(`/progress/session/${workout.id}`, { replace: true });
+  const goSummary = () => navigate(`/training/history/${workout.id}`, { replace: true });
   return (
     <Sheet
       open
@@ -259,7 +259,7 @@ function SaveAsRoutine({ workout, folders }: { workout: Workout; folders: import
 }
 
 /** "12,450 kg" as a number with a smaller unit, so the stat card stays on one line. */
-function volumeParts(text: string) {
+export function volumeParts(text: string) {
   const i = text.lastIndexOf(' ');
   return i < 0 ? text : <>{text.slice(0, i)}<span className="u">{text.slice(i)}</span></>;
 }
