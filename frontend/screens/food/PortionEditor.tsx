@@ -40,7 +40,8 @@ export function PortionEditor({
   const [unit, setUnit] = useState<PortionUnit>('g');
   const [meal, setMeal] = useState<Meal>('breakfast');
   const [tried, setTried] = useState(false);
-  const [weightDraft, setWeightDraft] = useState<string | null>(null);
+  const [pendingUnit, setPendingUnit] = useState<PortionUnit | null>(null);
+  const [weightDraft, setWeightDraft] = useState('');
 
   useEffect(() => {
     if (!open || !food || !initial) return;
@@ -48,7 +49,7 @@ export function PortionEditor({
     setUnit(initial.unit);
     setMeal(initial.meal);
     setTried(false);
-    setWeightDraft(null);
+    setPendingUnit(null);
   }, [open, food?.id, initial?.amount, initial?.unit, initial?.meal]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const n = parseDecimal(amount);
@@ -56,6 +57,10 @@ export function PortionEditor({
   const nut = useMemo(() => (food && n && n > 0 ? nutrientsFor(food, n, unit) : null), [food, n, unit]);
   if (!food) return null;
   const units = allowedUnits(food);
+  // Weight unit a serving is measured in: grams for per-serving foods, otherwise the food's own unit.
+  const weightUnit = food.refUnit === 'serving' ? 'g' : food.refUnit;
+  // Both units are always offered; the missing one asks for the serving weight when chosen.
+  const offered: PortionUnit[] = onServingWeight && units.length === 1 ? [...units, food.refUnit === 'serving' ? 'g' : 'serving'] : units;
   const isFav = favs.includes(food.id);
   const eMul = energyUnit === 'kJ' ? 4.184 : 1;
 
@@ -89,9 +94,12 @@ export function PortionEditor({
           <SelectField
             label="Unit"
             value={unit}
-            options={units.map((u) => ({ value: u, label: u === 'serving' ? 'serving' : u, hint: unitLabel(food, u) }))}
+            options={offered.map((u) => ({ value: u, label: u === 'serving' ? 'serving' : u, hint: u === 'serving' && food.servingSize ? `1 ${food.servingLabel ?? 'serving'} = ${fmtNum(food.servingSize, 1)} ${weightUnit}` : unitLabel(food, u) }))}
             onChange={(u) => {
-              if (u === unit) return;
+              if (u === unit) return setPendingUnit(null);
+              // The other unit needs to know what one serving weighs first: ask right here, once.
+              if (!units.includes(u)) { setWeightDraft(''); return setPendingUnit(u); }
+              setPendingUnit(null);
               // Keep the same quantity of food when switching unit.
               if (n && food.servingSize) {
                 const next = u === 'serving' ? n / food.servingSize : n * food.servingSize;
@@ -101,23 +109,25 @@ export function PortionEditor({
             }}
           />
         </div>
-        {onServingWeight && (() => {
-          const per = food.refUnit === 'serving' ? 'g' : food.refUnit;
-          const w = parseDecimal(weightDraft ?? '');
+        {pendingUnit && onServingWeight && (() => {
+          const w = parseDecimal(weightDraft);
           const wErr = w === null || w <= 0 ? 'Enter a weight.' : w > 5000 ? 'That looks too large.' : null;
-          if (weightDraft !== null) return (
+          const save = () => {
+            if (!w || wErr) return;
+            onServingWeight(w);
+            // Same quantity of food in the new unit.
+            if (n) setAmount(String(Math.round((pendingUnit === 'serving' ? n / w : n * w) * 100) / 100));
+            setUnit(pendingUnit);
+            setPendingUnit(null);
+          };
+          return (
             <div className="serving-weight-edit">
               <label htmlFor="pe-serving">1 {food.servingLabel ?? 'serving'} =</label>
-              <input id="pe-serving" className="input tnum" inputMode="decimal" value={weightDraft} onChange={(e) => setWeightDraft(e.target.value)} aria-invalid={!!weightDraft && !!wErr} autoFocus />
-              <span>{per}</span>
-              <button type="button" className="btn btn-primary btn-sm" disabled={!!wErr} onClick={() => { if (w && !wErr) { onServingWeight(w); setWeightDraft(null); } }}>Save</button>
-              <button type="button" className="icon-btn" aria-label="Cancel" onClick={() => setWeightDraft(null)}><X /></button>
+              <input id="pe-serving" className="input tnum" inputMode="decimal" value={weightDraft} onChange={(e) => setWeightDraft(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && save()} autoFocus />
+              <span>{weightUnit}</span>
+              <button type="button" className="btn btn-primary btn-sm" disabled={!!wErr} onClick={save}>Save</button>
+              <button type="button" className="icon-btn" aria-label="Keep the current unit" onClick={() => setPendingUnit(null)}><X /></button>
             </div>
-          );
-          return food.servingSize ? (
-            <div className="serving-weight"><span className="tnum">1 {food.servingLabel ?? 'serving'} = {fmtNum(food.servingSize, 1)} {per}</span><button type="button" className="btn btn-link" onClick={() => setWeightDraft(String(food.servingSize))}>Change</button></div>
-          ) : (
-            <button type="button" className="btn btn-link serving-weight-add" onClick={() => setWeightDraft('')}>{food.refUnit === 'serving' ? 'Log in grams too' : 'Log in servings too'}</button>
           );
         })()}
         <div className="field">

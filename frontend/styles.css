@@ -1183,9 +1183,6 @@ ol.steps { margin: 0; padding-left: 20px; display: flex; flex-direction: column;
 /* Full-width buttons in sheets always show their label next to the icon. */
 .sheet .btn.btn-block:has(svg) { font-size: 15px; gap: 8px; }
 .sheet .btn.btn-block:has(svg) svg { width: 18px; height: 18px; }
-.serving-weight { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: -6px; font-size: 13px; color: var(--ink-3); font-weight: 600; }
-.serving-weight .btn-link, .serving-weight-add { font-size: 13px; font-weight: 700; color: var(--accent); padding: 0; min-height: 32px; }
-.serving-weight-add { align-self: flex-start; margin-top: -6px; }
 .serving-weight-edit { display: flex; align-items: center; gap: 8px; margin-top: -4px; font-size: 14px; font-weight: 600; }
 .serving-weight-edit label { white-space: nowrap; color: var(--ink-2); }
 .serving-weight-edit .input { width: 84px; min-width: 0; flex: 1; text-align: center; }
