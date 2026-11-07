@@ -943,3 +943,86 @@ ol.steps { margin: 0; padding-left: 20px; display: flex; flex-direction: column;
 .session-ex-head .ex-name { min-width: 0; }
 .ex-thumb:not(:has(img)) { background: var(--surface-2); }
 :is(.session-ex-head, .ex-head, .thumb-stack, .catalogue-family) .ex-thumb:not(:has(img)) { background: var(--surface-2); }
+
+/* ---------- Exercise details (redesign) ---------- */
+.exercise-page-head { gap: 12px; min-height: 72px; padding: 10px 12px 10px 16px; border-bottom: 0; }
+.exercise-page-head .ex-thumb { width: 52px; height: 52px; flex: none; border-radius: 14px; overflow: hidden; background: var(--photo-bg); border: 1px solid var(--line-2); display: grid; place-items: center; color: var(--muted); }
+.exercise-page-head .ex-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.exercise-title { flex: 1; min-width: 0; }
+.exercise-page-head .exercise-title h1 { font-size: 18px; font-weight: 800; line-height: 1.2; margin: 0; overflow-wrap: anywhere; }
+.exercise-title p { margin: 3px 0 0; font-size: 13px; font-weight: 600; color: var(--ink-3); text-transform: capitalize; }
+.exercise-tabs button { font: inherit; font-size: 14px; font-weight: 700; color: var(--ink-3); }
+.exercise-tabs button[aria-pressed='true'] { color: var(--accent); }
+.exercise-range { align-self: stretch; }
+.exercise-range button { min-height: 36px; font-weight: 700; }
+.exercise-card-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 10px; min-width: 0; }
+.exercise-card-head h3 { margin: 0; font-size: 15px; font-weight: 800; min-width: 0; }
+.exercise-card-head strong { font-size: 15px; font-weight: 800; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.exercise-card-head time { flex: none; font-size: 12px; font-weight: 600; color: var(--ink-3); }
+.exercise-card-head .btn-link { flex: none; font-size: 13px; font-weight: 700; }
+.exercise-inline-trend.card, .exercise-chart.card { padding: 14px; border-bottom: 1px solid var(--line); }
+.exercise-history.card { padding: 14px; margin-bottom: 0; border-radius: var(--r-lg); }
+.exercise-history-set { display: flex; align-items: center; gap: 10px; min-height: 36px; font-size: 15px; border: 0; padding: 0; }
+.exercise-history-set .set-label { width: 30px; height: 26px; flex: none; display: inline-grid; place-items: center; font-size: 13px; }
+.exercise-history-set .record-crown { width: 16px; height: 16px; color: var(--pr-text); flex: none; position: static; }
+.exercise-metrics { flex-wrap: wrap; }
+.exercise-metrics .chip { min-height: 38px; padding: 0 14px; font-weight: 700; }
+.record-cards { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.record-card { min-width: 0; padding: 12px 10px; border-radius: var(--r-lg); display: flex; flex-direction: column; gap: 2px; }
+.record-card svg { width: 18px; height: 18px; color: var(--pr-text); margin-bottom: 6px; }
+.record-card .k { font-size: 11px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.record-card strong { font-size: clamp(15px, 4.4vw, 18px); font-weight: 800; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.record-card strong small { font-size: .7em; font-weight: 700; color: var(--ink-2); }
+.record-card time { font-size: 11px; font-weight: 600; color: var(--ink-3); }
+.reps-at { padding: 6px 14px; border-radius: var(--r-lg); }
+.reps-at .eyebrow, .guide-related .eyebrow { font-size: 12px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--ink-3); margin: 8px 0 4px; }
+.reps-at-row { display: flex; align-items: center; gap: 12px; min-height: 44px; font-size: 14px; border-bottom: 1px solid var(--line); }
+.reps-at-row:last-child { border-bottom: 0; }
+.reps-at-row strong { width: 76px; flex: none; font-weight: 800; }
+.reps-at-row span { font-weight: 600; }
+.reps-at-row time { font-size: 12px; color: var(--ink-3); font-weight: 600; }
+.exercise-empty { min-height: 120px; }
+.guide-section { border: 1px solid var(--line); border-radius: var(--r-lg); padding: 0 14px; }
+.guide-section summary { min-height: 50px; display: flex; align-items: center; justify-content: space-between; font-size: 15px; font-weight: 800; list-style: none; }
+.guide-section summary::-webkit-details-marker { display: none; }
+.guide-section summary::after { content: ''; width: 8px; height: 8px; border-right: 2px solid var(--muted); border-bottom: 2px solid var(--muted); transform: rotate(45deg); margin: -4px 4px 0 0; transition: transform .15s; }
+.guide-section[open] summary::after { transform: rotate(-135deg); margin-top: 4px; }
+.guide-section ol { margin: 0 0 14px; color: var(--ink-2); }
+.guide-section.source-credit summary::after { display: none; }
+.guide-related { display: grid; gap: 8px; }
+.guide-related-row { width: 100%; display: flex; align-items: center; gap: 12px; padding: 10px 12px; border-radius: var(--r-lg); font: inherit; color: var(--ink); text-align: left; cursor: pointer; }
+.guide-related-row .ex-thumb { width: 44px; height: 44px; flex: none; border-radius: 12px; overflow: hidden; background: var(--photo-bg); border: 1px solid var(--line-2); display: grid; place-items: center; color: var(--muted); }
+.guide-related-row .ex-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.guide-related-row .grow { min-width: 0; display: flex; flex-direction: column; }
+.guide-related-row .nm { font-size: 15px; font-weight: 700; }
+.guide-related-row .mt { font-size: 12px; color: var(--ink-3); text-transform: capitalize; }
+.guide-related-row > svg { color: var(--muted); flex: none; }
+:is(.exercise-page-head, .guide-related-row) .ex-thumb:not(:has(img)) { background: var(--surface-2); }
+
+/* ---------- Exercise picker (redesign) ---------- */
+.muscle-tiles { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+.muscle-tile { position: relative; height: 76px; border-radius: 14px; overflow: hidden; border: 0; padding: 0; }
+.muscle-tile img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.muscle-tile::after { content: ''; position: absolute; inset: 0; background: linear-gradient(to top, rgba(0,0,0,.72), rgba(0,0,0,0) 65%); }
+.muscle-tile span { position: absolute; left: 8px; right: 6px; bottom: 6px; z-index: 1; color: #fff; font-size: 13px; font-weight: 800; text-align: left; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; background: none !important; padding: 0 !important; }
+.muscle-tile[aria-pressed='true'] { box-shadow: 0 0 0 3px var(--accent); }
+.muscle-tile > svg { position: absolute; inset: 0; margin: auto; color: var(--muted); }
+.picker-section { margin: 14px 0 4px; font-size: 12px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--ink-3); display: flex; align-items: center; gap: 6px; }
+.picker-section svg { width: 13px; height: 13px; }
+.catalogue-family .mt .last-done { color: var(--accent); font-weight: 700; }
+.picker-more { width: 100%; margin-top: 10px; }
+.picker-more.btn:has(svg) { font-size: 14px; gap: 6px; }
+.exercise-page-body .card + .card, .record-cards .card + .card { margin-top: 0; }
+.exercise-page .exercise-history-set .record-crown { position: static !important; transform: none; margin: 0; width: 16px !important; height: 16px !important; }
+.catalogue-family .mt .last-done { white-space: nowrap; }
+.add-config .btn:has(svg) { font-size: 15px; gap: 8px; }
+.add-config-head { display: flex; align-items: center; gap: 12px; }
+.add-config-head .ex-thumb { width: 56px; height: 56px; flex: none; border-radius: 14px; overflow: hidden; background: var(--photo-bg); border: 1px solid var(--line-2); display: grid; place-items: center; color: var(--muted); }
+.add-config-head .ex-thumb:not(:has(img)) { background: var(--surface-2); }
+.add-config-head .ex-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.add-config-head h2 { margin: 0; font-size: 18px; font-weight: 800; line-height: 1.2; overflow-wrap: anywhere; }
+.add-config-title { display: flex; align-items: center; justify-content: space-between; min-height: 32px; }
+.add-config .picker-section { margin: 6px 0 -4px; }
+.guide-section.source-credit { border: 0; background: none; padding: 0; }
+.guide-section.source-credit summary { min-height: 36px; justify-content: flex-start; color: var(--muted); font-weight: 600; }
+.guide-section.source-credit p, .guide-section.source-credit a { font-size: 12px; color: var(--ink-3); margin: 4px 0; display: block; }
