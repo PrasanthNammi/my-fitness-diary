@@ -5,7 +5,9 @@ import { e1rm, setLabels, trackingFields, workingVolume } from '../../domain/tra
 import { AiBadge, ConfirmSheet, Empty, Field, OverflowMenu, Segmented, SelectField, Sheet, TopBar, toast } from '../../components/ui';
 import { BarChart, LineChart } from '../../components/Charts';
 import { useDB } from '../../data/store';
-import { body, exerciseName, workouts as workoutRepo } from '../../data/repositories';
+import { body, exerciseName, exercises, workouts as workoutRepo } from '../../data/repositories';
+import { ExerciseThumb } from '../training/ExercisePicker';
+import { volumeParts } from '../training/ActiveWorkout';
 import { addDays, duration, fmtNum, fmtVolume, kgTo, longDate, mss, parseDecimal, round1, shortDate, todayISO, toISODate, toKg, fmtInt, fromISODate } from '../../lib/format';
 import { navigate } from '../../lib/router';
 
@@ -64,7 +66,7 @@ function History({ list }: { list: Workout[] }) {
           <div className="label" style={{ margin: '4px 0 6px' }}>{month} · {ws.length} {ws.length === 1 ? 'workout' : 'workouts'}</div>
           <div className="list">
             {ws.map((w) => (
-              <button key={w.id} className="list-row" onClick={() => navigate(`/progress/session/${w.id}`)}>
+              <button key={w.id} className="list-row" onClick={() => navigate(`/training/history/${w.id}`)}>
                 <div className="grow">
                   <div className="row-title ellipsis">{w.title}</div>
                   <div className="row-sub ellipsis">{shortDate(w.startedAt)} · {duration((w.endedAt - w.startedAt) / 1000)} · {fmtVolume(workingVolume(w.exercises), unit)} · {w.exercises.length} ex</div>
@@ -133,7 +135,7 @@ function Exercises({ list }: { list: Workout[] }) {
       </div>
       <div className="list">
         {[...rows].reverse().slice(0, 8).map((r) => (
-          <button key={r.w.id} className="list-row" onClick={() => navigate(`/progress/session/${r.w.id}`)}>
+          <button key={r.w.id} className="list-row" onClick={() => navigate(`/training/history/${r.w.id}`)}>
             <div className="grow">
               <div className="row-title">{shortDate(r.w.startedAt)}</div>
               <div className="row-sub">{r.sets} working sets{timeBased ? ` · ${mss(r.time)}` : ` · top ${fmtNum(kgTo(r.top, unit), 2)} ${unit} · ${r.reps} reps`}</div>
@@ -321,7 +323,7 @@ export function SessionDetail({ id }: { id: string }) {
   if (!w) {
     return (
       <>
-        <TopBar title="Workout" back="/progress" />
+        <TopBar title="Workout" back="/training/history" />
         <div className="screen"><Empty icon={ClipboardList} title="Workout not found">It may have been deleted.</Empty></div>
       </>
     );
@@ -329,22 +331,22 @@ export function SessionDetail({ id }: { id: string }) {
   const sets = w.exercises.reduce((n, b) => n + b.sets.length, 0);
   return (
     <>
-      <TopBar title={w.title} back="/progress" bordered actions={<>
-        <button className="btn btn-ghost btn-sm" onClick={() => navigate(`/progress/session/${w.id}/edit`)}><Pencil /> Edit</button>
-        <OverflowMenu title={w.title} actions={[{ label: 'Edit workout', icon: Pencil, onSelect: () => navigate(`/progress/session/${w.id}/edit`) }, { label: 'Delete workout', icon: Trash2, danger: true, onSelect: () => setDel(true) }]} />
+      <TopBar title={w.title} back="/training/history" bordered actions={<>
+        <button className="btn btn-ghost btn-sm" onClick={() => navigate(`/training/history/${w.id}/edit`)}><Pencil /> Edit</button>
+        <OverflowMenu title={w.title} actions={[{ label: 'Edit workout', icon: Pencil, onSelect: () => navigate(`/training/history/${w.id}/edit`) }, { label: 'Delete workout', icon: Trash2, danger: true, onSelect: () => setDel(true) }]} />
       </>} />
       <div className="screen">
         <p className="small muted" style={{ margin: '10px 0 6px' }}>{longDate(w.startedAt)}</p>
-        <div className="wo-summary">
+        <div className="wo-summary three">
           <div><div className="k">Duration</div><div className="v">{duration((w.endedAt - w.startedAt) / 1000)}</div></div>
-          <div><div className="k">Volume</div><div className="v">{fmtVolume(workingVolume(w.exercises), unit)}</div></div>
+          <div><div className="k">Volume</div><div className="v">{volumeParts(fmtVolume(workingVolume(w.exercises), unit))}</div></div>
           <div><div className="k">Sets</div><div className="v">{sets}</div></div>
         </div>
         {w.exercises.map((b) => {
           const labels = setLabels(b.sets);
           return (
             <section key={b.id} className="ex-block" aria-label={exerciseName(b.exerciseId)}>
-              <div className="strong" style={{ color: 'var(--accent)', marginBottom: 4 }}>{exerciseName(b.exerciseId)}</div>
+              <div className="session-ex-head"><ExerciseThumb exercise={exercises.byId(b.exerciseId)} /><span className="ex-name">{exerciseName(b.exerciseId)}</span></div>
               {b.note && <p className="small muted" style={{ margin: '0 0 4px' }}>{b.note}</p>}
               {b.sets.map((s, i) => (
                 <div key={s.id} className="row tnum" style={{ minHeight: 28, fontSize: 14 }}>
@@ -372,7 +374,7 @@ export function SessionDetail({ id }: { id: string }) {
       <ConfirmSheet open={del} onClose={() => setDel(false)} title="Delete this workout?" body="It will be removed from your history and progress charts." confirmLabel="Delete" danger onConfirm={() => {
         workoutRepo.deleteWorkout(w.id);
         toast('Workout deleted');
-        navigate('/progress', { replace: true });
+        navigate('/training/history', { replace: true });
       }} />
     </>
   );

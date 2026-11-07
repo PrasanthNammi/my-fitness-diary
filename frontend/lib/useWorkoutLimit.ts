@@ -15,7 +15,7 @@ export function useWorkoutLimit() {
       const result=workouts.expire(Date.now(),id);
       if(!result)return;
       toast(result.workout?'Workout ended at 200 minutes. Completed sets saved.':'Workout ended at 200 minutes. No completed sets to save.');
-      if(location.hash==='#/workout')navigate(result.workout?`/progress/session/${result.workout.id}`:'/training',{replace:true});
+      if(location.hash==='#/workout')navigate(result.workout?`/training/history/${result.workout.id}`:'/training',{replace:true});
     };
     check();
     const timer=window.setTimeout(check,Math.max(0,workoutDeadline({startedAt})-Date.now()));

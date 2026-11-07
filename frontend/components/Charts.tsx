@@ -25,7 +25,7 @@ export function LineChart({
 }: { points: Pt[]; unit: string; format?: (v: number) => string; height?: number; label: string }) {
   const W = 340;
   const H = height;
-  const pad = { l: 40, r: 10, t: 20, b: 24 };
+  const pad = { l: 48, r: 10, t: 20, b: 24 };
   const [sel, setSel] = useState<number | null>(null);
   const { ticks, xs, ys, minX, maxX } = useMemo(() => {
     const yv = points.map((p) => p.y);
