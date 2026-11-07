@@ -79,7 +79,8 @@ export function ExercisePicker({ open, onClose, onAdd, browse, replace = false, 
   const [q, setQ] = useState('');
   const [loading,setLoading]=useState(!getCatalogue()),[loadError,setLoadError]=useState(false);
   const load=()=>{setLoading(true);setLoadError(false);loadMfdCatalogue().then(()=>{const e=engine();if(e?.peek().ready&&!e.peek().reconciling)installNativeCatalogue(e);setLoading(false)}).catch(()=>{setLoading(false);setLoadError(true)})};
-  useEffect(()=>{if(open&&!getCatalogue())load()},[open]);
+  // The picker is created closed; the catalogue may have loaded elsewhere since, so check again on every open.
+  useEffect(()=>{if(!open)return;if(getCatalogue())setLoading(false);else load()},[open]);
 
   const [filter, setFilter] = useState<Filter>(NO_FILTER);
   const [filterSheet, setFilterSheet] = useState<SheetKey | null>(null);
