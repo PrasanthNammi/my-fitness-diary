@@ -3,7 +3,7 @@ import {useDB} from '../../data/store';
 import {ExercisePage} from './ExercisePage';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
-  Crown, ArrowDown, ArrowUp, Check, Dumbbell, Info, Link2, Link2Off, NotebookPen, Plus, Repeat, Ruler, Timer, Trash2, X,
+  Crown, ArrowDown, ArrowUp, Check, Info, Link2, Link2Off, NotebookPen, Plus, Repeat, Ruler, Timer, Trash2, X,
 } from 'lucide-react';
 import type { ExerciseBlock, RestTimer, SetEntry, Workout } from '../../domain/types';
 import {
@@ -13,7 +13,7 @@ import { OverflowMenu, Sheet, type MenuAction } from '../../components/ui';
 import { exercises, newSet } from '../../data/repositories';
 import { fmtNum, kgTo, mss, parseDecimal, parseMss, round1, toKg } from '../../lib/format';
 import { RestSheet, SetTypeSheet, TrackingSheet } from './SetSheets';
-import { ExerciseDetail } from './ExercisePicker';
+import { ExerciseDetail, ExerciseThumb } from './ExercisePicker';
 
 const HEAD: Record<Field, (u: string) => string> = {
   weightKg: (u) => u,
@@ -191,7 +191,7 @@ export function ExerciseBlockView(p: BlockProps) {
   return (
     <section className={`ex-block${p.supersetLetter ? ' in-superset' : ''}`} aria-label={name}>
       <div className="ex-head">
-        <div className="ex-thumb" aria-hidden="true"><Dumbbell /></div>
+        <ExerciseThumb exercise={ex} />
         <button className="ex-name" onClick={() => setDetailOpen(true)}>{name}</button>
         {p.supersetLetter && <span className="ss-tag">Superset {p.supersetLetter}</span>}
         <OverflowMenu title={name} actions={menu} label={`Options for ${name}`} />

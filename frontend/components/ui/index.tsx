@@ -127,6 +127,19 @@ export interface MenuAction {
   danger?: boolean;
   disabled?: boolean;
 }
+/** The (i) next to a title: explanations live here instead of on the screen. */
+export function InfoButton({ title, lines, label }: { title: string; lines: ReactNode[]; label?: string }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <>
+      <button type="button" className="icon-btn info-btn" aria-label={label ?? `About ${title}`} onClick={() => setOpen(true)}><Info /></button>
+      <Sheet open={open} onClose={() => setOpen(false)} title={title}>
+        <div className="info-lines">{lines.map((l, i) => <p key={i}>{l}</p>)}</div>
+      </Sheet>
+    </>
+  );
+}
+
 export function OverflowMenu({ title, actions, label = 'More options', small }: { title?: string; actions: MenuAction[]; label?: string; small?: boolean }) {
   const [open, setOpen] = useState(false);
   return (

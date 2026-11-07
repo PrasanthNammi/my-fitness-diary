@@ -59,6 +59,11 @@ const groupMuscles = (g: string | null) => GROUPS.find(([name]) => name === g)?.
 const groupOf = (m: Muscle) => GROUPS.find(([, list]) => list.includes(m))?.[0] || null;
 const thumbnail = (ex: Exercise) => (ex.entry ? exerciseThumbnail(ex.entry, MEDIA) : ex.mediaUrl);
 
+/** The exercise's photo (or a dumbbell when it has none); shared with the workout cards. */
+export function ExerciseThumb({ exercise }: { exercise: Exercise | null | undefined }) {
+  return <Thumb src={exercise ? thumbnail(exercise) : null} />;
+}
+
 function Thumb({ src }: { src: string | null }) {
   const [failed, setFailed] = useState(false);
   useEffect(() => setFailed(false), [src]);

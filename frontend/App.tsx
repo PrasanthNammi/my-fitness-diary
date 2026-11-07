@@ -11,7 +11,8 @@ import { engine } from './adapters/engine';
 import { useDB } from './data/store';
 import { useRoute, navigate } from './lib/router';
 import { useNow } from './lib/hooks';
-import { duration } from './lib/format';
+import { duration, mss } from './lib/format';
+import { timerRemaining, timerState } from './domain/training';
 import { LogoFull, LogoMark, ToastHost } from './components/ui';
 import { AuthScreen } from './screens/auth/AuthScreen';
 import { Onboarding } from './screens/auth/Onboarding';
@@ -43,12 +44,14 @@ function ResumeBar() {
   const now = useNow(1000, !!a);
   if (!a) return null;
   const sets = a.exercises.flatMap((e) => e.sets), done = sets.filter((s) => s.done).length;
+  // The soonest running rest, if any (the dock shows it on the workout screen; here it's in the bar).
+  const rest = a.exercises.map((b) => a.timers[b.id]).filter((t) => timerState(t, now) === 'running').map((t) => timerRemaining(t, now)).sort((x, y) => x - y)[0];
   return (
     <button className="resume-bar" aria-label={`Resume ${a.title}`} onClick={() => navigate('/workout')}>
       <span className="live-dot" aria-hidden="true" />
       <span className="grow">
         <span className="t ellipsis">{a.title}</span>
-        <span className="s tnum">{duration((now - a.startedAt) / 1000)} · {done}/{sets.length} sets</span>
+        <span className="s tnum">{duration((now - a.startedAt) / 1000)} · {done}/{sets.length} sets{rest !== undefined ? ` · rest ${mss(rest)}` : ''}</span>
       </span>
       <span className="resume-cta">Resume<ChevronUp aria-hidden="true" /></span>
     </button>
@@ -145,13 +148,14 @@ export function App() {
         <SyncStatus />
         <button className="icon-btn ai-btn" aria-label="AI assistants" title="AI assistants" onClick={() => setHub(true)}><Sparkles /></button>
         <AvatarButton />
-        <RestBar />
       </header>
       <main className={`main${focused ? ' no-nav' : ''}${showResume && !focused ? ' has-resume' : ''}`}>
         <Routes key={accountKey} route={route} />
       </main>
       {showResume && !focused && <ResumeBar />}
       {!focused && <nav className="bottom-nav" aria-label="Main">{navItems()}</nav>}
+      {/* Outside the header: the header's blur would make the fixed rest dock position against it. */}
+      <RestBar />
       <ToastHost />
       <AiAddedNotice />
       <AiHub open={hub} onClose={() => setHub(false)} />

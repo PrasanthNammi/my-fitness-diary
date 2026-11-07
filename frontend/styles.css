@@ -28,6 +28,7 @@
   --success: #16a34a;
   --success-text: #167c3a;
   --success-soft: #dcf5e4;
+  --on-success: #ffffff;
   /* Meaning colours (shape / readable text / soft background) */
   --protein: #5b7cfa;
   --carbs: #e9a520;
@@ -102,6 +103,7 @@
   --success: #34d27b;
   --success-text: #34d27b;
   --success-soft: #0f2f1c;
+  --on-success: #06210f;
   --protein: #7d98ff;
   --carbs: #f5b93f;
   --fat: #f173ab;
@@ -795,3 +797,67 @@ ol.steps { margin: 0; padding-left: 20px; display: flex; flex-direction: column;
 .logo-classic img { display: block; height: auto; max-width: 100%; }
 .logo-classic-dark, :root[data-theme="dark"] .logo-classic-light { display: none !important; }
 :root[data-theme="dark"] .logo-classic-dark { display: block !important; }
+
+/* ── Active workout (redesign) ─────────────────────────────────
+   Top bar, stat cards, exercise cards with photos, the set table, and the rest dock at the bottom
+   within thumb reach. Comes last on purpose: it replaces the earlier workout rules above. */
+.wo-top .wo-title { flex: 1; min-width: 0; display: flex; align-items: center; gap: 6px; padding: 0 6px; border: 0; background: none; color: var(--text); font-weight: 800; font-size: 17px; text-align: left; }
+.wo-top .wo-title svg { flex: none; width: 14px; height: 14px; color: var(--muted); }
+.wo-top .wo-finish { margin-right: 4px; min-height: 40px; padding: 0 18px; border-radius: 999px; font-weight: 700; }
+.wo-screen { padding-top: 12px; }
+.wo-screen .btn:has(svg) { font-size: 15px; gap: 8px; }/* labels stay visible here */
+.info-btn svg { width: 18px; height: 18px; color: var(--muted); }
+.info-lines p { margin: 0 0 12px; font-size: 15px; line-height: 1.5; color: var(--ink-2); }
+.info-lines p:last-child { margin-bottom: 0; }
+
+.wo-summary { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)) auto; gap: 8px; align-items: stretch; padding: 0 0 12px; border-bottom: 0; }
+.wo-summary > div { padding: 10px 12px; border: 1px solid var(--line); border-radius: var(--r-lg); background: var(--surface); }
+.wo-summary .k { font-size: 11px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; color: var(--muted); }
+.wo-summary .v { margin-top: 2px; font-size: 20px; font-weight: 800; font-variant-numeric: tabular-nums; }
+.wo-summary .v .muted { font-weight: 600; }
+.wo-summary .info-btn { align-self: center; }
+
+.ex-block, .ex-block:last-of-type { margin: 0 0 12px; padding: 12px 12px 10px; border: 1px solid var(--line); border-radius: var(--r-lg); background: var(--surface); box-shadow: var(--shadow); }
+.ex-block.in-superset { border-left: 4px solid var(--superset); padding-left: 10px; }
+.ex-head .ex-thumb { width: 44px; height: 44px; border-radius: 12px; overflow: hidden; background: var(--photo-bg); border: 1px solid var(--line-2); display: grid; place-items: center; color: var(--muted); }
+.ex-head .ex-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.ex-name { font-weight: 800; font-size: 16px; color: var(--accent); }
+.ex-tools { margin-left: 54px; }
+.tool { min-height: 30px; padding: 0 10px; border-radius: 999px; background: var(--surface-2); font-weight: 600; }
+.ex-note-read { margin-left: 54px; }
+
+.set-label { border-radius: 8px; font-weight: 800; }
+.set-label.warmup { background: var(--warmup-soft); }
+.set-label.drop { background: var(--drop-soft); }
+.set-label.failure { background: var(--danger-soft); }
+.set-row.done { background: var(--success-soft); }
+.set-row.done .cell-input { background: transparent; border-color: transparent; font-weight: 700; }
+.check-btn span { width: 38px; height: 38px; border: 0; border-radius: 10px; background: var(--surface-2); color: var(--faint); }
+.check-btn[aria-pressed='true'] span { background: var(--success); border-color: var(--success); color: var(--on-success); }
+.add-set { border-radius: 999px; }
+.wo-actions { display: grid; gap: 8px; margin-top: 16px; }
+.btn-danger-soft { background: var(--danger-soft); color: var(--danger); border: 0; }
+
+/* Rest dock: the running rest, at the bottom of the workout screen */
+.main.no-nav { padding-bottom: calc(var(--safe-b) + 96px); }
+.rest-dock { position: fixed; left: 12px; right: 12px; bottom: calc(12px + var(--safe-b)); max-width: 560px; margin: 0 auto; z-index: 60; display: flex; align-items: center; gap: 10px; padding: 10px 10px 10px 12px; border-radius: 22px; background: var(--ink); color: var(--on-ink); box-shadow: var(--shadow-float); animation: slide 0.2s; }
+.rest-ring { flex: none; width: 44px; height: 44px; transform: rotate(-90deg); }
+.rest-ring circle { fill: none; stroke-width: 4; }
+.rest-ring-track { stroke: color-mix(in srgb, var(--on-ink) 18%, transparent); }
+.rest-ring-fill { stroke: var(--brand); stroke-linecap: round; transition: stroke-dashoffset 0.5s linear; }
+.rest-dock-label { font-size: 12px; font-weight: 600; opacity: 0.75; }
+.rest-dock-time { font-size: 22px; font-weight: 800; line-height: 1.1; }
+.rest-dock-btn { flex: none; min-width: 48px; height: 44px; padding: 0 10px; border: 0; border-radius: 12px; display: grid; place-items: center; background: color-mix(in srgb, var(--on-ink) 14%, transparent); color: var(--on-ink); font-weight: 700; font-size: 15px; }
+.rest-dock-btn.skip { background: var(--accent); color: var(--on-accent); }
+@media (prefers-reduced-motion: reduce) { .rest-dock { animation: none; } .rest-ring-fill { transition: none; } }
+
+/* The KG / KM column header already names the unit, so the previous value stays short and never truncates. */
+.wo-screen .sets.active .prev-full { display: none; }
+.wo-screen .sets.active .prev-short { display: inline; }
+.wo-screen .sets.active .set-row { grid-template-columns: 28px minmax(0,1fr) minmax(0,1fr) minmax(0,1fr) 44px 44px; }
+.wo-screen .sets.active.cols-1 .set-row { grid-template-columns: 28px minmax(0,1fr) minmax(0,1fr) 44px 44px; }
+.wo-summary { grid-template-columns: repeat(3, minmax(0, 1fr)) 36px; }
+.wo-summary > div { padding: 10px; min-width: 0; }
+.wo-summary .v { font-size: clamp(16px, 4.6vw, 20px); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.wo-summary .v .u { font-size: 0.68em; font-weight: 700; color: var(--ink-2); }
+.wo-summary .info-btn { width: 36px; justify-self: center; }
