@@ -21,7 +21,7 @@ const fmtDate = (ms: number) => new Date(ms).toLocaleDateString(undefined, { day
 
 /** Responsive line chart with tap-to-inspect. Units are shown in the axis label. */
 export function LineChart({
-  points, unit, format = (v) => v.toFixed(1), height = 180, label,
+  points, unit, format = (v) => String(Math.round(v * 100) / 100), height = 180, label,
 }: { points: Pt[]; unit: string; format?: (v: number) => string; height?: number; label: string }) {
   const W = 340;
   const H = height;
