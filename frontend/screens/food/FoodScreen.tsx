@@ -82,7 +82,7 @@ export function FoodScreen() {
     <FoodPicker meal={pickerMeal} date={date} onClose={()=>setPickerMeal(null)} onAdded={added}/>
     <CopyMealSheet entries={copyMeal?byMeal[copyMeal]:[]} meal={copyMeal} date={date} onClose={()=>setCopyMeal(null)}/>
     <NutritionSummary open={summary} onClose={()=>setSummary(false)} date={date}/>
-    <PortionEditor open={!!editing} onClose={()=>setEditing(null)} food={editing?.food??null} initial={editing?{amount:editing.amount,unit:editing.unit,meal:editing.meal}:null} submitLabel="Update entry" onSubmit={v=>{if(!editing)return;diary.updateEntry(editing.id,v);toast('Entry updated');setEditing(null)}} onDelete={()=>{if(!editing)return;remove(editing);setEditing(null)}} onServingWeight={w=>{if(!editing)return;diary.setServingWeight(editing.food.id,w);setEditing(e=>e?{...e,food:withServingWeight(e.food,w)}:e);toast('Serving weight saved')}}/>
+    <PortionEditor open={!!editing} onClose={()=>setEditing(null)} food={editing?.food??null} initial={editing?{amount:editing.amount,unit:editing.unit,meal:editing.meal}:null} submitLabel="Update entry" onSubmit={v=>{if(!editing)return;diary.updateEntry(editing.id,v);toast('Entry updated');setEditing(null)}} onDelete={()=>{if(!editing)return;remove(editing);setEditing(null)}} onServingWeight={w=>{if(!editing)return;diary.setServingWeight(editing.food.id,w,editing.id);setEditing(e=>e?{...e,food:withServingWeight(e.food,w)}:e);toast('Serving weight saved')}}/>
   </div>;
 }
 
@@ -135,7 +135,8 @@ function FoodPicker({ meal, date, onClose, onAdded }: { meal: Meal | null; date:
   };
 
   const defaultPortion = (f: Food): { amount: number; unit: PortionUnit } =>
-    allowedUnits(f).includes('serving') && f.servingSize ? { amount: 1, unit: 'serving' } : f.refUnit === 'serving' ? { amount: 1, unit: 'serving' } : { amount: 100, unit: f.refUnit };
+    // Grams (or ml) first: one serving's weight when known, otherwise the label amount. Servings only when no weight is known.
+    f.refUnit === 'serving' ? { amount: 1, unit: 'serving' } : { amount: f.servingSize ?? f.refAmount, unit: f.refUnit };
 
   const renderRow = (f: Food, key: string) => {
     const fav = favIds.includes(f.id);

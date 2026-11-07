@@ -42,6 +42,7 @@ export function PortionEditor({
   const [tried, setTried] = useState(false);
   const [pendingUnit, setPendingUnit] = useState<PortionUnit | null>(null);
   const [weightDraft, setWeightDraft] = useState('');
+  useEffect(() => { if (!pendingUnit) setWeightDraft(food?.servingSize ? String(food.servingSize) : ''); }, [food?.servingSize, pendingUnit, open]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (!open || !food || !initial) return;
@@ -60,7 +61,8 @@ export function PortionEditor({
   // Weight unit a serving is measured in: grams for per-serving foods, otherwise the food's own unit.
   const weightUnit = food.refUnit === 'serving' ? 'g' : food.refUnit;
   // Both units are always offered; the missing one asks for the serving weight when chosen.
-  const offered: PortionUnit[] = onServingWeight && units.length === 1 ? [...units, food.refUnit === 'serving' ? 'g' : 'serving'] : units;
+  const both: PortionUnit[] = onServingWeight && units.length === 1 ? [...units, food.refUnit === 'serving' ? 'g' : 'serving'] : units;
+  const offered = [...both].sort((a, b) => Number(a === 'serving') - Number(b === 'serving')); // grams (or ml) first
   const isFav = favs.includes(food.id);
   const eMul = energyUnit === 'kJ' ? 4.184 : 1;
 
@@ -109,24 +111,29 @@ export function PortionEditor({
             }}
           />
         </div>
-        {pendingUnit && onServingWeight && (() => {
+        {onServingWeight && (pendingUnit || (unit === 'serving' && food.servingSize)) && (() => {
+          // Shown when switching to the unit that needs a serving weight, and whenever servings are used,
+          // so the weight of a serving can be changed (servings differ between people and meals).
           const w = parseDecimal(weightDraft);
           const wErr = w === null || w <= 0 ? 'Enter a weight.' : w > 5000 ? 'That looks too large.' : null;
+          const changed = !!pendingUnit || w !== food.servingSize;
           const save = () => {
             if (!w || wErr) return;
             onServingWeight(w);
-            // Same quantity of food in the new unit.
-            if (n) setAmount(String(Math.round((pendingUnit === 'serving' ? n / w : n * w) * 100) / 100));
-            setUnit(pendingUnit);
-            setPendingUnit(null);
+            if (pendingUnit) {
+              // Same quantity of food in the new unit.
+              if (n) setAmount(String(Math.round((pendingUnit === 'serving' ? n / w : n * w) * 100) / 100));
+              setUnit(pendingUnit);
+              setPendingUnit(null);
+            }
           };
           return (
             <div className="serving-weight-edit">
               <label htmlFor="pe-serving">1 {food.servingLabel ?? 'serving'} =</label>
-              <input id="pe-serving" className="input tnum" inputMode="decimal" value={weightDraft} onChange={(e) => setWeightDraft(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && save()} autoFocus />
+              <input id="pe-serving" className="input tnum" inputMode="decimal" value={weightDraft} onChange={(e) => setWeightDraft(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && save()} autoFocus={!!pendingUnit} />
               <span>{weightUnit}</span>
-              <button type="button" className="btn btn-primary btn-sm" disabled={!!wErr} onClick={save}>Save</button>
-              <button type="button" className="icon-btn" aria-label="Keep the current unit" onClick={() => setPendingUnit(null)}><X /></button>
+              {changed && <button type="button" className="btn btn-primary btn-sm" disabled={!!wErr} onClick={save}>Save</button>}
+              {pendingUnit && <button type="button" className="icon-btn" aria-label="Keep the current unit" onClick={() => setPendingUnit(null)}><X /></button>}
             </div>
           );
         })()}

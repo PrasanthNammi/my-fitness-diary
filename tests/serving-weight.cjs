@@ -53,4 +53,16 @@ assert.equal(db.customFoods[0].servingSize,120,'saved food updated');
 close(nutrientsFor(byId(e1.id).food,byId(e1.id).amount,byId(e1.id).unit).kcal,210,'logged entry calories unchanged');
 const m1=state.meals.find(m=>m.id===e1.id);
 close(m1.cal,210,'stored meal calories');assert.equal(m1.labelFood.servingSize,120,'stored label keeps the weight');
-console.log('PASS serving weight: per-serving and per-gram foods gain the other unit with unchanged nutrition, invalid weights ignored, saved and loaded, every logged copy and the saved food updated, stored meal calories unchanged');
+
+// 6. Changing the weight later (a bigger serving when bulking): the entry being edited uses the new weight,
+//    every other entry logged in servings keeps its calories by moving to grams at its old weight.
+diary.setServingWeight('banana',150,e1.id);
+const db2=getDB(),get=id=>db2.diary.find(e=>e.id===id),kcal=e=>nutrientsFor(e.food,e.amount,e.unit).kcal;
+assert.equal(get(e1.id).unit,'serving');assert.equal(get(e1.id).amount,2);close(kcal(get(e1.id)),262.5,'edited entry: 2 servings of 150 g');
+assert.equal(get(e2.id).unit,'g');assert.equal(get(e2.id).amount,120);close(kcal(get(e2.id)),105,'other entry keeps its calories');
+assert.equal(get(e2.id).food.servingSize,150,'other entry knows the new weight');
+close(state.meals.find(m=>m.id===e2.id).cal,105,'stored meal for the other entry unchanged');
+close(state.meals.find(m=>m.id===e1.id).cal,262.5,'stored meal for the edited entry');
+// Setting the same weight again changes nothing.
+diary.setServingWeight('banana',150);assert.equal(getDB().diary.find(e=>e.id===e1.id).unit,'serving','same weight leaves servings alone');
+console.log('PASS serving weight: per-serving and per-gram foods gain the other unit with unchanged nutrition, invalid weights ignored, saved and loaded, every logged copy and the saved food updated, stored meal calories unchanged; a later weight change keeps the calories of other entries (moved to grams) and applies to the edited entry');
