@@ -1585,11 +1585,6 @@ button.social-person { cursor: pointer; border-left: 0; border-right: 0; }
 .exercise-tabs.tab-chips button.chip[aria-selected='true'] { color: var(--on-ink); }
 @media (min-width: 800px) { .exercise-tabs.tab-chips { padding-left: max(20px, calc((100vw - 720px) / 2)); padding-right: max(20px, calc((100vw - 720px) / 2)); } }
 
-/* Sign-in headline (Lovable) */
-.auth-hero { text-align: left; margin: 8px 0 6px; }
-.auth-hero h1 { margin: 0; font-size: 32px; line-height: 1.05; font-weight: 800; letter-spacing: -0.02em; }
-.auth-hero h1 span { color: var(--accent); }
-.auth-hero p { margin: 10px 0 0; color: var(--muted); font-weight: 600; }
 
 /* AI assistants (Lovable) */
 .ai-connector { display: flex; flex-direction: column; gap: 4px; padding: 20px; border-radius: var(--r-lg); background: var(--ink); color: var(--on-ink); }
@@ -1611,3 +1606,16 @@ button.social-person { cursor: pointer; border-left: 0; border-right: 0; }
 .ai-manage .row-title, .ai-manage .row-sub { display: block; }
 .ai-manage > svg { width: 16px; height: 16px; color: var(--muted); }
 .ai-assistants .ai-steps li::before { content: none; display: none; }
+/* Training: room between the tabs and a slimmer Start empty workout banner */
+.training-home > .tab-chips { margin: 4px 0 16px; }
+.training-home .start-hero { padding: 9px 14px; gap: 10px; }
+.training-home .start-hero-icon { width: 32px; height: 32px; }
+.training-home .start-hero-icon svg { width: 14px; height: 14px; }
+.training-home .start-hero-label { font-size: 15px; }
+
+/* Password with show/hide */
+.password-field { position: relative; display: block; }
+.password-field .input { padding-right: 48px; width: 100%; }
+.password-toggle { position: absolute; right: 4px; top: 50%; transform: translateY(-50%); width: 40px; height: 40px; border: 0; border-radius: 10px; background: none; color: var(--muted); display: grid; place-items: center; cursor: pointer; }
+.password-toggle:hover { background: var(--hover); }
+.password-toggle svg { width: 18px; height: 18px; }
