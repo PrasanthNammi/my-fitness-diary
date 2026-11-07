@@ -5,6 +5,7 @@ import {toast} from '../components/ui';
 import {saveIdentity} from '../adapters/profile';
 import {engine} from '../adapters/engine';
 import {foodOut,foodIn} from '../adapters/compat';
+import {withServingWeight} from '../domain/nutrition';
 // Mock repositories backed by the local store. Each interface is what a future
 // Supabase implementation would satisfy; screens only talk to these objects.
 
@@ -231,7 +232,8 @@ export const foods = {
 };
 
 export const diary = {
-  restore(entry: DiaryEntry) { update(d=>{if(!d.diary.some(e=>e.id===entry.id))d.diary.push(structuredClone(entry))}); },
+  /** Puts a removed entry back; `at` is its old position, so Undo returns it to the same place in its meal. */
+  restore(entry: DiaryEntry, at?: number) { update(d=>{if(d.diary.some(e=>e.id===entry.id))return;const i=at==null?d.diary.length:Math.max(0,Math.min(at,d.diary.length));d.diary.splice(i,0,structuredClone(entry))}); },
   add(date: ISODate, meal: Meal, food: Food, amount: number, unit: PortionUnit): DiaryEntry {
     const e: DiaryEntry = { id: uid(), date, meal, food, amount, unit, createdAt: Date.now() };
     update((d) => void d.diary.push(e));
@@ -248,6 +250,25 @@ export const diary = {
     update((d) => {
       const e = d.diary.find((x) => x.id === id);
       if (e) Object.assign(e, patch);
+    });
+  },
+  /** Sets what one serving of a food weighs on every logged copy of it and on the saved food, without changing what was already logged. */
+  // `keepEntryId` is the entry being edited: it uses the new weight. Every other entry logged in servings
+  // keeps its calories, so it is moved to grams at the weight it was logged with.
+  setServingWeight(foodId: ID, weight: number, keepEntryId?: ID) {
+    update((d) => {
+      for (const e of d.diary) {
+        if (e.food.id !== foodId) continue;
+        const old = e.food.servingSize;
+        if (e.id !== keepEntryId && e.unit === 'serving' && old && old !== weight && e.food.refUnit !== 'serving') {
+          e.amount = Math.round(e.amount * old * 100) / 100;
+          e.unit = e.food.refUnit;
+        }
+        e.food = withServingWeight(e.food, weight);
+      }
+      // Only touch the lists that hold this food, so nothing else is marked as changed.
+      if (d.customFoods.some((f) => f.id === foodId)) d.customFoods = d.customFoods.map((f) => (f.id === foodId ? withServingWeight(f, weight) : f));
+      if (d.settings.favouriteFoods?.some((f) => f.id === foodId)) d.settings.favouriteFoods = d.settings.favouriteFoods.map((f) => (f.id === foodId ? withServingWeight(f, weight) : f));
     });
   },
   remove(id: ID) {

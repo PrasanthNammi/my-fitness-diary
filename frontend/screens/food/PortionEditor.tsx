@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Star, Trash2 } from 'lucide-react';
+import { Star, Trash2, X } from 'lucide-react';
 import type { Food, Meal, PortionUnit } from '../../domain/types';
 import { allowedUnits, nutrientsFor } from '../../domain/nutrition';
 import { Field, SelectField, Sheet } from '../../components/ui';
@@ -15,8 +15,14 @@ export function refText(f: Food): string {
   return `${fmtInt(f.kcal)} kcal ${ref}`;
 }
 
+/** Share of macro energy (protein and carbs 4 kcal/g, fat 9), in percent. */
+function macroShare(n: { protein: number; carbs: number; fat: number }) {
+  const p = n.protein * 4, c = n.carbs * 4, f = n.fat * 9, sum = p + c + f || 1;
+  return { protein: (p / sum) * 100, carbs: (c / sum) * 100, fat: (f / sum) * 100 };
+}
+
 export function PortionEditor({
-  open, onClose, food, initial, onSubmit, onDelete, submitLabel,
+  open, onClose, food, initial, onSubmit, onDelete, submitLabel, onServingWeight,
 }: {
   open: boolean;
   onClose: () => void;
@@ -25,6 +31,8 @@ export function PortionEditor({
   onSubmit: (v: { amount: number; unit: PortionUnit; meal: Meal }) => void;
   onDelete?: () => void;
   submitLabel: string;
+  /** Saves what one serving weighs, which makes both servings and grams available. */
+  onServingWeight?: (weight: number) => void;
 }) {
   const favs = useDB((d) => d.favouriteFoodIds);
   const energyUnit = useDB((d) => d.settings.energyUnit);
@@ -32,6 +40,9 @@ export function PortionEditor({
   const [unit, setUnit] = useState<PortionUnit>('g');
   const [meal, setMeal] = useState<Meal>('breakfast');
   const [tried, setTried] = useState(false);
+  const [pendingUnit, setPendingUnit] = useState<PortionUnit | null>(null);
+  const [weightDraft, setWeightDraft] = useState('');
+  useEffect(() => { if (!pendingUnit) setWeightDraft(food?.servingSize ? String(food.servingSize) : ''); }, [food?.servingSize, pendingUnit, open]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (!open || !food || !initial) return;
@@ -39,13 +50,19 @@ export function PortionEditor({
     setUnit(initial.unit);
     setMeal(initial.meal);
     setTried(false);
-  }, [open, food, initial]);
+    setPendingUnit(null);
+  }, [open, food?.id, initial?.amount, initial?.unit, initial?.meal]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const n = parseDecimal(amount);
   const err = n === null ? 'Enter an amount.' : n <= 0 ? 'Amount must be more than 0.' : n > 5000 ? 'That amount looks too large.' : null;
   const nut = useMemo(() => (food && n && n > 0 ? nutrientsFor(food, n, unit) : null), [food, n, unit]);
   if (!food) return null;
   const units = allowedUnits(food);
+  // Weight unit a serving is measured in: grams for per-serving foods, otherwise the food's own unit.
+  const weightUnit = food.refUnit === 'serving' ? 'g' : food.refUnit;
+  // Both units are always offered; the missing one asks for the serving weight when chosen.
+  const both: PortionUnit[] = onServingWeight && units.length === 1 ? [...units, food.refUnit === 'serving' ? 'g' : 'serving'] : units;
+  const offered = [...both].sort((a, b) => Number(a === 'serving') - Number(b === 'serving')); // grams (or ml) first
   const isFav = favs.includes(food.id);
   const eMul = energyUnit === 'kJ' ? 4.184 : 1;
 
@@ -79,9 +96,12 @@ export function PortionEditor({
           <SelectField
             label="Unit"
             value={unit}
-            options={units.map((u) => ({ value: u, label: u === 'serving' ? 'serving' : u, hint: unitLabel(food, u) }))}
+            options={offered.map((u) => ({ value: u, label: u === 'serving' ? 'serving' : u, hint: u === 'serving' && food.servingSize ? `1 ${food.servingLabel ?? 'serving'} = ${fmtNum(food.servingSize, 1)} ${weightUnit}` : unitLabel(food, u) }))}
             onChange={(u) => {
-              if (u === unit) return;
+              if (u === unit) return setPendingUnit(null);
+              // The other unit needs to know what one serving weighs first: ask right here, once.
+              if (!units.includes(u)) { setWeightDraft(''); return setPendingUnit(u); }
+              setPendingUnit(null);
               // Keep the same quantity of food when switching unit.
               if (n && food.servingSize) {
                 const next = u === 'serving' ? n / food.servingSize : n * food.servingSize;
@@ -91,17 +111,52 @@ export function PortionEditor({
             }}
           />
         </div>
-        <SelectField label="Meal" value={meal} options={MEALS.map((m) => ({ value: m.id, label: m.label }))} onChange={setMeal} />
-        <div className="nutri-grid" aria-live="polite">
-          <div><div className="v">{nut ? fmtInt(nut.kcal * eMul) : '—'}</div><div className="k">{energyUnit}</div></div>
-          <div><div className="v">{nut ? fmtNum(nut.protein, 1) : '—'}</div><div className="k">Protein g</div></div>
-          <div><div className="v">{nut ? fmtNum(nut.carbs, 1) : '—'}</div><div className="k">Carbs g</div></div>
-          <div><div className="v">{nut ? fmtNum(nut.fat, 1) : '—'}</div><div className="k">Fat g</div></div>
+        {onServingWeight && (pendingUnit || (unit === 'serving' && food.servingSize)) && (() => {
+          // Shown when switching to the unit that needs a serving weight, and whenever servings are used,
+          // so the weight of a serving can be changed (servings differ between people and meals).
+          const w = parseDecimal(weightDraft);
+          const wErr = w === null || w <= 0 ? 'Enter a weight.' : w > 5000 ? 'That looks too large.' : null;
+          const changed = !!pendingUnit || w !== food.servingSize;
+          const save = () => {
+            if (!w || wErr) return;
+            onServingWeight(w);
+            if (pendingUnit) {
+              // Same quantity of food in the new unit.
+              if (n) setAmount(String(Math.round((pendingUnit === 'serving' ? n / w : n * w) * 100) / 100));
+              setUnit(pendingUnit);
+              setPendingUnit(null);
+            }
+          };
+          return (
+            <div className="serving-weight-edit">
+              <label htmlFor="pe-serving">1 {food.servingLabel ?? 'serving'} =</label>
+              <input id="pe-serving" className="input tnum" inputMode="decimal" value={weightDraft} onChange={(e) => setWeightDraft(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && save()} autoFocus={!!pendingUnit} />
+              <span>{weightUnit}</span>
+              {changed && <button type="button" className="btn btn-primary btn-sm" disabled={!!wErr} onClick={save}>Save</button>}
+              {pendingUnit && <button type="button" className="icon-btn" aria-label="Keep the current unit" onClick={() => setPendingUnit(null)}><X /></button>}
+            </div>
+          );
+        })()}
+        <div className="field">
+          <span className="label" id="pe-meal">Meal</span>
+          <div className="meal-choice" role="group" aria-labelledby="pe-meal">
+            {MEALS.map((m) => <button key={m.id} type="button" aria-pressed={meal === m.id} onClick={() => setMeal(m.id)}>{m.label}</button>)}
+          </div>
+        </div>
+        <div className="portion-nutrition" aria-live="polite">
+          <div className="portion-ring" style={{ ['--p' as string]: nut ? `${macroShare(nut).protein}` : '0', ['--c' as string]: nut ? `${macroShare(nut).carbs}` : '0' }}>
+            <div className="portion-ring-inner"><b className="tnum">{nut ? fmtInt(nut.kcal * eMul) : '—'}</b><span>{energyUnit}</span></div>
+          </div>
+          <div className="portion-macros">
+            {([['Protein', nut?.protein, 'var(--protein)', nut ? macroShare(nut).protein : null], ['Carbs', nut?.carbs, 'var(--carbs)', nut ? macroShare(nut).carbs : null], ['Fat', nut?.fat, 'var(--fat)', nut ? macroShare(nut).fat : null], ['Fibre', nut?.fibre, 'var(--fibre)', null]] as const).map(([k, v, color, pct]) => (
+              <div key={k}><i style={{ background: color }} /><span className="grow">{k}</span><b className="tnum">{v == null ? '—' : `${fmtNum(v, 1)} g`}</b><small className="tnum">{pct == null ? '' : `${Math.round(pct)}%`}</small></div>
+            ))}
+          </div>
         </div>
         {nut && (
-          <div>
-            {([['Sugars', nut.sugars], ['Saturates', nut.saturates], ['Fibre', nut.fibre], ['Salt', nut.salt]] as const).map(([k, v]) => (
-              <div key={k} className="kv"><span className="k">{k}</span><span className="v">{v === null ? <span className="muted" title="Not on label">Not provided</span> : `${fmtNum(v, 1)} g`}</span></div>
+          <div className="portion-extra">
+            {([['Sugars', nut.sugars], ['Saturates', nut.saturates], ['Salt', nut.salt]] as const).map(([k, v]) => (
+              <div key={k} className="kv"><span className="k">{k}</span><span className="v tnum">{v === null ? <span className="muted" title="Not on the label">—</span> : `${fmtNum(v, 1)} g`}</span></div>
             ))}
           </div>
         )}
