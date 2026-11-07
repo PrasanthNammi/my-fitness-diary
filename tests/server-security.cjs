@@ -31,5 +31,13 @@ const jar='__Host-mfd-access='+token+'; __Host-mfd-refresh=refresh-private';
  r=await handle(new Request(localOrigin+'/api/auth/oauth',{method:'POST',headers:{Origin:localOrigin,'Content-Type':'application/json'},body:'{}'}),localDeps);
  assert.equal(r.status,200);assert.equal(new URL((await r.json()).url).searchParams.get('redirect_to'),localOrigin+'/');
  r=await handle(new Request(localOrigin+'/api/auth/login',{method:'POST',headers:{Origin:'https://evil.example','Content-Type':'application/json'},body:JSON.stringify({email:'a@b.c',password:'secret'})}),localDeps);assert.equal(r.status,403);
- console.log('PASS server headers, HttpOnly cookies, CSRF, PKCE, refresh, migration, logout failure, proxy identity, private caching and limits');
+ // Resend the sign-up confirmation: same-origin only, a valid email only, fresh PKCE verifier cookie, nothing leaked.
+ calls=[];r=await handle(req('/api/auth/resend','POST',{email:'new@example.invalid'},{Origin:'https://evil.example'}),deps);assert.equal(r.status,403);assert.equal(calls.length,0);
+ calls=[];r=await handle(req('/api/auth/resend','POST',{email:'not-an-email'}),deps);assert.equal(r.status,400);assert.equal(calls.length,0);
+ calls=[];reply=()=>Response.json({});r=await handle(req('/api/auth/resend','POST',{email:'new@example.invalid'}),deps);assert.equal(r.status,200);assert.deepEqual(await r.json(),{sent:true});
+ assert.equal(calls.length,1);assert(String(calls[0].url).startsWith('https://djyozltkmbzhwuvemxuy.supabase.co/auth/v1/resend?redirect_to='+encodeURIComponent(origin+'/')));
+ {const sentBody=JSON.parse(calls[0].init.body);assert.equal(sentBody.type,'signup');assert.equal(sentBody.email,'new@example.invalid');assert.equal(sentBody.code_challenge_method,'s256');assert(sentBody.code_challenge.length>=43)}
+ {const ck=r.headers.getSetCookie();assert.equal(ck.length,1);assert(ck[0].includes('HttpOnly; Secure; SameSite=Lax'))}
+ reply=()=>Response.json(issued);
+ console.log('PASS server headers, HttpOnly cookies, CSRF, PKCE, refresh, migration, sign-up resend, logout failure, proxy identity, private caching and limits');
 })().catch(e=>{console.error(e);process.exit(1)});

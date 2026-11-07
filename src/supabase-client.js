@@ -23,6 +23,7 @@ const auth={
  onAuthStateChange(callback){listeners.add(callback);return {data:{subscription:{unsubscribe:()=>listeners.delete(callback)}}}},
  signInWithPassword:({email,password})=>operation('login',{email,password}),
  signUp:({email,password})=>operation('signup',{email,password}),
+ resend:({email})=>operation('resend',{email}),
  signInWithOAuth:()=>operation('oauth',{}),
  signOut:()=>operation('logout',{}),
 };

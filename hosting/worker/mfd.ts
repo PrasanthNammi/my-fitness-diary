@@ -53,6 +53,11 @@ export async function handleMfd(request:Request,deps:Deps){
    const {email,password}=await readJSON(request);if(typeof email!=='string'||typeof password!=='string'||email.length>254||password.length<12||password.length>4096)throw new HttpError(400,'Use a valid email and a password of at least 12 characters');
    const verifier=b64(crypto.getRandomValues(new Uint8Array(32))),challenge=b64(new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(verifier))));
    const data=await authCall('signup?redirect_to='+encodeURIComponent(origin+'/'),{email,password,code_challenge:challenge,code_challenge_method:'s256'});setCookies.push(cookie(PKCE,verifier,3600));if(data.access_token)saveSession(data);result=json({session:data.access_token?{user:safeUser(data.user)}:null});
+  }else if(url.pathname==='/api/auth/resend'&&request.method==='POST'){
+   // Sends the sign-up confirmation link again, with a fresh sign-in check for this browser.
+   const {email}=await readJSON(request);if(typeof email!=='string'||email.length>254||!email.includes('@'))throw new HttpError(400,'Use a valid email');
+   const verifier=b64(crypto.getRandomValues(new Uint8Array(32))),challenge=b64(new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(verifier))));
+   await authCall('resend?redirect_to='+encodeURIComponent(origin+'/'),{type:'signup',email,code_challenge:challenge,code_challenge_method:'s256'});setCookies.push(cookie(PKCE,verifier,3600));result=json({sent:true});
   }else if(url.pathname==='/api/auth/oauth'&&request.method==='POST'){
    const verifier=b64(crypto.getRandomValues(new Uint8Array(32))),challenge=b64(new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(verifier))));setCookies.push(cookie(PKCE,verifier,600));
    const dest=new URL('/auth/v1/authorize',SUPABASE);dest.search=new URLSearchParams({provider:'google',redirect_to:origin+'/',code_challenge:challenge,code_challenge_method:'s256'}).toString();result=json({url:dest.href});

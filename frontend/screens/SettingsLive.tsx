@@ -6,7 +6,7 @@ import {NotificationSettings} from './settings/NotificationSettings';
 import {ConfirmSheet,TopBar,Sheet,toast} from '../components/ui';
 import {SettingsScreen} from './settings/SettingsScreen';
 import {openTool,engine} from '../adapters/engine';
-import {navigate} from '../lib/router';
+import {goBack,navigate} from '../lib/router';
 import {auth} from '../adapters/auth';
 import {useDB} from '../data/store';
 import {useTargets} from '../data/selectors';
@@ -26,7 +26,8 @@ export function SettingsLive({section}:{section:string|null}){
  const sync=useSyncExternalStore(fn=>engine()?.subscribe(fn)||(()=>{}),()=>{const s=engine()?.peek();return s?.conflict||s?.error?'attention':s?.offline?'offline':s?.dirty||s?.busy?'pending':'saved'});
  const profile=useDB(d=>d.profile),settings=useDB(d=>d.settings),account=useDB(d=>d.account),t=useTargets()?.targets;
  const file=useRef<HTMLInputElement>(null);
- if(section==='exercises')return <ExercisePicker browse open onClose={()=>navigate('/settings/catalogue')} onAdd={()=>{}}/>;
+ // Closing the exercise list steps back (it used to open Catalogue again, so the back arrow returned to Exercises).
+ if(section==='exercises')return <ExercisePicker browse open onClose={()=>goBack('/settings/catalogue')} onAdd={()=>{}}/>;
  if(['profile','targets','units'].includes(section||''))return <SettingsScreen section={section}/>;
  if(section==='notifications')return <NotificationSettings/>;
  if(section==='appearance')return <AppearanceSettings/>;
