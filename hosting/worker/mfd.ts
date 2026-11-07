@@ -1,6 +1,6 @@
 const SUPABASE='https://djyozltkmbzhwuvemxuy.supabase.co';
 const KEY='sb_publishable_nH3vRaPWVxxY636AThDN5A_ZIlQGghL';
-const ACCESS='__Host-mfd-access',REFRESH='__Host-mfd-refresh',PKCE='__Host-mfd-pkce';
+const ACCESS='__Host-mfd-access',REFRESH='__Host-mfd-refresh',PKCE='__Host-mfd-pkce',RESET='__Host-mfd-reset';
 const ORIGIN='https://prasanth-nammi-portfolio.shanustylish777.chatgpt.site';
 // Phone notifications are sent by the MFD connector Worker; this server forwards the user's session to it.
 const PUSH='https://mfd-connect.shanustylish777.workers.dev';
@@ -42,23 +42,36 @@ export async function handleMfd(request:Request,deps:Deps){
    const verifier=jar.get(PKCE);setCookies.push(cookie(PKCE,'',0));
    if(!verifier)throw new HttpError(400,'Sign-in expired. Please start sign-in again.');
    saveSession(await authCall('token?grant_type=pkce',{auth_code:url.searchParams.get('code'),code_verifier:verifier}));
-   result=new Response(null,{status:303,headers:{Location:origin+'/'}});
+   // A password-reset link lands on the "Set a new password" screen.
+   const reset=jar.get(RESET)==='1';if(reset)setCookies.push(cookie(RESET,'',0));
+   result=new Response(null,{status:303,headers:{Location:origin+(reset?'/#/set-password':'/')}});
   }else if(url.pathname==='/api/auth/session'&&request.method==='GET'){
    if(!jar.has(ACCESS)&&!jar.has(REFRESH))result=json({session:null});
    else{const access=await token();try{const user=await authCall('user',undefined,access);result=json({session:{user:safeUser(user)}})}catch(e){if(e instanceof HttpError&&[401,403].includes(e.status))clearSession();throw e}}
-  }else if(url.pathname==='/api/auth/login'&&request.method==='POST'){
+  }else if(url.pathname==='/api/auth/login'&&request.method==='POST'){if(jar.has(RESET))setCookies.push(cookie(RESET,'',0));
    const {email,password}=await readJSON(request);if(typeof email!=='string'||typeof password!=='string'||email.length>254||password.length>4096)throw new HttpError(400,'Invalid credentials');
    const data=await authCall('token?grant_type=password',{email,password});saveSession(data);result=json({session:{user:safeUser(data.user)}});
-  }else if(url.pathname==='/api/auth/signup'&&request.method==='POST'){
+  }else if(url.pathname==='/api/auth/signup'&&request.method==='POST'){if(jar.has(RESET))setCookies.push(cookie(RESET,'',0));
    const {email,password}=await readJSON(request);if(typeof email!=='string'||typeof password!=='string'||email.length>254||password.length<12||password.length>4096)throw new HttpError(400,'Use a valid email and a password of at least 12 characters');
    const verifier=b64(crypto.getRandomValues(new Uint8Array(32))),challenge=b64(new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(verifier))));
    const data=await authCall('signup?redirect_to='+encodeURIComponent(origin+'/'),{email,password,code_challenge:challenge,code_challenge_method:'s256'});setCookies.push(cookie(PKCE,verifier,3600));if(data.access_token)saveSession(data);result=json({session:data.access_token?{user:safeUser(data.user)}:null});
+  }else if(url.pathname==='/api/auth/recover'&&request.method==='POST'){
+   // Forgot password: emails a reset link. The answer is the same whether or not the account exists.
+   const {email}=await readJSON(request);if(typeof email!=='string'||email.length>254||!email.includes('@'))throw new HttpError(400,'Use a valid email');
+   const verifier=b64(crypto.getRandomValues(new Uint8Array(32))),challenge=b64(new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(verifier))));
+   await authCall('recover?redirect_to='+encodeURIComponent(origin+'/'),{email,code_challenge:challenge,code_challenge_method:'s256'});setCookies.push(cookie(PKCE,verifier,3600),cookie(RESET,'1',3600));result=json({sent:true});
+  }else if(url.pathname==='/api/auth/password'&&request.method==='POST'){
+   // Sets a new password for the signed-in account (after a reset link).
+   const {password}=await readJSON(request);if(typeof password!=='string'||password.length<12||password.length>4096)throw new HttpError(400,'Use a password of at least 12 characters');
+   const access=await token();const r=await upstream('/auth/v1/user',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({password})},access);
+   if(!r.ok){const data=await r.json().catch(()=>({})) as any;throw new HttpError(r.status,data.msg||data.message||data.error_description||'Could not change the password')}
+   result=json({changed:true});
   }else if(url.pathname==='/api/auth/resend'&&request.method==='POST'){
    // Sends the sign-up confirmation link again, with a fresh sign-in check for this browser.
    const {email}=await readJSON(request);if(typeof email!=='string'||email.length>254||!email.includes('@'))throw new HttpError(400,'Use a valid email');
    const verifier=b64(crypto.getRandomValues(new Uint8Array(32))),challenge=b64(new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(verifier))));
    await authCall('resend?redirect_to='+encodeURIComponent(origin+'/'),{type:'signup',email,code_challenge:challenge,code_challenge_method:'s256'});setCookies.push(cookie(PKCE,verifier,3600));result=json({sent:true});
-  }else if(url.pathname==='/api/auth/oauth'&&request.method==='POST'){
+  }else if(url.pathname==='/api/auth/oauth'&&request.method==='POST'){if(jar.has(RESET))setCookies.push(cookie(RESET,'',0));
    const verifier=b64(crypto.getRandomValues(new Uint8Array(32))),challenge=b64(new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(verifier))));setCookies.push(cookie(PKCE,verifier,600));
    const dest=new URL('/auth/v1/authorize',SUPABASE);dest.search=new URLSearchParams({provider:'google',redirect_to:origin+'/',code_challenge:challenge,code_challenge_method:'s256'}).toString();result=json({url:dest.href});
   }else if(url.pathname==='/api/auth/migrate'&&request.method==='POST'){

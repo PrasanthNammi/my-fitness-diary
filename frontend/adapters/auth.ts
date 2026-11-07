@@ -2,5 +2,9 @@ import {client,openTool} from './engine';
 export class AuthError extends Error{}
 export const auth={googleAvailable:true,async signInWithGoogle(){let c=client();if(!c)throw new AuthError('Loading');let {data,error}=await c.auth.signInWithOAuth({provider:'google',options:{redirectTo:location.origin+'/',skipBrowserRedirect:true}});if(error)throw error;if(!data?.url)throw new AuthError('No sign-in link was returned.');const url=new URL(data.url);if(url.origin!=='https://djyozltkmbzhwuvemxuy.supabase.co'||url.username||url.password)throw new AuthError('Unexpected sign-in destination.');location.assign(url.href)},async signInWithEmail(email:string,password:string){let {error}=await client().auth.signInWithPassword({email,password});if(error)throw new AuthError(error.message)},/** Creates an account. Returns 'confirm' when Supabase sends a confirmation link first (no session yet). */
 async signUpWithEmail(_name:string,email:string,password:string):Promise<'confirm'|'signed-in'>{let {data,error}=await client().auth.signUp({email,password,options:{emailRedirectTo:location.origin+'/'}});if(error)throw new AuthError(error.message);return data?.session?'signed-in':'confirm'},
+/** Forgot password: emails a reset link (same answer whether or not the account exists). */
+async requestPasswordReset(email:string){let {error}=await (client().auth as any).recover({email});if(error)throw new AuthError(error.message)},
+/** Sets a new password for the signed-in account (after opening a reset link). */
+async setPassword(password:string){let {error}=await (client().auth as any).setPassword({password});if(error)throw new AuthError(error.message)},
 /** Sends the confirmation link again. */
 async resendConfirmation(email:string){let {error}=await (client().auth as any).resend({type:'signup',email});if(error)throw new AuthError(error.message)},async startDemo(){throw new AuthError('Sign in required')},async signOut(){openTool('logout')}};
