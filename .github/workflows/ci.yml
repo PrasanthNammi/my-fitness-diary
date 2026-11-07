@@ -31,6 +31,7 @@ jobs:
           node tests/serving-weight.cjs
           node tests/progress-stats.cjs
           node tests/plates.cjs
+          node tests/weekly-recap.cjs
           node tests/chat-sync.cjs
           node tests/food-summary.cjs
   database:

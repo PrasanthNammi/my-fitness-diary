@@ -1489,3 +1489,14 @@ button.social-person { cursor: pointer; border-left: 0; border-right: 0; }
 .setting-switch input { width: 22px; height: 22px; accent-color: var(--accent); }
 .plate-choices { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 4px; }
 .plate-choices .chip[aria-pressed='true'] { background: var(--ink); color: var(--on-ink); border-color: var(--ink); }
+
+/* ── Monday recap (Overview) ── */
+.recap-card .overview-card-head .icon-btn { width: 36px; height: 36px; min-height: 36px; margin: -6px -6px -6px 0; }
+.recap-range { margin-left: 6px; color: var(--muted); font-weight: 600; letter-spacing: 0; text-transform: none; }
+.recap-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.recap-tile { display: flex; flex-direction: column; gap: 2px; padding: 12px; border-radius: var(--r); background: var(--surface-2); min-width: 0; }
+.recap-tile .k { font-size: 12px; font-weight: 700; color: var(--muted); }
+.recap-tile .v { font-size: 22px; font-weight: 800; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.recap-tile .v small { font-size: 13px; font-weight: 700; color: var(--muted); }
+.recap-tile.good { background: var(--success-soft); }
+.recap-tile.good .v { color: var(--success-text); }
