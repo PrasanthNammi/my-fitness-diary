@@ -1337,3 +1337,26 @@ button.social-person { cursor: pointer; border-left: 0; border-right: 0; }
 .chat-input { display: flex; gap: 8px; padding: 10px 12px calc(10px + env(safe-area-inset-bottom)); border-top: 1px solid var(--line); background: var(--surface); }
 .chat-input .input { flex: 1; min-width: 0; border-radius: 999px; }
 .chat-input .round-icon { width: 46px; height: 46px; }
+/* Feed actions: icon widgets */
+.social-actions { align-items: center; gap: 4px; padding: 8px 10px 10px; }
+.social-icon { display: inline-flex; align-items: center; gap: 6px; min-width: 44px; height: 40px; padding: 0 10px; border: 0; border-radius: 999px; background: none; color: var(--ink-2); font: inherit; font-size: 14px; font-weight: 700; cursor: pointer; }
+.social-icon:hover { background: var(--hover); }
+.social-icon svg { width: 21px; height: 21px; }
+.social-icon.liked { color: var(--danger); }
+.social-actions-end { margin-left: auto; display: inline-flex; gap: 2px; }
+/* Comments */
+.comment-list { display: flex; flex-direction: column; gap: 14px; min-height: 120px; }
+.comment-empty { margin: auto; }
+.comment { display: flex; align-items: flex-start; gap: 10px; }
+.comment-avatar { border: 0; background: none; padding: 0; cursor: pointer; }
+.comment .social-avatar { width: 34px; height: 34px; font-size: 13px; }
+.comment .grow { flex: 1; min-width: 0; }
+.comment-head { display: flex; align-items: baseline; gap: 8px; font-size: 13px; }
+.comment-head strong { font-weight: 800; }
+.comment-head span { color: var(--ink-3); font-size: 12px; }
+.comment p { margin: 2px 0 0; font-size: 15px; line-height: 1.4; overflow-wrap: anywhere; white-space: pre-wrap; }
+.comment-delete { width: 34px; height: 34px; color: var(--muted); flex: none; }
+.comment-delete svg { width: 16px; height: 16px; }
+.comment-input { display: flex; gap: 8px; width: 100%; }
+.comment-input .input { flex: 1; min-width: 0; border-radius: 999px; }
+.comment-input .round-icon { width: 46px; height: 46px; }

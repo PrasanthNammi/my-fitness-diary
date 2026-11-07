@@ -26,6 +26,7 @@ export function FriendsScreen({view}:{view:View}){
  const [busy,setBusy]=useState(false),[error,setError]=useState(''),[reload,setReload]=useState(0),[limit,setLimit]=useState(50),[loading,setLoading]=useState(false);
  const [people,setPeople]=useState(false),[inbox,setInbox]=useState(false),[menu,setMenu]=useState(false),[compare,setCompare]=useState(false),[unread,setUnread]=useState<any[]>([]);
  const [confirm,setConfirm]=useState<{title:string;body?:string;label:string;run:()=>Promise<any>}|null>(null);
+ const [thread,setThread]=useState<{owner:string;workout:string;title:string}|null>(null),[,setTick]=useState(0);
  const localHistory=useDB(d=>d.workouts);const imageCache=useRef(new SignedImages());
  const syncState=useSyncExternalStore(fn=>engine()?.subscribe(fn)||(()=>{}),()=>{const s=engine()?.peek();return s?.conflict||s?.error?'error':s?.offline?'offline':s?.dirty||s?.busy?'pending':'saved'});
  const feedRef=useRef<SocialFeed|null>(null),[totals,setTotals]=useState<{workouts:number;volume:number}|null>(null);
@@ -85,18 +86,20 @@ export function FriendsScreen({view}:{view:View}){
  const cancel=(l:any,msg:string)=>run(()=>checked(c.from('mfd_friendships').delete().eq('id',l.id)),msg);
 
  function card(w:any){let p=profiles.find(x=>x.user_id===w.owner_id);if(!p)return null;
-  let s=w.data,done=s.sets.filter((x:any)=>x.done!==false),work=done.filter((x:any)=>x.type!=='warmup'),v=work.reduce((n:number,x:any)=>n+(x.kg||0)*(x.reps||0),0),key=w.owner_id+':'+w.workout_id,liked=reactions.some(r=>r.user_id===uid&&r.owner_id===w.owner_id&&r.workout_id===w.workout_id),likes=reactions.filter(r=>r.owner_id===w.owner_id&&r.workout_id===w.workout_id).length,names=[...new Set(done.map((x:any)=>x.exercise))] as string[],own=w.owner_id===uid;
+  let s=w.data,done=s.sets.filter((x:any)=>x.done!==false),work=done.filter((x:any)=>x.type!=='warmup'),v=work.reduce((n:number,x:any)=>n+(x.kg||0)*(x.reps||0),0),key=w.owner_id+':'+w.workout_id,liked=reactions.some(r=>r.user_id===uid&&r.owner_id===w.owner_id&&r.workout_id===w.workout_id),likes=reactions.filter(r=>r.owner_id===w.owner_id&&r.workout_id===w.workout_id).length,names=[...new Set(done.map((x:any)=>x.exercise))] as string[],own=w.owner_id===uid,comments=feedRef.current?.commentsFor(w.owner_id,w.workout_id).length??0;
   return <article className="card social-post" key={key}>
    <button className="social-post-head" onClick={()=>openProfile(p)} aria-label={`Open ${p.display_name}'s profile`}>{avatar(p)}<span className="grow"><span className="name ellipsis">{p.display_name} <small>@{p.username}</small></span><span className="sub ellipsis">{s.started?ago(s.started):s.date} · {s.name}</span></span></button>
    {photos[key]&&<img className="social-photo" src={photos[key]} alt={`${p.display_name}'s workout photo`} loading="lazy" decoding="async"/>}
    <div className="social-post-stats tnum"><div><span>Duration</span><strong>{Math.round((s.finished-s.started)/60000)||0} min</strong></div><div><span>Volume</span><strong>{Math.round(v).toLocaleString()} kg</strong></div><div><span>Sets</span><strong>{work.length}</strong></div></div>
    <details className="social-exercises"><summary><span className="ellipsis">{names.join(' · ')}</span><ChevronDown aria-hidden="true"/></summary>{names.map(name=><div className="social-row" key={name}><strong>{name}</strong><small className="tnum">{done.filter((x:any)=>x.exercise===name).map((x:any)=>`${x.type==='warmup'?'W':x.set}: ${x.kg??'—'} × ${x.reps??'—'}`).join(' · ')}</small></div>)}</details>
    <div className="social-actions">
-    <button className={'chip social-chip'+(liked?' liked':'')} aria-pressed={liked} aria-label={liked?'Remove like':'Like'} onClick={()=>run(async()=>{if(liked)await checked(c.from('mfd_reactions').delete().eq('user_id',uid).eq('owner_id',w.owner_id).eq('workout_id',w.workout_id));else await checked(c.from('mfd_reactions').insert({owner_id:w.owner_id,workout_id:w.workout_id}));feedRef.current?.react(w.owner_id,w.workout_id,!liked);setReactions(feedRef.current?.reactionList()||[])})}><Heart aria-hidden="true" fill={liked?'currentColor':'none'}/>{likes}</button>
-    {!own&&friend(w.owner_id)&&<button className="chip social-chip" onClick={()=>openChat(p)}><MessageCircle aria-hidden="true"/>Message</button>}
-    <button className="chip social-chip" onClick={()=>copyWorkout(w)}><CopyPlus aria-hidden="true"/>Copy routine</button>
-    {own&&photoInput(w.workout_id,photos[key]?'Change photo':'Add photo')}
-    {own&&photos[key]&&<button className="chip social-chip" aria-label="Remove photo" onClick={()=>setConfirm({title:'Remove this photo?',label:'Remove',run:()=>removePhoto(w.workout_id)})}><Trash2 aria-hidden="true"/></button>}
+    <button className={'social-icon'+(liked?' liked':'')} aria-pressed={liked} aria-label={`${liked?'Remove like':'Like'} · ${likes}`} onClick={()=>run(async()=>{if(liked)await checked(c.from('mfd_reactions').delete().eq('user_id',uid).eq('owner_id',w.owner_id).eq('workout_id',w.workout_id));else await checked(c.from('mfd_reactions').insert({owner_id:w.owner_id,workout_id:w.workout_id}));feedRef.current?.react(w.owner_id,w.workout_id,!liked);setReactions(feedRef.current?.reactionList()||[])})}><Heart aria-hidden="true" fill={liked?'currentColor':'none'}/>{likes>0&&<span className="tnum">{likes}</span>}</button>
+    <button className="social-icon" aria-label={`Comments · ${comments}`} onClick={()=>setThread({owner:w.owner_id,workout:w.workout_id,title:s.name})}><MessageCircle aria-hidden="true"/>{comments>0&&<span className="tnum">{comments}</span>}</button>
+    <button className="social-icon" aria-label="Copy as a routine" onClick={()=>copyWorkout(w)}><CopyPlus aria-hidden="true"/></button>
+    {own&&<span className="social-actions-end">
+     <label className="social-icon" aria-label={photos[key]?'Change photo':'Add photo'} title={photos[key]?'Change photo':'Add photo'}><Camera aria-hidden="true"/><input hidden disabled={busy} type="file" accept="image/*" onChange={e=>{if(e.target.files?.[0])upload(e.target.files[0],w.workout_id);e.target.value=''}}/></label>
+     {photos[key]&&<button className="social-icon" aria-label="Remove photo" onClick={()=>setConfirm({title:'Remove this photo?',label:'Remove',run:()=>removePhoto(w.workout_id)})}><Trash2 aria-hidden="true"/></button>}
+    </span>}
    </div>
   </article>}
 
@@ -159,6 +162,7 @@ export function FriendsScreen({view}:{view:View}){
     <button className="option danger" onClick={()=>{setMenu(false);setConfirm({title:`Block ${selected.display_name}?`,body:'They can’t find you, send requests or message you.',label:'Block',run:()=>run(async()=>{await checked(c.from('mfd_blocks').insert({target_id:selected.user_id}));await checked(c.from('mfd_friendships').delete().or(`sender.eq.${selected.user_id},recipient.eq.${selected.user_id}`));navigate('/friends',{replace:true})},'Blocked')})}}><Ban aria-hidden="true"/><span className="strong">Block</span></button>
    </div>
   </Sheet>}
+  <CommentsSheet thread={thread} onClose={()=>setThread(null)} uid={uid!} feed={feedRef.current} profiles={profiles} avatar={avatar} onChange={()=>setTick(n=>n+1)} onOpen={openProfile}/>
   <ConfirmSheet open={!!confirm} onClose={()=>setConfirm(null)} danger title={confirm?.title??''} body={confirm?.body} confirmLabel={confirm?.label??'OK'} onConfirm={()=>{confirm?.run();setConfirm(null)}}/>
  </>;
 }
@@ -202,4 +206,30 @@ function ChatView({me,friend,avatar,onBack}:{me:string;friend:P;avatar:React.Rea
   {error&&<p role="alert" className="social-error chat-error">{error}</p>}
   <form className="chat-input" onSubmit={e=>{e.preventDefault();send()}}><input className="input" aria-label="Message" placeholder={`Message ${friend.display_name}`} value={text} maxLength={2000} onChange={e=>setText(e.target.value)}/><button className="round-icon accent" aria-label="Send" disabled={sending||!text.trim()}><ArrowUp aria-hidden="true"/></button></form>
  </div>;
+}
+
+/** Comments on one workout: oldest first, mine or (on my workout) anyone's can be deleted. Kept in the feed's incremental sync. */
+function CommentsSheet({thread,onClose,uid,feed,profiles,avatar,onChange,onOpen}:{thread:{owner:string;workout:string;title:string}|null;onClose:()=>void;uid:string;feed:SocialFeed|null;profiles:P[];avatar:(p:P)=>React.ReactNode;onChange:()=>void;onOpen:(p:P)=>void}){
+ const c=client();const [text,setText]=useState(''),[sending,setSending]=useState(false),[error,setError]=useState(''),[removing,setRemoving]=useState<string|null>(null);
+ const list=thread&&feed?feed.commentsFor(thread.owner,thread.workout):[];
+ const end=useRef<HTMLDivElement>(null);
+ useEffect(()=>{end.current?.scrollIntoView({block:'end'})},[list.length,thread?.workout]);
+ useEffect(()=>{setText('');setError('')},[thread?.workout]);
+ async function send(){const body=text.trim();if(!thread||!feed||!body||sending)return;setSending(true);setError('');try{const row=await checked(c.from('mfd_comments').insert({owner_id:thread.owner,workout_id:thread.workout,body}).select('*').single());feed.comment(row);setText('');onChange()}catch(e){setError((e as Error).message)}finally{setSending(false)}}
+ async function remove(id:string){if(!feed)return;try{await checked(c.from('mfd_comments').delete().eq('id',id));feed.uncomment(id);onChange()}catch(e){setError((e as Error).message)}}
+ return <>
+  <Sheet open={!!thread} onClose={onClose} title={thread?.title?`Comments · ${thread.title}`:'Comments'} footer={<form className="comment-input" onSubmit={e=>{e.preventDefault();send()}}><input className="input" aria-label="Write a comment" placeholder="Write a comment" value={text} maxLength={500} onChange={e=>setText(e.target.value)}/><button className="round-icon accent" aria-label="Post comment" disabled={sending||!text.trim()}><ArrowUp aria-hidden="true"/></button></form>}>
+   <div className="comment-list">
+    {list.length===0&&<p className="small muted comment-empty">No comments yet</p>}
+    {list.map(x=>{const p=profiles.find(p=>p.user_id===x.user_id);const mayDelete=x.user_id===uid||thread?.owner===uid;return <div key={x.id} className="comment">
+     {p?<button className="comment-avatar" aria-label={`Open ${p.display_name}'s profile`} onClick={()=>{onClose();onOpen(p)}}>{avatar(p)}</button>:<span className="social-avatar">?</span>}
+     <div className="grow"><div className="comment-head"><strong>{p?.display_name??'Someone'}</strong><span>{ago(new Date(x.created_at).getTime())}</span></div><p>{x.body}</p></div>
+     {mayDelete&&<button className="icon-btn comment-delete" aria-label="Delete comment" onClick={()=>setRemoving(x.id)}><Trash2/></button>}
+    </div>})}
+    <div ref={end}/>
+   </div>
+   {error&&<p role="alert" className="social-error">{error}</p>}
+  </Sheet>
+  <ConfirmSheet open={!!removing} onClose={()=>setRemoving(null)} danger title="Delete this comment?" confirmLabel="Delete" onConfirm={()=>{if(removing)remove(removing);setRemoving(null)}}/>
+ </>;
 }

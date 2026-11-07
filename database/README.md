@@ -22,6 +22,13 @@ Verified using two synthetic users inside a rolled-back SQL transaction: owner r
 
 The app (`frontend/lib/socialFeed.ts`) keeps the last 7 days of the feed on the device and asks only for changes since its last check. Profiles load 20 workouts at a time. Tests: `database/tests/social-incremental.sql` (rolled-back transaction) and `tests/social-feed.cjs`.
 
+`social-comments.sql` (run after `social-incremental.sql`; safe to re-run, and the app works before and after it):
+
+- `mfd_comments`: comments on feed workouts, 1–500 characters. Read by the workout's owner and the owner's friends, except comments by someone either side blocked. Written by the owner and friends, as themselves. Deleted by the author or the workout's owner. Removed with their workout.
+- Deleting a comment leaves a `comment` row in `mfd_social_removals` (new `comment_id` column), so the feed downloads only changes.
+
+Tests: `database/tests/social-comments.sql` and the comment cases in `tests/social-feed.cjs`.
+
 # Required dashboard configuration
 
 Authentication > URL Configuration:

@@ -14,7 +14,7 @@ run_sql < database/tests/supabase-stubs.sql >/dev/null
 for f in schema shared-catalogue catalogue-photos social social-photos private-exercises private-photo-metadata sync-observability; do grep -v "create extension if not exists pg_cron" database/$f.sql | run_sql >/dev/null; done
 # Production-shaped diaries written before the new SQL, to rehearse the compaction migration.
 node tests/fixtures/prod-shape-seed.cjs | run_sql >/dev/null
-for f in social-incremental workspace-delta; do run_sql < database/$f.sql >/dev/null 2>&1 || { run_sql < database/$f.sql; exit 1; }; done
+for f in social-incremental social-comments workspace-delta; do run_sql < database/$f.sql >/dev/null 2>&1 || { run_sql < database/$f.sql; exit 1; }; done
 docker run -d --name $RESTC --network $NET -p 127.0.0.1:54330:3000 -e PGRST_DB_URI=postgres://authenticator:test@$DBC:5432/postgres -e PGRST_DB_SCHEMAS=public -e PGRST_DB_ANON_ROLE=anon -e PGRST_JWT_SECRET=local-test-secret-local-test-secret-123 postgrest/postgrest:v12.2.3 >/dev/null
 # Compaction migration: verified, and repeatable.
 run_sql < database/workspace-compact-migration.sql 2>&1 | grep -o "Compaction verified.*"

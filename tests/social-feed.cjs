@@ -9,7 +9,7 @@ const DAY=86400000;let now=Date.UTC(2026,10,6,12);let serverClock=now;
 const iso=t=>new Date(t).toISOString(),tick=()=>iso(serverClock+=40000);
 // After a change, one check 30 s+ later looks back for late commits; `settle` runs that check.
 const settle=async(f,owners)=>{for(let i=0;i<2;i++){now+=40000;await f.sync(c,owners)}log.length=0;now+=40000};
-const db={mfd_social_workouts:[],mfd_reactions:[],mfd_social_removals:[],mfd_workout_photos:[]};
+const db={mfd_social_workouts:[],mfd_reactions:[],mfd_social_removals:[],mfd_workout_photos:[],mfd_comments:[]};
 const log=[];// one entry per query: {table, rows}
 const ME='me',ANA='ana',BEN='ben';
 let friends=new Set([ANA,BEN]);
@@ -26,6 +26,8 @@ function post(owner,id,daysAgo,extra={}){const r={owner_id:owner,workout_id:id,s
 function remove(owner,id){db.mfd_social_workouts=db.mfd_social_workouts.filter(x=>!(x.owner_id===owner&&x.workout_id===id));db.mfd_reactions=db.mfd_reactions.filter(x=>!(x.owner_id===owner&&x.workout_id===id));db.mfd_social_removals.push({kind:'workout',owner_id:owner,workout_id:id,removed_at:tick()})}
 function react(user,owner,id){db.mfd_reactions.push({user_id:user,owner_id:owner,workout_id:id,created_at:tick()})}
 function unreact(user,owner,id){db.mfd_reactions=db.mfd_reactions.filter(x=>!(x.user_id===user&&x.owner_id===owner&&x.workout_id===id));db.mfd_social_removals.push({kind:'reaction',owner_id:owner,workout_id:id,user_id:user,removed_at:tick()})}
+let cid=0;function comment(user,owner,id,body){const x={id:'c'+(++cid),user_id:user,owner_id:owner,workout_id:id,body,created_at:tick()};db.mfd_comments.push(x);return x}
+function uncomment(x){db.mfd_comments=db.mfd_comments.filter(y=>y.id!==x.id);db.mfd_social_removals.push({kind:'comment',owner_id:x.owner_id,workout_id:x.workout_id,user_id:x.user_id,comment_id:x.id,removed_at:tick()})}
 function photo(owner,id,p){db.mfd_workout_photos=db.mfd_workout_photos.filter(x=>!(x.owner_id===owner&&x.workout_id===id));if(p)db.mfd_workout_photos.push({owner_id:owner,workout_id:id,path:p});const w=db.mfd_social_workouts.find(x=>x.owner_id===owner&&x.workout_id===id);if(w)w.updated_at=tick()}
 const storage=(()=>{const m=new Map();return {getItem:k=>m.has(k)?m.get(k):null,setItem:(k,v)=>m.set(k,String(v)),removeItem:k=>m.delete(k)}})();
 const downloaded=()=>log.filter(e=>e.table==='mfd_social_workouts').reduce((n,e)=>n+e.rows,0);
@@ -63,6 +65,17 @@ const ids=feed=>feed.feed().map(r=>r.workout_id).sort().join(',');
  react(ME,BEN,'b2');await reopened.sync(c,[ANA,BEN]);assert.equal(reopened.reactionList().filter(r=>r.workout_id==='b2').length,1);
  unreact(ME,BEN,'b2');await reopened.sync(c,[ANA,BEN]);assert.equal(reopened.reactionList().filter(r=>r.workout_id==='b2').length,0);
 
+ // Comments: arrive incrementally (one row each), survive a restart, and go when removed.
+ log.length=0;const hi=comment(ANA,BEN,'b2','Nice!');await reopened.sync(c,[ANA,BEN]);
+ assert.deepEqual(reopened.commentsFor(BEN,'b2').map(x=>x.body),['Nice!']);
+ assert.equal(log.filter(e=>e.table==='mfd_comments').reduce((n,e)=>n+e.rows,0),1,'one new comment, one download');
+ comment(ME,BEN,'b2','Thanks');await reopened.sync(c,[ANA,BEN]);
+ assert.deepEqual(reopened.commentsFor(BEN,'b2').map(x=>x.body),['Nice!','Thanks'],'oldest first');
+ assert.deepEqual(new SocialFeed(ME,()=>now,storage).commentsFor(BEN,'b2').map(x=>x.body),['Nice!','Thanks'],'comments saved with the feed');
+ uncomment(hi);await reopened.sync(c,[ANA,BEN]);assert.deepEqual(reopened.commentsFor(BEN,'b2').map(x=>x.body),['Thanks'],'removed comment disappears');
+ comment(ANA,'stranger','s1','not visible');await reopened.sync(c,[ANA,BEN]);assert.equal(reopened.commentsFor('stranger','s1').length,0,'only comments on visible workouts');
+ // This device's own comment shows at once.
+ reopened.comment({id:'local',user_id:ME,owner_id:BEN,workout_id:'b2',body:'mine',created_at:iso(now)});assert.equal(reopened.commentsFor(BEN,'b2').length,2);reopened.uncomment('local');
  // A deleted workout disappears with its reactions.
  remove(ANA,'a1');await reopened.sync(c,[ANA,BEN]);assert.equal(ids(reopened),'b1,b2,m1');assert.equal(reopened.reactionList().length,0);
 
@@ -84,7 +97,7 @@ const ids=feed=>feed.feed().map(r=>r.workout_id).sort().join(',');
  assert.equal(reopened.profile(ANA).find(r=>r.workout_id===oldest).data.name,'edited old','edit to a loaded profile workout arrives');
  let total=20;while(reopened.hasMore(ANA))total+=await reopened.loadProfile(c,ANA);
  assert.equal(total,121,'all of a profile (120 imported + a-old) loads in pages');
- assert.ok(!JSON.parse(storage.getItem('mfd-feed-v1:me')).rows.some(r=>r.workout_id.startsWith('import')),'profile pages are not saved on the device');
+ assert.ok(!JSON.parse(storage.getItem('mfd-feed-v2:me')).rows.some(r=>r.workout_id.startsWith('import')),'profile pages are not saved on the device');
 
  // Time passes: posts older than 7 days leave the feed.
  now+=6*DAY;serverClock=Math.max(serverClock,now);await reopened.sync(c,[ANA,BEN]);assert.equal(ids(reopened),'b2','aged-out posts leave the feed');
@@ -92,5 +105,5 @@ const ids=feed=>feed.feed().map(r=>r.workout_id).sort().join(',');
  // This device's own reaction shows immediately.
  reopened.react(BEN,'b2',true);assert.equal(reopened.reactionList().length,1);
 
- console.log('PASS incremental feed: 7-day window, saved on device, only changes downloaded, edits/photos/reactions/removals, unfriend, old imports skipped, profile paging, aging');
+ console.log('PASS incremental feed: 7-day window, saved on device, only changes downloaded, edits/photos/reactions/comments/removals, unfriend, old imports skipped, profile paging, aging');
 })().catch(e=>{console.error(e);process.exitCode=1});
