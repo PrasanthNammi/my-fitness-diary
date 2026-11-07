@@ -90,7 +90,7 @@ function Routes({ route }: { route: string[] }) {
       if (b === 'session' && c && d === 'edit') return <WorkoutEditor key={c} id={c} />;
       if (b === 'session' && c) return <SessionDetail id={c} />;
       return <ProgressHome tab={b === 'exercises' || b === 'body' ? b : 'summary'} />;
-    case 'friends':return <FriendsScreen username={b==='u'?c:undefined}/>;
+    case 'friends':return <FriendsScreen view={b==='u'&&c?{kind:'profile',username:c}:b==='chat'&&c?{kind:'chat',username:c}:b==='me'?{kind:'me'}:{kind:'feed'}}/>;
     case 'coach':
       return <AiAssistants />;
     case 'settings':
@@ -121,7 +121,7 @@ export function App() {
 
   const top = route[0] ?? 'today';
   const tab = top === 'workout' ? 'training' : top === 'coach' ? 'today' : top;
-  const focused = top === 'workout' || (top === 'training' && route[1] === 'routine');
+  const focused = top === 'workout' || (top === 'training' && route[1] === 'routine') || (top === 'friends' && route[1] === 'chat');
   const showResume = !!active && top !== 'workout';
 
   const navItems = (cls?: string) =>
