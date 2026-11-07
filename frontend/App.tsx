@@ -13,7 +13,7 @@ import { useRoute, navigate } from './lib/router';
 import { useNow } from './lib/hooks';
 import { duration, mss } from './lib/format';
 import { timerRemaining, timerState } from './domain/training';
-import { LogoFull, LogoMark, ToastHost } from './components/ui';
+import { LogoMark, ToastHost } from './components/ui';
 import { AuthScreen, SetPasswordScreen } from './screens/auth/AuthScreen';
 import { Onboarding } from './screens/auth/Onboarding';
 import { TodayScreen } from './screens/today/TodayScreen';
@@ -144,10 +144,6 @@ export function App() {
 
   return (
     <div className="app">
-      <nav className="sidebar" aria-label="Main">
-        <div className="logo"><LogoFull width={168} /></div>
-        {navItems()}
-      </nav>
       <header className="global-header">
         <span className="header-logo"><LogoMark width={86} /></span>
         <SyncStatus />
