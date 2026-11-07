@@ -236,4 +236,8 @@ export interface Settings {
   energyUnit: 'kcal' | 'kJ';
   defaultRestSec: number;
   coach: CoachConfig;
+  /** Keep the screen on while the workout screen is open (default on). */
+  keepAwake?: boolean;
+  /** Plate calculator: the bar and plates at the user's gym, in `unit`. */
+  plates?: { unit: 'kg' | 'lb'; bar: number; plates: number[] };
 }

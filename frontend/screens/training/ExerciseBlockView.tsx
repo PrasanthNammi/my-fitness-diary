@@ -3,7 +3,7 @@ import {useDB} from '../../data/store';
 import {ExercisePage} from './ExercisePage';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
-  Crown, ArrowDown, ArrowUp, Check, Info, Link2, Link2Off, NotebookPen, Plus, Repeat, Ruler, Timer, Trash2, X,
+  Crown, ArrowDown, Disc3, ArrowUp, Check, Info, Link2, Link2Off, NotebookPen, Plus, Repeat, Ruler, Timer, Trash2, X,
 } from 'lucide-react';
 import type { ExerciseBlock, RestTimer, SetEntry, Workout } from '../../domain/types';
 import {
@@ -13,6 +13,7 @@ import { OverflowMenu, Sheet, type MenuAction } from '../../components/ui';
 import { exercises, newSet } from '../../data/repositories';
 import { fmtNum, kgTo, mss, parseDecimal, parseMss, round1, toKg } from '../../lib/format';
 import { RestSheet, SetTypeSheet, TrackingSheet } from './SetSheets';
+import { PlateSheet } from './PlateSheet';
 import { ExerciseDetail, ExerciseThumb } from './ExercisePicker';
 
 const HEAD: Record<Field, (u: string) => string> = {
@@ -155,6 +156,13 @@ export function ExerciseBlockView(p: BlockProps) {
   const [trackOpen, setTrackOpen] = useState(false);
   const [detailOpen, setDetailOpen] = useState(false);
   const [noteOpen, setNoteOpen] = useState(false);
+  const [platesOpen, setPlatesOpen] = useState(false);
+  // Barbell-type exercises get the plate calculator, for the next set still to do (or the last one).
+  // Known equipment decides; with none recorded (e.g. imported by name), the name must not point elsewhere.
+  const equipment = (ex?.equipment ?? '').trim(), exName = ex?.name ?? '';
+  const loadable = fields.includes('weightKg') && (/barbell|ez.?bar|smith|trap bar|hex bar/i.test(equipment + ' ' + exName)
+    || (!equipment && !/dumbbell|cable|machine|kettlebell|band|pulldown|pushdown|bodyweight|assisted|pull.?up|chin.?up|dip/i.test(exName)));
+  const plateSet = block.sets.find((s) => !s.done && (s.weightKg ?? s.suggested?.weightKg) != null) ?? [...block.sets].reverse().find((s) => (s.weightKg ?? s.suggested?.weightKg) != null);
   const active = mode === 'active';
 
   const patchSet = (id: string, patch: Partial<SetEntry>) =>
@@ -174,6 +182,7 @@ export function ExerciseBlockView(p: BlockProps) {
   const menu: MenuAction[] = [
     { label: 'Replace exercise', icon: Repeat, onSelect: p.onReplace },
     { label: 'Exercise details', icon: Info, onSelect: () => setDetailOpen(true) },
+    ...(loadable ? [{ label: 'Plates', icon: Disc3, onSelect: () => setPlatesOpen(true) }] : []),
     { label: block.note ? 'Edit note' : 'Add note', icon: NotebookPen, onSelect: () => setNoteOpen(true) },
     { label: 'Tracking type', icon: Ruler, onSelect: () => setTrackOpen(true) },
     p.supersetLetter
@@ -323,6 +332,7 @@ export function ExerciseBlockView(p: BlockProps) {
         onReset={() => p.onTimer?.('reset')}
       />
       <TrackingSheet open={trackOpen} onClose={() => setTrackOpen(false)} value={block.tracking} onChange={(m) => p.onChange({ ...block, tracking: m })} />
+      {loadable && <PlateSheet open={platesOpen} onClose={() => setPlatesOpen(false)} weightKg={plateSet ? plateSet.weightKg ?? plateSet.suggested?.weightKg ?? null : null} />}
       {detailOpen&&ex&&<ExercisePage exercise={ex} onClose={()=>setDetailOpen(false)}/>}
     </section>
   );

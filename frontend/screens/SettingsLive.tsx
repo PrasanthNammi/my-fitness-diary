@@ -10,7 +10,7 @@ import {goBack,navigate} from '../lib/router';
 import {auth} from '../adapters/auth';
 import {useDB} from '../data/store';
 import {useTargets} from '../data/selectors';
-import {energyValue,fmtInt,fmtNum,kgTo} from '../lib/format';
+import {energyValue,fmtInt,fmtNum,kgTo,mss} from '../lib/format';
 
 type Item={icon:ReactNode;label:string;sub?:string;onClick:()=>void;danger?:boolean;dot?:boolean};
 function Rows({items}:{items:Item[]}){return <div className="card settings-rows">{items.map(it=><button key={it.label} className={'settings-row'+(it.danger?' danger':'')} aria-label={it.dot?`${it.label} · needs attention`:undefined} onClick={it.onClick}>
@@ -51,7 +51,7 @@ export function SettingsLive({section}:{section:string|null}){
   {title:'You',items:[
    {icon:<UserRound/>,label:'Profile',sub:profile?[profile.name,`${fmtInt(profile.heightCm)} cm`,`${fmtNum(kgTo(profile.weightKg,settings.weightUnit),1)} ${settings.weightUnit}`].filter(Boolean).join(' · '):'Set up your profile',onClick:go('profile')},
    {icon:<Goal/>,label:'Targets',sub:t?`${fmtInt(energyValue(t.kcal,settings.energyUnit))} ${settings.energyUnit} · P ${t.protein} · C ${t.carbs} · F ${t.fat}`:undefined,onClick:go('targets')},
-   {icon:<Ruler/>,label:'Units',sub:`${settings.weightUnit} · ${settings.energyUnit}`,onClick:go('units')}]},
+   {icon:<Ruler/>,label:'Units & workout',sub:`${settings.weightUnit} · ${settings.energyUnit} · rest ${mss(settings.defaultRestSec)}`,onClick:go('units')}]},
   {title:'App',items:[
    {icon:<Palette/>,label:'Appearance',sub:appearance(),onClick:go('appearance')},
    {icon:<Bell/>,label:'Notifications',sub:'Rest timer',onClick:go('notifications')},

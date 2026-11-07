@@ -8,7 +8,7 @@ import { ConfirmSheet, Empty, Field, InfoButton, Notice, Sheet, toast } from '..
 import { useDB } from '../../data/store';
 import { routineFromWorkout, training, workouts } from '../../data/repositories';
 import { duration, fmtVolume } from '../../lib/format';
-import { useNow } from '../../lib/hooks';
+import { useNow, useWakeLock } from '../../lib/hooks';
 import { goBack, navigate } from '../../lib/router';
 import { ExerciseBlockView } from './ExerciseBlockView';
 import { ExercisePicker } from './ExercisePicker';
@@ -22,6 +22,8 @@ export function ActiveWorkoutScreen() {
   const history = useDB((d) => d.workouts);
   const folders = useDB((d) => d.folders);
   const weightUnit = useDB((d) => d.settings.weightUnit);
+  const keepAwake = useDB((d) => d.settings.keepAwake !== false);
+  useWakeLock(keepAwake && !!a);
   const now = useNow(1000, !!a);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [replaceId, setReplaceId] = useState<string | null>(null);
