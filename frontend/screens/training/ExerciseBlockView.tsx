@@ -11,7 +11,7 @@ import {
 } from '../../domain/training';
 import { OverflowMenu, Sheet, type MenuAction } from '../../components/ui';
 import { exercises, newSet } from '../../data/repositories';
-import { fmtNum, kgTo, mss, parseDecimal, parseMss, round1, toKg } from '../../lib/format';
+import { fmtNum, kgTo, mss, parseDecimal, parseMss, roundWeight, toKg } from '../../lib/format';
 import { RestSheet, SetTypeSheet, TrackingSheet } from './SetSheets';
 import { PlateSheet } from './PlateSheet';
 import { ExerciseDetail, ExerciseThumb } from './ExercisePicker';
@@ -32,7 +32,7 @@ function CellInput({
   const toText = (v: number | null) => {
     if (v == null) return '';
     if (field === 'timeSec') return mss(v);
-    if (field === 'weightKg') return String(round1(kgTo(v, unit)));
+    if (field === 'weightKg') return String(roundWeight(kgTo(v, unit)));
     return String(v);
   };
   const [text, setText] = useState(toText(value));
@@ -91,7 +91,7 @@ function CellInput({
 
 function suggestedText(field: Field, value: number | null, unit: 'kg' | 'lb'): string {
   if (value == null) return field === 'timeSec' ? 'm:ss' : '–';
-  if (field === 'weightKg') return String(round1(kgTo(value, unit)));
+  if (field === 'weightKg') return String(roundWeight(kgTo(value, unit)));
   return field === 'timeSec' ? mss(value) : String(value);
 }
 

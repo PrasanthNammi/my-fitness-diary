@@ -13,7 +13,7 @@ import { EQUIPMENT, MUSCLES, SOURCE_LABEL, SOURCE_ORDER } from '../../data/exerc
 import { exercises, newBlock, TRACKING_MODES } from '../../data/repositories';
 import { Empty, Field, InfoButton, Notice, SelectField, Sheet } from '../../components/ui';
 import { useDB } from '../../data/store';
-import { mss, parseDecimal, parseMss, round1, toKg } from '../../lib/format';
+import { mss, parseDecimal, parseMss, toKg } from '../../lib/format';
 
 export function ExerciseDetail({ex}:{ex:Exercise}){return <ExerciseGuide exercise={ex}/>}
 
@@ -262,7 +262,7 @@ function AddConfig({ ex, defaultRest, weightUnit, onAdd, replace, initialSets }:
     if (restSec === null || restSec > 3600) return setErr('Enter rest as m:ss, e.g. 1:30.');
     const w = weight.trim() ? parseDecimal(weight) : null;
     if (weight.trim() && (w === null || w < 0)) return setErr('Weight must be a positive number.');
-    onAdd(newBlock(ex, { sets, reps: fields.includes('reps') ? reps : null, weightKg: w === null ? null : round1(toKg(w, weightUnit) * 10) / 10, restSec }));
+    onAdd(newBlock(ex, { sets, reps: fields.includes('reps') ? reps : null, weightKg: w === null ? null : Math.round(toKg(w, weightUnit) * 1000) / 1000, restSec }));
   };
 
   return (
