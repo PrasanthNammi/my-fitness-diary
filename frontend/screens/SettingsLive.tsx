@@ -72,7 +72,7 @@ export function SettingsLive({section}:{section:string|null}){
      <ChevronRight className="chev" aria-hidden="true"/>
     </button>
     {groups.map(g=><section key={g.title} className="settings-group"><div className="eyebrow">{g.title}</div><Rows items={g.items}/></section>)}
-    <p className="settings-version">My Fitness Diary 1.0</p>
+    <p className="settings-version">My Fitness Diary 1.1</p>
    </>}
   </div>
   <input ref={file} type="file" accept=".json,application/json" hidden onChange={async e=>{let f=e.target.files?.[0];e.target.value='';if(!f)return;setImporting(false);try{await engine().restore(f);openTool('restore')}catch(error){toast(error instanceof Error?error.message:'Import failed')}}}/>
