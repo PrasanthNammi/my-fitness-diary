@@ -1,14 +1,18 @@
-import { useEffect, useState } from 'react';
-import { ChevronDown, FolderInput, FolderPlus, Pencil, Play, Plus, SquarePen, Trash2, Type } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
+import { ChevronDown, ClipboardList, Dumbbell, Folder as FolderIcon, FolderInput, FolderPlus, Pencil, Play, Plus, SquarePen, Trash2, Type } from 'lucide-react';
 import type { Folder, Routine } from '../../domain/types';
-import { AiBadge, ConfirmSheet, OverflowMenu, Sheet, TopBar, toast, Field } from '../../components/ui';
+import { SuggestionChip } from './SuggestionReview';
+import { AiBadge, ConfirmSheet, Empty, OverflowMenu, Segmented, Sheet, TabChips, TopBar, toast, Field } from '../../components/ui';
 import { useDB } from '../../data/store';
-import { exerciseName, training, workouts } from '../../data/repositories';
+import { exerciseName, exercises, training, workouts } from '../../data/repositories';
+import { countSets, workingVolume } from '../../domain/training';
+import { duration, fmtVolume } from '../../lib/format';
+import { ExerciseThumb } from './ExercisePicker';
 import { navigate } from '../../lib/router';
 import { blockSummary, FolderChoice, folderNameError, resolveFolderChoice, type FolderChoiceValue } from './common';
 import { RenameSheet } from './ActiveWorkout';
 
-export function TrainingHome() {
+export function TrainingHome({ tab = 'routines' }: { tab?: 'routines' | 'history' }) {
   const folders = useDB((d) => d.folders);
   const routines = useDB((d) => d.routines);
   const active = useDB((d) => d.active);
@@ -26,62 +30,69 @@ export function TrainingHome() {
 
   return (
     <>
-      <TopBar title="Empty workout" />
-      <div className="screen">
-        <button className="btn btn-secondary btn-block" aria-label="Start empty workout" onClick={() => start(null)}>
-          <Plus /> Start Empty Workout
-        </button>
+      <TopBar title="Training" />
+      <div className="screen training-home">
+        <TabChips label="Training view" value={tab} onChange={(v) => navigate(v === 'history' ? '/training/history' : '/training', { replace: true })}
+          options={[{ value: 'routines', label: 'Routines' }, { value: 'history', label: 'History' }]} />
 
-        <div className="section-title">
-          <h2>Routines</h2>
-          <button className="icon-btn" aria-label="New folder" onClick={() => setFolderSheet({ mode: 'create' })}>
-            <FolderPlus />
+        {tab === 'history' ? <WorkoutHistory onStart={() => start(null)} /> : <>
+          <button className="start-hero" onClick={() => start(null)}>
+            <span className="start-hero-icon"><Play aria-hidden="true" /></span>
+            <span className="start-hero-label">Start empty workout</span>
           </button>
-        </div>
+          <div className="training-actions">
+            <button className="btn btn-soft" onClick={() => navigate('/training/routine/new/root')}><Plus aria-hidden="true" />New routine</button>
+            <button className="btn btn-soft" onClick={() => setFolderSheet({ mode: 'create' })}><FolderPlus aria-hidden="true" />New folder</button>
+          </div>
 
-        <div className="stack" style={{ gap: 8 }}>
           {folders.map((f) => {
             const inFolder = routines.filter((r) => r.folderId === f.id);
             const expanded = !f.collapsed;
             return (
-              <div key={f.id}>
-                <div className="row" style={{ gap: 0 }}>
-                  <button className="folder-head grow" aria-expanded={expanded} onClick={() => training.toggleFolder(f.id)}>
-                    <ChevronDown className="chev" />
-                    <span className="fname ellipsis">{f.name}</span>
-                    <span className="small muted" style={{ flex: 'none' }}>({inFolder.length})</span>
+              <section key={f.id} className="folder-section">
+                <div className="folder-row">
+                  <button className="folder-toggle" aria-expanded={expanded} onClick={() => training.toggleFolder(f.id)}>
+                    <FolderIcon className="folder-icon" aria-hidden="true" />
+                    <span className="folder-name ellipsis">{f.name}</span>
+                    <span className="count-chip">{inFolder.length}</span>
+                    <ChevronDown className={`chev${expanded ? '' : ' closed'}`} aria-hidden="true" />
                   </button>
                   <OverflowMenu
+                    small
                     title={f.name}
                     label={`Folder options for ${f.name}`}
                     actions={[
+                      { label: 'New routine here', icon: Plus, onSelect: () => navigate(`/training/routine/new/${f.id}`) },
                       { label: 'Rename folder', icon: Pencil, onSelect: () => setFolderSheet({ mode: 'rename', folder: f }) },
                       { label: 'Delete folder', icon: Trash2, onSelect: () => setDeleteFolder(f), danger: true },
                     ]}
                   />
                 </div>
                 {expanded && (
-                  <div className="folder-body">
+                  <div className="routine-list">
                     {inFolder.map((r) => <RoutineCard key={r.id} r={r} folders={folders} onStart={() => start(r)} />)}
-                    <button className="btn btn-sm dashed-btn btn-block" onClick={() => navigate(`/training/routine/new/${f.id}`)}>
-                      <Plus /> Create Routine
-                    </button>
+                    {inFolder.length === 0 && (
+                      <button className="folder-empty" onClick={() => navigate(`/training/routine/new/${f.id}`)}><Plus aria-hidden="true" />Create routine</button>
+                    )}
                   </div>
                 )}
-              </div>
+              </section>
             );
           })}
 
-          {folders.length > 0 && root.length > 0 && <div className="label" style={{ marginTop: 6 }}>Other routines</div>}
-          {root.map((r) => <RoutineCard key={r.id} r={r} folders={folders} onStart={() => start(r)} />)}
+          {root.length > 0 && (
+            <section className="folder-section">
+              {folders.length > 0 && <div className="folder-row"><span className="folder-toggle static"><FolderIcon className="folder-icon" aria-hidden="true" /><span className="folder-name">Other routines</span><span className="count-chip">{root.length}</span></span></div>}
+              <div className="routine-list">
+                {root.map((r) => <RoutineCard key={r.id} r={r} folders={folders} onStart={() => start(r)} />)}
+              </div>
+            </section>
+          )}
 
           {routines.length === 0 && folders.length === 0 && (
-            <p className="small muted" style={{ margin: '0 0 4px' }}>Create a routine to plan workouts you repeat.</p>
+            <Empty icon={Dumbbell} title="No routines yet" action={<button className="btn btn-primary" onClick={() => navigate('/training/routine/new/root')}><Plus aria-hidden="true" />Create routine</button>} />
           )}
-          <button className="btn btn-secondary btn-block" onClick={() => navigate('/training/routine/new/root')}>
-            <Plus /> Create Routine
-          </button>
-        </div>
+        </>}
       </div>
 
       <FolderNameSheet state={folderSheet} folders={folders} onClose={() => setFolderSheet(null)} />
@@ -121,19 +132,25 @@ function RoutineCard({ r, folders, onStart }: { r: Routine; folders: Folder[]; o
   const [rename, setRename] = useState(false);
   const [move, setMove] = useState(false);
   const [del, setDel] = useState(false);
-  const preview = r.exercises.map((b) => exerciseName(b.exerciseId)).join(', ');
+  const preview = r.exercises.map((b) => exerciseName(b.exerciseId)).join(' · ');
+  const thumbs = r.exercises.slice(0, 3);
+  const view = () => navigate(`/training/routine/view/${r.id}`);
   return (
     <div className="card routine-card">
-      <div className="row" style={{ alignItems: 'flex-start' }}>
-        <button className="routine-open grow" aria-label={`View ${r.name}`} onClick={() => navigate(`/training/routine/view/${r.id}`)}>
-          <div className="name ellipsis">{r.name}</div>
-          <div className="meta">{blockSummary(r.exercises)}<AiBadge addedBy={r.addedBy} /></div>
+      <div className="routine-card-head">
+        <button className="routine-open" aria-label={`View ${r.name}`} onClick={view}>
+          {thumbs.length > 0 && <span className="thumb-stack" aria-hidden="true">{thumbs.map((b) => <ExerciseThumb key={b.id} exercise={exercises.byId(b.exerciseId)} />)}</span>}
+          <span className="routine-card-text">
+            <span className="name ellipsis">{r.name}</span>
+            <span className="meta">{blockSummary(r.exercises)}<AiBadge addedBy={r.addedBy} /></span>
+          </span>
         </button>
         <OverflowMenu
           small
           title={r.name}
           label={`Routine options for ${r.name}`}
           actions={[
+            { label: 'Start workout', icon: Play, onSelect: onStart },
             { label: 'Edit routine', icon: SquarePen, onSelect: () => navigate(`/training/routine/edit/${r.id}`) },
             { label: 'Rename', icon: Type, onSelect: () => setRename(true) },
             { label: 'Move to folder', icon: FolderInput, onSelect: () => setMove(true) },
@@ -141,13 +158,56 @@ function RoutineCard({ r, folders, onStart }: { r: Routine; folders: Folder[]; o
           ]}
         />
       </div>
-      {preview && <button className="routine-open preview" aria-label={`View exercises in ${r.name}`} onClick={() => navigate(`/training/routine/view/${r.id}`)}>{preview}</button>}
-      <button className="btn btn-primary btn-sm btn-block" style={{ marginTop: 10 }} onClick={onStart}>
-        <Play /> Start Workout
+      <SuggestionChip routineId={r.id} />
+      {preview && <button className="routine-open preview" aria-label={`View exercises in ${r.name}`} onClick={view}>{preview}</button>}
+      <button className="btn btn-dark btn-block routine-start" onClick={onStart}>
+        <Play aria-hidden="true" /><span className="ellipsis">Start {r.name}</span>
       </button>
       <RenameSheet open={rename} onClose={() => setRename(false)} value={r.name} title="Rename routine" onSave={(v) => (training.renameRoutine(r.id, v), toast('Routine renamed'))} />
       <MoveSheet open={move} onClose={() => setMove(false)} routine={r} folders={folders} />
       <ConfirmSheet open={del} onClose={() => setDel(false)} title={`Delete “${r.name}”?`} body="Your workout history is kept." confirmLabel="Delete" danger onConfirm={() => (training.deleteRoutine(r.id), toast('Routine deleted'))} />
+    </div>
+  );
+}
+
+const HISTORY_PAGE = 30;
+/** Finished workouts, newest first, grouped by month; shows 30 at a time so long histories stay fast. */
+function WorkoutHistory({ onStart }: { onStart: () => void }) {
+  const all = useDB((d) => d.workouts);
+  const unit = useDB((d) => d.settings.weightUnit);
+  const [shown, setShown] = useState(HISTORY_PAGE);
+  const list = useMemo(() => [...all].sort((a, b) => b.startedAt - a.startedAt), [all]);
+  if (!list.length) return <Empty icon={ClipboardList} title="No workouts yet" action={<button className="btn btn-primary" onClick={onStart}><Play aria-hidden="true" />Start a workout</button>} />;
+  const monthOf = (t: number) => new Date(t).toLocaleDateString(undefined, { month: 'long', year: 'numeric' });
+  const counts = new Map<string, number>();
+  for (const w of list) counts.set(monthOf(w.startedAt), (counts.get(monthOf(w.startedAt)) ?? 0) + 1);
+  let previous = '';
+  return (
+    <div className="history-list">
+      {list.slice(0, shown).map((w) => {
+        const month = monthOf(w.startedAt), head = month !== previous;
+        previous = month;
+        const sets = countSets(w.exercises, true);
+        return (
+          <div key={w.id}>
+            {head && <div className="eyebrow history-month">{month} · {counts.get(month)} {counts.get(month) === 1 ? 'workout' : 'workouts'}</div>}
+            <button className="card history-card" onClick={() => navigate(`/training/history/${w.id}`)}>
+              <span className="history-card-top">
+                <span className="name ellipsis">{w.title}</span>
+                <span className="date">{new Date(w.startedAt).toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', month: 'short' })}</span>
+              </span>
+              <span className="history-stats tnum">
+                <span><b>{duration((w.endedAt - w.startedAt) / 1000)}</b></span>
+                <span><b>{fmtVolume(workingVolume(w.exercises), unit)}</b></span>
+                <span><b>{sets}</b> {sets === 1 ? 'set' : 'sets'}</span>
+                <AiBadge addedBy={w.addedBy} />
+              </span>
+              <span className="history-exercises ellipsis">{w.exercises.map((b) => exerciseName(b.exerciseId)).join(' · ')}</span>
+            </button>
+          </div>
+        );
+      })}
+      {shown < list.length && <button className="btn btn-soft btn-block" onClick={() => setShown((n) => n + HISTORY_PAGE)}>Show more</button>}
     </div>
   );
 }

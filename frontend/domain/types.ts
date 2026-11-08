@@ -76,6 +76,12 @@ export interface SetEntry {
   steps?: number | null;
   rpe: number | null;
   done: boolean;
+  /** The faded values come from an AI suggestion the user chose to use (shown with a sparkle). */
+  aiTarget?: boolean;
+  /** The faded values before the AI targets were applied (restored if the suggestion is dismissed). */
+  aiPrev?: SetEntry['suggested'] | null;
+  /** A set the AI suggestion added (removed again on dismiss unless ticked or typed in). */
+  aiAdded?: boolean;
 }
 
 export interface ExerciseBlock {
@@ -184,14 +190,22 @@ export interface WeightEntry {
   addedBy?: AddedBy;
 }
 
+/**
+ * A dated check-in, stored in the same shape the older screens used: recovery (sleep in hours, steps,
+ * energy and soreness 1–5, a note) and/or body measurements in cm. Older entries may hold numbers as text.
+ */
 export interface CheckIn {
   id: ID;
   date: ISODate;
-  sleep: number; // 1–5
-  energy: number;
-  soreness: number;
-  stress: number;
-  note: string;
+  sleep?: number | string | null; // hours
+  steps?: number | string | null;
+  energy?: number | null; // 1–5
+  soreness?: number | null; // 1–5
+  waist?: number | string | null; // cm
+  chest?: number | string | null;
+  hips?: number | string | null;
+  arms?: number | string | null;
+  note?: string;
 }
 
 // ── Coach ─────────────────────────────────────────────────────────
@@ -228,4 +242,12 @@ export interface Settings {
   energyUnit: 'kcal' | 'kJ';
   defaultRestSec: number;
   coach: CoachConfig;
+  /** Keep the screen on while the workout screen is open (default on). */
+  keepAwake?: boolean;
+  /** Vibrate when a set is ticked and when rest ends (default on). */
+  vibrate?: boolean;
+  /** Body measurements shown in centimetres or inches (stored in cm). */
+  lengthUnit?: 'cm' | 'in';
+  /** Plate calculator: the bar and plates at the user's gym, in `unit`. */
+  plates?: { unit: 'kg' | 'lb'; bar: number; plates: number[] };
 }

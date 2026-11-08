@@ -85,7 +85,12 @@ export function fmtNum(n: number | null | undefined, digits = 1): string {
 export const LB_PER_KG = 2.20462;
 export const kgTo = (kg: number, unit: 'kg' | 'lb') => (unit === 'kg' ? kg : kg * LB_PER_KG);
 export const toKg = (v: number, unit: 'kg' | 'lb') => (unit === 'kg' ? v : v / LB_PER_KG);
+export const CM_PER_IN = 2.54;
+export const cmTo = (cm: number, unit: 'cm' | 'in') => (unit === 'cm' ? cm : cm / CM_PER_IN);
+export const toCm = (v: number, unit: 'cm' | 'in') => (unit === 'cm' ? v : v * CM_PER_IN);
 export const round1 = (n: number) => Math.round(n * 10) / 10;
+/** Gym weights keep two decimals (21.25 kg, 1.25 kg plates); body weight uses round1. */
+export const roundWeight = (n: number) => Math.round(n * 100) / 100;
 export function fmtWeight(kg: number | null, unit: 'kg' | 'lb'): string {
   if (kg === null) return '—';
   return `${fmtNum(kgTo(kg, unit), 1)} ${unit}`;

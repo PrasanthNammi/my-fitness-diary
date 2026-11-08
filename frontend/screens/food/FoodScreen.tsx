@@ -1,13 +1,13 @@
 import {NutritionSummary} from './NutritionSummary';
 import {foodSummary} from '../../domain/foodSummary';
-import {ChartNoAxesColumnIncreasing,ChevronUp,ChevronDown,ChevronRight,X} from 'lucide-react';
+import {ChartNoAxesColumnIncreasing,ChevronDown,ChevronRight,X} from 'lucide-react';
 import {engine,openTool} from '../../adapters/engine';
 import {foodIn} from '../../adapters/compat';
 import {Camera,Copy,Flag} from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Pencil, Plus, ScanBarcode, Search, SearchX, Star, Trash2, UtensilsCrossed } from 'lucide-react';
 import type { DiaryEntry, Food, Meal, PortionUnit } from '../../domain/types';
-import { allowedUnits } from '../../domain/nutrition';
+import { allowedUnits, withServingWeight, fibreTarget } from '../../domain/nutrition';
 import { AiBadge, ConfirmSheet, Empty, OverflowMenu, Segmented, Sheet, TopBar, toast } from '../../components/ui';
 import { DateStrip } from '../../components/DateStrip';
 import { useDB } from '../../data/store';
@@ -36,28 +36,53 @@ export function FoodScreen() {
   const t = useTargets()?.targets;
   const eU = useDB(d=>d.settings.energyUnit);
   const [pickerMeal,setPickerMeal]=useState<Meal|null>(null),[editing,setEditing]=useState<DiaryEntry|null>(null),[copyMeal,setCopyMeal]=useState<Meal|null>(null);
-  const [expanded,setExpanded]=useState<Set<Meal>>(()=>new Set(['breakfast'])),[summary,setSummary]=useState(false);
-  const [feedback,setFeedback]=useState<{text:string;entry:DiaryEntry;kind:'add'|'remove'}|null>(null);
+  const [expanded,setExpanded]=useState<Set<Meal>>(()=>new Set(MEALS.map(m=>m.id))),[summary,setSummary]=useState(false);
+  const [feedback,setFeedback]=useState<{text:string;entry:DiaryEntry;kind:'add'|'remove';at?:number}|null>(null);
+  const allEntries=useDB(d=>d.diary);
   useEffect(()=>setFeedback(null),[date]);
-  function remove(entry:DiaryEntry){diary.remove(entry.id);setFeedback({text:`Removed ${entry.food.name}`,entry,kind:'remove'})}
+  function remove(entry:DiaryEntry){const at=allEntries.findIndex(e=>e.id===entry.id);diary.remove(entry.id);setFeedback({text:`Removed ${entry.food.name}`,entry,kind:'remove',at})}
   function added(entry:DiaryEntry){setExpanded(old=>new Set([...old,entry.meal]));setFeedback({text:`Added ${entry.food.name} to ${MEALS.find(m=>m.id===entry.meal)?.label}`,entry,kind:'add'})}
-  const macroCells=(values:{protein:number;carbs:number;fat:number;fibre:number|null})=><div className="food-macro-grid">{([['Protein',values.protein],['Carbs',values.carbs],['Fats',values.fat],['Fibre',values.fibre]] as const).map(([name,value])=><span key={name}><small>{name}</small><strong>{value==null?'—':fmtNum(value,1)}</strong></span>)}</div>;
+  const left=t?t.kcal-total.kcal:0;
+  const macroTotals=([['Protein',total.protein,t?.protein,'var(--protein)'],['Carbs',total.carbs,t?.carbs,'var(--carbs)'],['Fat',total.fat,t?.fat,'var(--fat)'],['Fibre',fibre.grams,t?fibreTarget(t.kcal):null,'var(--fibre)']] as const);
   return <div className="food-log-page">
-    <TopBar title="Food" actions={<button className="food-summary-link" onClick={()=>setSummary(true)}><ChartNoAxesColumnIncreasing size={16}/> Summary</button>}/>
+    <TopBar title="Food" actions={<button className="btn btn-soft btn-sm food-summary-btn" onClick={()=>setSummary(true)}><ChartNoAxesColumnIncreasing aria-hidden="true"/>Summary</button>}/>
     <div className="screen food-log-screen"><DateStrip date={date}/>
-    {feedback&&<div className="food-feedback" role="status"><span>{feedback.text}</span><button onClick={()=>{if(feedback.kind==='add')diary.remove(feedback.entry.id);else diary.restore(feedback.entry);setFeedback(null)}}>Undo</button><button className="icon-btn" aria-label="Dismiss confirmation" onClick={()=>setFeedback(null)}><X size={16}/></button></div>}
-    <div className="food-section-label">Your meals</div>
-    {MEALS.map(m=>{const list=byMeal[m.id],values=foodSummary(list).values,open=expanded.has(m.id);return <section key={m.id} className="food-meal" aria-label={m.label}>
-      <div className="food-meal-header"><button className="food-meal-toggle" aria-expanded={open} aria-controls={`meal-${m.id}`} onClick={()=>setExpanded(old=>{const next=new Set(old);next.has(m.id)?next.delete(m.id):next.add(m.id);return next})}><span className="food-meal-title">{m.label}{open?<ChevronUp size={16}/>:<ChevronDown size={16}/>}</span><span className="food-meal-energy">{fmtInt(energyValue(values.kcal.value??0,eU))} {eU} · {list.length} {list.length===1?'food':'foods'}</span></button>{list.length>0&&<button className="icon-btn food-meal-add" aria-label={`Copy ${m.label}`} onClick={()=>setCopyMeal(m.id)}><Copy size={18}/></button>}<button className="icon-btn food-meal-add" aria-label={`Add food to ${m.label}`} onClick={()=>setPickerMeal(m.id)}><Plus size={20}/></button></div>
-      {macroCells({protein:values.protein.value??0,carbs:values.carbs.value??0,fat:values.fat.value??0,fibre:values.fibre.value})}
-      <div id={`meal-${m.id}`} hidden={!open}>{list.map(entry=>{const n=entryNutrients(entry);return <div className="food-log-entry" key={entry.id}><button className="food-entry-edit" onClick={()=>setEditing(entry)} aria-label={`Edit ${entry.food.name}`}><span className="food-entry-name">{entry.food.name}</span><span className="food-entry-portion">{portionText(entry)} · {fmtInt(energyValue(n.kcal,eU))} {eU}<AiBadge addedBy={entry.addedBy} /></span><span className="food-entry-values">{[n.protein,n.carbs,n.fat,n.fibre].map((v,i)=><span key={i}>{v==null?'—':fmtNum(v,1)} <small>{['protein','carbs','fats','fibre'][i]}</small></span>)}</span></button><button className="icon-btn food-entry-remove" aria-label={`Remove ${entry.food.name}`} onClick={()=>remove(entry)}><X size={17}/></button></div>})}{!list.length&&<p className="food-empty-meal">No foods logged</p>}</div>
+    {feedback&&<div className="food-feedback" role="status"><span>{feedback.text}</span><button onClick={()=>{if(feedback.kind==='add')diary.remove(feedback.entry.id);else diary.restore(feedback.entry,feedback.at);setFeedback(null)}}>Undo</button><button className="icon-btn" aria-label="Dismiss confirmation" onClick={()=>setFeedback(null)}><X size={16}/></button></div>}
+    <section className="card food-day" aria-label="Daily nutrition totals">
+      <div className="food-day-top">
+        <div><span className="eyebrow">Eaten</span><div className="tnum"><span className="big">{fmtInt(energyValue(total.kcal,eU))}</span>{t&&<span className="of"> / {fmtInt(energyValue(t.kcal,eU))} {eU}</span>}</div></div>
+        {t&&<span className={`food-day-left tnum ${left<0?'over':''}`}>{fmtInt(energyValue(Math.abs(left),eU))} {eU} {left<0?'over':'left'}</span>}
+      </div>
+      {t&&<div className="food-day-bar"><span className={left<0?'over':''} style={{width:`${Math.min(100,t.kcal>0?total.kcal/t.kcal*100:0)}%`}}/></div>}
+      <div className="food-day-macros">{macroTotals.map(([name,value,goal,color])=><div key={name}>
+        <span className="n"><i style={{background:color}}/>{name}</span>
+        <span className="v tnum"><b>{value==null?'—':fmtInt(value)}</b>{goal!=null&&<small>/{fmtInt(goal)} g</small>}{goal==null&&value!=null&&<small> g</small>}</span>
+        <span className="track">{goal!=null&&value!=null&&<span style={{width:`${Math.min(100,goal>0?value/goal*100:0)}%`,background:color}}/>}</span>
+      </div>)}</div>
+      <button className="btn btn-link food-all-nutrients" onClick={()=>setSummary(true)}>{fibre.missing>0&&total.kcal>0?'Fibre incomplete · ':''}All nutrients<ChevronRight aria-hidden="true"/></button>
+    </section>
+    {MEALS.map(m=>{const list=byMeal[m.id],values=foodSummary(list).values,open=expanded.has(m.id);return <section key={m.id} className="card food-meal" aria-label={m.label}>
+      <div className="food-meal-header">
+        <button className="food-meal-toggle" aria-expanded={open} aria-controls={`meal-${m.id}`} onClick={()=>setExpanded(old=>{const next=new Set(old);next.has(m.id)?next.delete(m.id):next.add(m.id);return next})}>
+          <span className="food-meal-title">{m.label}<ChevronDown className={open?'':'closed'} aria-hidden="true"/></span>
+          <span className="food-meal-energy tnum">{fmtInt(energyValue(values.kcal.value??0,eU))} {eU} · {list.length} {list.length===1?'food':'foods'}{list.length>0&&` · P ${fmtInt(values.protein.value??0)} · C ${fmtInt(values.carbs.value??0)} · F ${fmtInt(values.fat.value??0)}`}</span>
+        </button>
+        {list.length>0&&<button className="round-icon" aria-label={`Copy ${m.label}`} onClick={()=>setCopyMeal(m.id)}><Copy aria-hidden="true"/></button>}
+        <button className="round-icon accent" aria-label={`Add food to ${m.label}`} onClick={()=>setPickerMeal(m.id)}><Plus aria-hidden="true"/></button>
+      </div>
+      <div id={`meal-${m.id}`} hidden={!open||!list.length} className="food-entries">{list.map(entry=>{const n=entryNutrients(entry);return <div className="food-log-entry" key={entry.id}>
+        <button className="food-entry-edit" onClick={()=>setEditing(entry)} aria-label={`Edit ${entry.food.name}`}>
+          <span className="food-entry-text"><span className="food-entry-name"><span className="ellipsis">{entry.food.name}</span><AiBadge addedBy={entry.addedBy} /></span><span className="food-entry-portion tnum">{portionText(entry)} · P {fmtNum(n.protein,1)} · C {fmtNum(n.carbs,1)} · F {fmtNum(n.fat,1)}</span></span>
+          <span className="food-entry-kcal tnum"><b>{fmtInt(energyValue(n.kcal,eU))}</b> {eU}</span>
+        </button>
+        <button className="icon-btn food-entry-remove" aria-label={`Remove ${entry.food.name}`} onClick={()=>remove(entry)}><X size={16}/></button>
+      </div>})}</div>
     </section>})}
-    <section className="food-daily-summary" aria-label="Daily nutrition totals"><div className="food-total-grid">{([[eU,energyValue(total.kcal,eU),t?energyValue(t.kcal,eU):null],['Protein',total.protein,t?.protein],['Carbs',total.carbs,t?.carbs],['Fats',total.fat,t?.fat]] as const).map(([name,value,goal])=><div key={name}><div className="food-meter"><span style={{width:`${goal?Math.min(100,value/goal*100):0}%`}}/></div><span>{name}</span><strong>{fmtInt(value)}</strong>{goal!=null&&<small>/ {fmtInt(goal)}{name===eU?'':' g'}</small>}</div>)}</div><div className="food-summary-footer"><span>Fibre {fibre.grams==null?'—':`${fmtNum(fibre.grams,1)} g`}{fibre.missing>0?' · some values missing':''}</span><button onClick={()=>setSummary(true)}>All nutrients <ChevronRight size={14}/></button></div></section>
     </div>
     <FoodPicker meal={pickerMeal} date={date} onClose={()=>setPickerMeal(null)} onAdded={added}/>
     <CopyMealSheet entries={copyMeal?byMeal[copyMeal]:[]} meal={copyMeal} date={date} onClose={()=>setCopyMeal(null)}/>
     <NutritionSummary open={summary} onClose={()=>setSummary(false)} date={date}/>
-    <PortionEditor open={!!editing} onClose={()=>setEditing(null)} food={editing?.food??null} initial={editing?{amount:editing.amount,unit:editing.unit,meal:editing.meal}:null} submitLabel="Update entry" onSubmit={v=>{if(!editing)return;diary.updateEntry(editing.id,v);toast('Entry updated');setEditing(null)}} onDelete={()=>{if(!editing)return;remove(editing);setEditing(null)}}/>
+    <PortionEditor open={!!editing} onClose={()=>setEditing(null)} food={editing?.food??null} initial={editing?{amount:editing.amount,unit:editing.unit,meal:editing.meal}:null} submitLabel="Update entry" onSubmit={v=>{if(!editing)return;diary.updateEntry(editing.id,v);toast('Entry updated');setEditing(null)}} onDelete={()=>{if(!editing)return;remove(editing);setEditing(null)}} onServingWeight={w=>{if(!editing)return;diary.setServingWeight(editing.food.id,w,editing.id);setEditing(e=>e?{...e,food:withServingWeight(e.food,w)}:e);toast('Serving weight saved')}}/>
   </div>;
 }
 
@@ -110,7 +135,8 @@ function FoodPicker({ meal, date, onClose, onAdded }: { meal: Meal | null; date:
   };
 
   const defaultPortion = (f: Food): { amount: number; unit: PortionUnit } =>
-    allowedUnits(f).includes('serving') && f.servingSize ? { amount: 1, unit: 'serving' } : f.refUnit === 'serving' ? { amount: 1, unit: 'serving' } : { amount: 100, unit: f.refUnit };
+    // Grams (or ml) first: one serving's weight when known, otherwise the label amount. Servings only when no weight is known.
+    f.refUnit === 'serving' ? { amount: 1, unit: 'serving' } : { amount: f.servingSize ?? f.refAmount, unit: f.refUnit };
 
   const renderRow = (f: Food, key: string) => {
     const fav = favIds.includes(f.id);
@@ -121,7 +147,7 @@ function FoodPicker({ meal, date, onClose, onAdded }: { meal: Meal | null; date:
           <span className="mt ellipsis">{f.brand ?? (f.origin === 'custom' ? 'My food' : 'Generic')} · {refText(f)}</span>
         </button>
         <button className="icon-btn" aria-pressed={fav} aria-label={fav ? `Remove ${f.name} from favourites` : `Add ${f.name} to favourites`} onClick={() => foods.toggleFavourite(f.id, f)}>
-          <Star fill={fav ? '#e0a800' : 'none'} color={fav ? '#b8860b' : 'currentColor'} />
+          <Star fill={fav ? 'var(--pr)' : 'none'} color={fav ? 'var(--pr-text)' : 'currentColor'} />
         </button>
         {f.origin === 'custom' && (!(f as any).sharedId||(f as any).creatorId===engine()?.peek().user?.id) && (
           <OverflowMenu small title={f.name} label={`Options for ${f.name}`} actions={[
@@ -194,6 +220,7 @@ function FoodPicker({ meal, date, onClose, onAdded }: { meal: Meal | null; date:
         food={chosen}
         initial={chosen && meal ? { ...defaultPortion(chosen), meal } : null}
         submitLabel="Add entry"
+        onServingWeight={(w) => { if (!chosen) return; diary.setServingWeight(chosen.id, w); setChosen(withServingWeight(chosen, w)); toast('Serving weight saved'); }}
         onSubmit={(v) => {
           if (!chosen) return;
           const entry = diary.add(date, v.meal, chosen, v.amount, v.unit);

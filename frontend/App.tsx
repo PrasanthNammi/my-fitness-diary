@@ -1,38 +1,41 @@
-import { MuscleStats } from './screens/progress/MuscleStats';
 import { useWorkoutLimit } from './lib/useWorkoutLimit';
 import { RoutineOverview } from './screens/training/RoutineOverview';
 import {SyncStatus} from './components/SyncStatus';
 import { RestBar } from './components/RestBar';
 import { AiAddedNotice } from './components/AiAddedNotice';
-import { useEffect } from 'react';
-import { BarChart3, CalendarDays, Dumbbell, Settings, UtensilsCrossed, ChevronUp } from 'lucide-react';
+import { useEffect, useState, useSyncExternalStore } from 'react';
+import { Dumbbell, Sparkles, Sun, TrendingUp, Utensils, ChevronUp } from 'lucide-react';
+import { AiHub } from './components/AiHub';
+import { engine } from './adapters/engine';
 import { useDB } from './data/store';
 import { useRoute, navigate } from './lib/router';
 import { useNow } from './lib/hooks';
-import { duration } from './lib/format';
-import { LogoFull, ToastHost } from './components/ui';
-import { AuthScreen } from './screens/auth/AuthScreen';
+import { duration, mss } from './lib/format';
+import { timerRemaining, timerState } from './domain/training';
+import { LogoMark, ToastHost } from './components/ui';
+import { SuggestionHost } from './screens/training/SuggestionReview';
+import { AuthScreen, SetPasswordScreen } from './screens/auth/AuthScreen';
 import { Onboarding } from './screens/auth/Onboarding';
 import { TodayScreen } from './screens/today/TodayScreen';
 import { TrainingHome } from './screens/training/TrainingHome';
 import { RoutineEditor } from './screens/training/RoutineEditor';
 import { ActiveWorkoutScreen } from './screens/training/ActiveWorkout';
 import { FoodScreen } from './screens/food/FoodScreen';
-import { ProgressScreen, SessionDetail } from './screens/progress/ProgressScreen';
+import { SessionDetail } from './screens/progress/SessionDetail';
+import { ProgressHome } from './screens/progress/ProgressHome';
 import { WorkoutEditor } from './screens/progress/WorkoutEditor';
 import { CoachScreen } from './screens/coach/CoachScreen';
 import { AiAssistants } from './screens/ai/AiAssistants';
-import {EngineSurface} from './Runtime';
 import {SettingsLive} from './screens/SettingsLive';
 import {FriendsScreen} from './screens/Friends';
 import {Users} from 'lucide-react';
 import { SettingsScreen } from './screens/settings/SettingsScreen';
 
 const TABS = [
-  { id: 'today', label: 'Today', icon: CalendarDays },
+  { id: 'today', label: 'Overview', icon: Sun },
   { id: 'training', label: 'Training', icon: Dumbbell },
-  { id: 'food', label: 'Food', icon: UtensilsCrossed },
-  { id: 'progress', label: 'Progress', icon: BarChart3 },
+  { id: 'food', label: 'Food', icon: Utensils },
+  { id: 'progress', label: 'Progress', icon: TrendingUp },
   { id: 'friends', label: 'Friends', icon: Users },
 ] as const;
 
@@ -40,14 +43,30 @@ function ResumeBar() {
   const a = useDB((d) => d.active);
   const now = useNow(1000, !!a);
   if (!a) return null;
+  const sets = a.exercises.flatMap((e) => e.sets), done = sets.filter((s) => s.done).length;
+  // The soonest running rest, if any (the dock shows it on the workout screen; here it's in the bar).
+  const rest = a.exercises.map((b) => a.timers[b.id]).filter((t) => timerState(t, now) === 'running').map((t) => timerRemaining(t, now)).sort((x, y) => x - y)[0];
   return (
-    <div className="resume-bar" role="region" aria-label="Workout in progress">
-      <div className="grow">
-        <div className="t ellipsis">{a.title}</div>
-        <div className="s tnum">In progress · {duration((now - a.startedAt) / 1000)}</div>
-      </div>
-      <button className="btn btn-primary btn-sm" onClick={() => navigate('/workout')}><ChevronUp /> Resume</button>
-    </div>
+    <button className="resume-bar" aria-label={`Resume ${a.title}`} onClick={() => navigate('/workout')}>
+      <span className="live-dot" aria-hidden="true" />
+      <span className="grow">
+        <span className="t ellipsis">{a.title}</span>
+        <span className="s tnum">{duration((now - a.startedAt) / 1000)} · {done}/{sets.length} sets{rest !== undefined ? ` · rest ${mss(rest)}` : ''}</span>
+      </span>
+      <span className="resume-cta">Resume<ChevronUp aria-hidden="true" /></span>
+    </button>
+  );
+}
+
+function syncAttention() { const s = engine()?.peek(); return !!(s?.conflict || s?.error); }
+function AvatarButton() {
+  const profile = useDB((d) => d.profile);
+  const attention = useSyncExternalStore((fn) => engine()?.subscribe(fn) || (() => {}), syncAttention);
+  const initial = (profile?.firstName || profile?.name || '?').trim().charAt(0).toUpperCase() || '?';
+  return (
+    <button className="avatar-btn" aria-label={attention ? 'Settings · sync needs attention' : 'Settings'} title="Settings" onClick={() => navigate('/settings')}>
+      {initial}{attention && <span className="attention-dot" aria-hidden="true" />}
+    </button>
   );
 }
 
@@ -58,17 +77,20 @@ function Routes({ route }: { route: string[] }) {
       if (b === 'routine' && c === 'new') return <RoutineEditor key={`new-${d}`} routineId={null} folderId={d && d !== 'root' ? d : null} />;
       if (b === 'routine' && c === 'edit' && d) return <RoutineEditor key={d} routineId={d} folderId={null} />;
       if (b === 'routine' && c === 'view' && d) return <RoutineOverview key={d} routineId={d} />;
-      return <TrainingHome />;
+      if (b === 'history' && c && d === 'edit') return <WorkoutEditor key={c} id={c} />;
+      if (b === 'history' && c) return <SessionDetail id={c} />;
+      return <TrainingHome tab={b === 'history' ? 'history' : 'routines'} />;
     case 'workout':
       return <ActiveWorkoutScreen />;
     case 'food':
       return <FoodScreen />;
     case 'progress':
-      if (b === 'muscles') return <MuscleStats view={c} />;
+      if (b === 'muscles') return <ProgressHome tab="muscles" view={c} />;
+      // Old links: workout history now lives under Training.
       if (b === 'session' && c && d === 'edit') return <WorkoutEditor key={c} id={c} />;
       if (b === 'session' && c) return <SessionDetail id={c} />;
-      return <EngineSurface screen="progress"/>;
-    case 'friends':return <FriendsScreen username={b==='u'?c:undefined}/>;
+      return <ProgressHome tab={b === 'exercises' || b === 'body' ? b : 'summary'} />;
+    case 'friends':return <FriendsScreen view={b==='u'&&c?{kind:'profile',username:c}:b==='chat'&&c?{kind:'chat',username:c}:b==='me'?{kind:'me'}:{kind:'feed'}}/>;
     case 'coach':
       return <AiAssistants />;
     case 'settings':
@@ -85,18 +107,23 @@ export function App() {
   const profile = useDB((d) => d.profile);
   const active = useDB((d) => !!d.active);
   const route = useRoute();
+  const [hub, setHub] = useState(false);
+  const routeKey = route.join('/');
+  useEffect(() => setHub(false), [routeKey]);// useRoute returns a new array each render: compare the text
 
   useEffect(() => {
-    const titles: Record<string, string> = { today: 'Today', training: 'Training', workout: 'Workout', food: 'Food', progress: 'Progress', coach: 'AI assistants', settings: 'Settings' };
-    document.title = `${titles[route[0]] ?? 'Today'} · My Fitness Diary`;
+    const titles: Record<string, string> = { today: 'Overview', training: 'Training', workout: 'Workout', food: 'Food', progress: 'Progress', coach: 'AI assistants', settings: 'Settings' };
+    document.title = `${titles[route[0]] ?? 'Overview'} · My Fitness Diary`;
   }, [route]);
 
   if (!signedIn) return (<><AuthScreen /><ToastHost /></>);
+  // Opened from a password-reset email: choose the new password first.
+  if (route[0] === 'set-password') return (<><SetPasswordScreen onDone={() => navigate('/', { replace: true })} /><ToastHost /></>);
   if (!profile) return (<><Onboarding /><ToastHost /></>);
 
   const top = route[0] ?? 'today';
   const tab = top === 'workout' ? 'training' : top === 'coach' ? 'today' : top;
-  const focused = top === 'workout' || (top === 'training' && route[1] === 'routine');
+  const focused = top === 'workout' || (top === 'training' && route[1] === 'routine') || (top === 'friends' && route[1] === 'chat');
   const showResume = !!active && top !== 'workout';
 
   const navItems = (cls?: string) =>
@@ -117,18 +144,23 @@ export function App() {
 
   return (
     <div className="app">
-      <nav className="sidebar" aria-label="Main">
-        <div className="logo"><LogoFull width={168} /></div>
-        {navItems()}
-      </nav>
-      <header className="global-header"><img className="header-logo" src="/legacy/logo.svg" width="86" height="44" alt="My Fitness Diary"/><SyncStatus/><button className="icon-btn" aria-label="Settings" title="Settings" onClick={()=>navigate('/settings')}><Settings/></button><RestBar/></header>
+      <header className="global-header">
+        <span className="header-logo"><LogoMark width={86} /></span>
+        <SyncStatus />
+        <button className="icon-btn ai-btn" aria-label="AI assistants" title="AI assistants" onClick={() => setHub(true)}><Sparkles /></button>
+        <AvatarButton />
+      </header>
       <main className={`main${focused ? ' no-nav' : ''}${showResume && !focused ? ' has-resume' : ''}`}>
         <Routes key={accountKey} route={route} />
       </main>
       {showResume && !focused && <ResumeBar />}
       {!focused && <nav className="bottom-nav" aria-label="Main">{navItems()}</nav>}
+      {/* Outside the header: the header's blur would make the fixed rest dock position against it. */}
+      <RestBar />
       <ToastHost />
+      <SuggestionHost />
       <AiAddedNotice />
+      <AiHub open={hub} onClose={() => setHub(false)} />
     </div>
   );
 }

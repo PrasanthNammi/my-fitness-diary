@@ -6,14 +6,14 @@ import {installNativeCatalogue,loadMfdCatalogue,getCatalogue,mapEntry,migrateExe
 import {ExerciseGuide,ExercisePage} from './ExercisePage';
 import {engine} from '../../adapters/engine';
 import { useMemo, useState, useEffect } from 'react';
-import { ChevronDown, ChevronLeft, Dumbbell, FileText, ImageOff, Minus, PersonStanding, Plus, Search, SearchX, X } from 'lucide-react';
+import { ChevronDown, ChevronLeft, Dumbbell, FileText, History, ImageOff, Minus, PersonStanding, Plus, Search, SearchX, X } from 'lucide-react';
 import type { Exercise, ExerciseBlock, ExerciseSource, TrackingMode } from '../../domain/types';
 import { TRACKING_LABEL, trackingFields } from '../../domain/training';
 import { EQUIPMENT, MUSCLES, SOURCE_LABEL, SOURCE_ORDER } from '../../data/exerciseCatalog';
 import { exercises, newBlock, TRACKING_MODES } from '../../data/repositories';
-import { Empty, Field, Notice, SelectField, Sheet } from '../../components/ui';
+import { Empty, Field, InfoButton, Notice, SelectField, Sheet } from '../../components/ui';
 import { useDB } from '../../data/store';
-import { mss, parseDecimal, parseMss, round1, toKg } from '../../lib/format';
+import { mss, parseDecimal, parseMss, toKg } from '../../lib/format';
 
 export function ExerciseDetail({ex}:{ex:Exercise}){return <ExerciseGuide exercise={ex}/>}
 
@@ -59,6 +59,20 @@ const groupMuscles = (g: string | null) => GROUPS.find(([name]) => name === g)?.
 const groupOf = (m: Muscle) => GROUPS.find(([, list]) => list.includes(m))?.[0] || null;
 const thumbnail = (ex: Exercise) => (ex.entry ? exerciseThumbnail(ex.entry, MEDIA) : ex.mediaUrl);
 
+/** "Today", "Yesterday", "3 days ago", or a date for older ones. */
+function lastDoneLabel(t: number): string {
+  const days = Math.floor((new Date().setHours(0, 0, 0, 0) - new Date(t).setHours(0, 0, 0, 0)) / 86400000);
+  if (days <= 0) return 'Today';
+  if (days === 1) return 'Yesterday';
+  if (days < 7) return `${days} days ago`;
+  return new Date(t).toLocaleDateString(undefined, { day: 'numeric', month: 'short' });
+}
+
+/** The exercise's photo (or a dumbbell when it has none); shared with the workout cards. */
+export function ExerciseThumb({ exercise }: { exercise: Exercise | null | undefined }) {
+  return <Thumb src={exercise ? thumbnail(exercise) : null} />;
+}
+
 function Thumb({ src }: { src: string | null }) {
   const [failed, setFailed] = useState(false);
   useEffect(() => setFailed(false), [src]);
@@ -74,7 +88,8 @@ export function ExercisePicker({ open, onClose, onAdd, browse, replace = false, 
   const [q, setQ] = useState('');
   const [loading,setLoading]=useState(!getCatalogue()),[loadError,setLoadError]=useState(false);
   const load=()=>{setLoading(true);setLoadError(false);loadMfdCatalogue().then(()=>{const e=engine();if(e?.peek().ready&&!e.peek().reconciling)installNativeCatalogue(e);setLoading(false)}).catch(()=>{setLoading(false);setLoadError(true)})};
-  useEffect(()=>{if(open&&!getCatalogue())load()},[open]);
+  // The picker is created closed; the catalogue may have loaded elsewhere since, so check again on every open.
+  useEffect(()=>{if(!open)return;if(getCatalogue())setLoading(false);else load()},[open]);
 
   const [filter, setFilter] = useState<Filter>(NO_FILTER);
   const [filterSheet, setFilterSheet] = useState<SheetKey | null>(null);
@@ -120,8 +135,8 @@ export function ExercisePicker({ open, onClose, onAdd, browse, replace = false, 
   const catalogueReady = !loading && !!getCatalogue();
   const tileImage = (id: string) => { const e = getCatalogue()?.get(id); return e ? exerciseThumbnail(e, MEDIA) : null; };
 
-  let title = replace ? 'Replace exercise' : 'Exercise';
-  if (selected) title = 'Exercise';
+  let title = replace ? 'Replace exercise' : browse ? 'Exercises' : 'Add exercise';
+  if (selected) title = replace ? 'Replace exercise' : 'Add exercise';
   if (creating) title = 'Custom exercise';
 
   return (
@@ -166,7 +181,7 @@ export function ExercisePicker({ open, onClose, onAdd, browse, replace = false, 
               <Search />
               <input
                 type="search"
-                placeholder="Exercise"
+                placeholder="Search exercises"
                 value={q}
                 onChange={(e) => setQ(e.target.value)}
                 aria-label="Search exercises"
@@ -211,9 +226,9 @@ export function ExercisePicker({ open, onClose, onAdd, browse, replace = false, 
               Try a different search or clear filters.
             </Empty>
           ) : (
-            families.slice(0,visible).map(({id,list,thumb})=>{const ex=list[0];const variants=ex.entry?getCatalogue()?.family(ex.id).map(mapEntry)||list:list;return <div key={id} className="catalogue-family"><div className="row"><button className="ex-row grow" onClick={()=>setSelected(ex)}><Thumb src={thumb}/><div className="grow"><div className="nm">{ex.name}</div><div className="mt">{ex.equipment} · {ex.primaryMuscle}{ex.entry?` · ${LEVEL_LABEL[ex.entry.level]}`:''}</div></div></button>{variants.length>1&&<button className="icon-btn" aria-label={`Variations of ${ex.entry?.family_name}`} aria-expanded={expanded.has(id)} onClick={()=>setExpanded(prev=>{const next=new Set(prev);next.has(id)?next.delete(id):next.add(id);return next})}><ChevronDown size={18}/><small>{variants.length}</small></button>}</div>{expanded.has(id)&&variants.filter(e=>e.id!==ex.id).map(e=><button key={e.id} className="ex-row catalogue-variation" onClick={()=>setSelected(e)}><div className="grow"><div className="nm">{e.name}</div><div className="mt">{e.equipment}</div></div><Plus size={16}/></button>)}</div>})
+            families.slice(0,visible).map(({id,list,thumb,done},i,shown)=>{const ex=list[0];const section=q.trim()?null:i===0&&done>-1?'logged':done===-1&&(i===0||shown[i-1].done>-1)?'all':null;const variants=ex.entry?getCatalogue()?.family(ex.id).map(mapEntry)||list:list;return <div key={id}>{section&&<div className="picker-section">{section==='logged'?<><History aria-hidden="true"/>Logged before</>:'All exercises'}</div>}<div className="catalogue-family"><div className="row"><button className="ex-row grow" onClick={()=>setSelected(ex)}><Thumb src={thumb}/><div className="grow"><div className="nm">{ex.name}</div><div className="mt">{ex.equipment} · {ex.primaryMuscle}{ex.entry?` · ${LEVEL_LABEL[ex.entry.level]}`:''}{done>-1&&<> · <span className="last-done">{lastDoneLabel(done)}</span></>}</div></div></button>{variants.length>1&&<button className="icon-btn" aria-label={`Variations of ${ex.entry?.family_name}`} aria-expanded={expanded.has(id)} onClick={()=>setExpanded(prev=>{const next=new Set(prev);next.has(id)?next.delete(id):next.add(id);return next})}><ChevronDown size={18}/><small>{variants.length}</small></button>}</div>{expanded.has(id)&&variants.filter(e=>e.id!==ex.id).map(e=><button key={e.id} className="ex-row catalogue-variation" onClick={()=>setSelected(e)}><div className="grow"><div className="nm">{e.name}</div><div className="mt">{e.equipment}</div></div><Plus size={16}/></button>)}</div></div>})
           )}
-          {families.length>visible&&<button className="btn btn-secondary" aria-label="More exercises" onClick={()=>setVisible(v=>v+80)}><Plus/></button>}
+          {families.length>visible&&<button className="btn btn-soft picker-more" onClick={()=>setVisible(v=>v+80)}><Plus aria-hidden="true"/>Show more</button>}
           <Sheet open={!!filterSheet} onClose={() => setFilterSheet(null)} title={filterSheet ? filterLabel(filterSheet) : ''}>
             {filterSheet && (
               <div className="option-list">
@@ -247,15 +262,17 @@ function AddConfig({ ex, defaultRest, weightUnit, onAdd, replace, initialSets }:
     if (restSec === null || restSec > 3600) return setErr('Enter rest as m:ss, e.g. 1:30.');
     const w = weight.trim() ? parseDecimal(weight) : null;
     if (weight.trim() && (w === null || w < 0)) return setErr('Weight must be a positive number.');
-    onAdd(newBlock(ex, { sets, reps: fields.includes('reps') ? reps : null, weightKg: w === null ? null : round1(toKg(w, weightUnit) * 10) / 10, restSec }));
+    onAdd(newBlock(ex, { sets, reps: fields.includes('reps') ? reps : null, weightKg: w === null ? null : Math.round(toKg(w, weightUnit) * 1000) / 1000, restSec }));
   };
 
   return (
-    <div className="stack">
-      <ExerciseDetail ex={ex} />
-      {replace && <Notice>Choose fresh sets for the replacement. Completed sets stay with the original exercise; unfinished sets are replaced.</Notice>}
+    <div className="stack add-config">
+      <div className="add-config-head">
+        <ExerciseThumb exercise={ex} />
+        <div className="exercise-title"><h2>{ex.name}</h2><p>{[ex.primaryMuscle, ex.equipment, ex.entry ? LEVEL_LABEL[ex.entry.level] : null].filter(Boolean).join(' · ')}</p></div>
+      </div>
       <div className="card card-pad stack">
-        <div className="strong">Defaults</div>
+        {replace && <div className="add-config-title"><span className="strong">New sets</span><InfoButton title="Replacing an exercise" lines={['Choose fresh sets for the replacement.', 'Completed sets stay with the original exercise; unfinished sets are replaced.']} /></div>}
         <div className="grid-2">
           <Stepper label="Sets" value={sets} onChange={setSets} min={1} max={20} />
           {fields.includes('reps') ? <Stepper label="Reps" value={reps} onChange={setReps} min={0} max={100} /> : <div />}
@@ -271,6 +288,8 @@ function AddConfig({ ex, defaultRest, weightUnit, onAdd, replace, initialSets }:
         {err && <Notice tone="error">{err}</Notice>}
         <button className="btn btn-primary btn-block" onClick={submit}><Plus /> {replace ? 'Replace with' : 'Add'} {sets} {sets === 1 ? 'set' : 'sets'}</button>
       </div>
+      <div className="picker-section">How to do it</div>
+      <ExerciseDetail ex={ex} />
     </div>
   );
 }

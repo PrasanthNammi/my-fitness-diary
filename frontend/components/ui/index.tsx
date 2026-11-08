@@ -1,19 +1,31 @@
 import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
-import { Check, ChevronDown, ChevronLeft, CircleAlert, Info, MoreHorizontal, X, CircleCheck, TriangleAlert, type LucideIcon } from 'lucide-react';
-import logoMark from '../../assets/mfd-logo.svg?raw';
+import { Check, ChevronDown, ChevronLeft, CircleAlert, Info, MoreHorizontal, X, CircleCheck, TriangleAlert, type LucideIcon, Sparkles } from 'lucide-react';
 
 import { goBack } from '../../lib/router';
 import { aiSource } from '../../domain/aiSource';
 import type { AddedBy } from '../../domain/types';
 
-// ── Logos (embedded exactly as supplied) ─────────────────────────
-export function LogoMark({ width = 120 }: { width?: number }) {
-  return <div className="logo-full" style={{ width }} role="img" aria-label="MFD" dangerouslySetInnerHTML={{ __html: logoMark.replace('role="img"', 'aria-hidden="true"') }} />;
+// ── Logo ─────────────────────────────────────────────────────────
+// The original MFD wordmark (navy letters, two-tone flame) from public/legacy. Dark mode shows the
+// same drawing with light lettering (logo-dark.svg, logo-full-dark.svg); the flame is unchanged.
+function ClassicLogo({ file, width, ratio, alt }: { file: 'logo' | 'logo-full'; width: number; ratio: number; alt: string }) {
+  const h = Math.round(width * ratio);
+  return (
+    <span className="logo-classic" style={{ width }}>
+      <img className="logo-classic-light" src={`/legacy/${file}.svg`} width={width} height={h} alt={alt} />
+      <img className="logo-classic-dark" src={`/legacy/${file}-dark.svg`} width={width} height={h} alt="" />
+    </span>
+  );
 }
-
-/** Full lockup. Waits for its two fonts so lettering never renders in a fallback face. */
-export function LogoFull({width=220}:{width?:number}){return <img src="/legacy/logo-full.svg" width={width} alt="My Fitness Diary"/>}
+/** "MFD" with the flame (header, onboarding). */
+export function LogoMark({ width = 86 }: { width?: number }) {
+  return <ClassicLogo file="logo" width={width} ratio={228 / 340} alt="MFD" />;
+}
+/** The full lockup with "My Fitness Diary · Lift · Eat · Track" (sign-in, sidebar, settings). */
+export function LogoFull({ width = 220 }: { width?: number }) {
+  return <ClassicLogo file="logo-full" width={width} ratio={300 / 340} alt="My Fitness Diary" />;
+}
 
 // ── Top bar ──────────────────────────────────────────────────────
 export function TopBar({
@@ -37,7 +49,7 @@ export function TopBar({
 // ── Sheet: bottom sheet on phones, dialog on desktop ─────────────
 let openSheets = 0;
 export function Sheet({
-  open, onClose, title, children, footer, size = 'auto', headerActions, label,
+  open, onClose, title, children, footer, size = 'auto', headerActions, label, hideClose,
 }: {
   open: boolean;
   onClose: () => void;
@@ -46,6 +58,8 @@ export function Sheet({
   footer?: ReactNode;
   size?: 'auto' | 'full' | 'wide';
   headerActions?: ReactNode;
+  /** No ✕ in the header (closing still works by swipe, tapping outside or Escape). */
+  hideClose?: boolean;
   label?: string;
 }) {
   const ref = useRef<HTMLDivElement>(null);
@@ -94,9 +108,9 @@ export function Sheet({
           <div className="sheet-head">
             <h2 id={titleId} className="ellipsis">{title}</h2>
             {headerActions}
-            <button className="icon-btn" aria-label="Close" onClick={onClose}>
+            {!hideClose && <button className="icon-btn" aria-label="Close" onClick={onClose}>
               <X />
-            </button>
+            </button>}
           </div>
         )}
         <div className="sheet-body">{children}</div>
@@ -115,6 +129,19 @@ export interface MenuAction {
   danger?: boolean;
   disabled?: boolean;
 }
+/** The (i) next to a title: explanations live here instead of on the screen. */
+export function InfoButton({ title, lines, label }: { title: string; lines: ReactNode[]; label?: string }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <>
+      <button type="button" className="icon-btn info-btn" aria-label={label ?? `About ${title}`} onClick={() => setOpen(true)}><Info /></button>
+      <Sheet open={open} onClose={() => setOpen(false)} title={title}>
+        <div className="info-lines">{lines.map((l, i) => <p key={i}>{l}</p>)}</div>
+      </Sheet>
+    </>
+  );
+}
+
 export function OverflowMenu({ title, actions, label = 'More options', small }: { title?: string; actions: MenuAction[]; label?: string; small?: boolean }) {
   const [open, setOpen] = useState(false);
   return (
@@ -229,6 +256,15 @@ export function Field({
   );
 }
 
+/** Page-level tabs as chips (Training: Routines/History; Progress: Summary/Exercises/Body/Statistics). */
+export function TabChips<T extends string>({ value, options, onChange, label, fill }: { value: T; options: { value: T; label: string }[]; onChange: (v: T) => void; label: string; fill?: boolean }) {
+  return (
+    <div className={`tab-chips${fill ? ' fill' : ''}`} role="tablist" aria-label={label}>
+      {options.map((o) => <button key={o.value} type="button" role="tab" className="chip" aria-selected={value === o.value} onClick={() => onChange(o.value)}>{o.label}</button>)}
+    </div>
+  );
+}
+
 export function Segmented<T extends string>({
   value, options, onChange, label,
 }: { value: T; options: { value: T; label: string }[]; onChange: (v: T) => void; label: string }) {
@@ -256,7 +292,7 @@ export function Notice({ tone = 'info', children }: { tone?: 'info' | 'warn' | '
 /** Small label on entries an AI assistant added through the connector. */
 export function AiBadge({ addedBy }: { addedBy?: AddedBy }) {
   const name = aiSource(addedBy);
-  return name ? <span className="badge ai">Added by {name}</span> : null;
+  return name ? <span className="badge ai" title={`Added by ${name}`} aria-label={`Added by ${name}`}><Sparkles aria-hidden="true" />{name}</span> : null;
 }
 
 export function Empty({ icon: Icon, title, children, action }: { icon?: LucideIcon; title: string; children?: ReactNode; action?: ReactNode }) {

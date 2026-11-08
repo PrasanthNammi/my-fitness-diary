@@ -4,13 +4,15 @@ import {
   Calculator, ChevronRight, Database, Download, KeyRound, LogOut, Plug, Ruler, Sparkles, Upload, User, UserRound,
 } from 'lucide-react';
 import { ConfirmSheet, Field, LogoFull, Notice, Segmented, SelectField, Sheet, TopBar, toast } from '../../components/ui';
+import { InfoButton } from '../../components/ui';
 import { emptyDB, getDB, isDB, replaceDB, useDB, type DB } from '../../data/store';
 import { body, profileRepo } from '../../data/repositories';
 import { auth } from '../../adapters/auth';
 import { ACTIVITY_FACTORS, GOALS } from '../../domain/nutrition';
 import type { CoachProvider } from '../../domain/types';
 import { useTargets } from '../../data/selectors';
-import { fmtInt, mss, parseMss, todayISO } from '../../lib/format';
+import { fmtInt, fmtNum, mss, parseDecimal, parseMss, todayISO } from '../../lib/format';
+import { PLATE_CHOICES, plateSetup } from '../../domain/plates';
 import { navigate } from '../../lib/router';
 import { draftFromProfile, ProfileFields, profileFromDraft, validateDraft, type ProfileDraft } from '../auth/Onboarding';
 
@@ -19,6 +21,7 @@ export function SettingsScreen({ section }: { section: string | null }) {
     case 'profile': return <ProfileSettings />;
     case 'targets': return <TargetDetails />;
     case 'units': return <UnitSettings />;
+    case 'workout': return <WorkoutSettings />;
     case 'account': return <AccountSettings />;
     case 'data': return <DataSettings />;
     case 'services': return <ServicesSettings />;
@@ -80,7 +83,7 @@ function ProfileSettings() {
       <div className="screen" style={{ paddingTop: 12 }}>
         {saveError&&<p role="alert">{saveError}</p>}
         <ProfileFields d={d} set={(p) => setD((x) => ({ ...x, ...p }))} unit={unit} errors={errors} show={show} groups={['about', 'body', 'activity', 'goal', 'training']} />
-        <Field label="Daily water goal" htmlFor="profile-water" error={show ? waterError : null} hint="Litres per day"><input id="profile-water" className="input" type="number" inputMode="decimal" min="0.25" max="10" step="0.05" value={water} onChange={e=>setWater(e.target.value)} /></Field>
+        <Field label="Daily water goal" htmlFor="profile-water" error={show ? waterError : null}><div className="with-suffix"><input id="profile-water" className="input" type="number" inputMode="decimal" min="0.25" max="10" step="0.05" value={water} onChange={e=>setWater(e.target.value)} /><span className="suffix">L</span></div></Field>
         {show && !valid && <div style={{ marginTop: 12 }}><Notice tone="error">Check the highlighted fields.</Notice></div>}
         <button className="btn btn-primary btn-block" style={{ marginTop: 16 }} disabled={busy} onClick={async () => {
           setShow(true);
@@ -114,7 +117,7 @@ function TargetDetails() {
           {row('Fat', `${t.fat} g`)}
           {row('Water', `${fmtInt(t.waterMl)} ml`)}
         </div>
-        <div className="section-title" style={{ margin: '6px 0 0' }}><h2>How it’s calculated</h2></div>
+        <div className="section-title" style={{ margin: '6px 0 0' }}><h2>How it’s calculated</h2><InfoButton title="Estimates" lines={['These targets are estimates; individual needs vary.', 'If your weight trend doesn’t match your goal over a few weeks, adjust your profile.']} /></div>
         <div className="card card-pad">
           {row('1. BMR (Mifflin–St Jeor)', `${fmtInt(calc.bmr)} kcal`)}
           <p className="xs muted" style={{ margin: '0 0 6px' }}>
@@ -129,9 +132,6 @@ function TargetDetails() {
           {row('6. Carbohydrate', 'Remaining calories ÷ 4')}
           {row('Water', 'Your daily goal · editable in Profile')}
         </div>
-        <p className="xs muted" style={{ margin: 0 }}>
-          These are estimates. Individual needs vary; adjust your profile if your weight trend doesn’t match your goal over a few weeks.
-        </p>
         <button className="btn btn-secondary btn-block" onClick={() => navigate('/settings/profile')}>Edit profile & goals</button>
       </div>
     </>
@@ -140,8 +140,6 @@ function TargetDetails() {
 
 function UnitSettings() {
   const s = useDB((d) => d.settings);
-  const [rest, setRest] = useState(mss(s.defaultRestSec));
-  const [err, setErr] = useState<string | null>(null);
   return (
     <>
       <TopBar title="Units" back="/settings" bordered />
@@ -149,9 +147,26 @@ function UnitSettings() {
         <div className="field"><span className="label">Weight</span>
           <Segmented label="Weight unit" value={s.weightUnit} onChange={(v) => profileRepo.updateSettings({ weightUnit: v })} options={[{ value: 'kg', label: 'Kilograms (kg)' }, { value: 'lb', label: 'Pounds (lb)' }]} />
         </div>
+        <div className="field"><span className="label">Length</span>
+          <Segmented label="Length unit" value={s.lengthUnit ?? 'cm'} onChange={(v) => profileRepo.updateSettings({ lengthUnit: v })} options={[{ value: 'cm', label: 'Centimetres (cm)' }, { value: 'in', label: 'Inches (in)' }]} />
+        </div>
         <div className="field"><span className="label">Energy</span>
           <Segmented label="Energy unit" value={s.energyUnit} onChange={(v) => profileRepo.updateSettings({ energyUnit: v })} options={[{ value: 'kcal', label: 'Calories (kcal)' }, { value: 'kJ', label: 'Kilojoules (kJ)' }]} />
         </div>
+      </div>
+    </>
+  );
+}
+
+
+function WorkoutSettings() {
+  const s = useDB((d) => d.settings);
+  const [rest, setRest] = useState(mss(s.defaultRestSec));
+  const [err, setErr] = useState<string | null>(null);
+  return (
+    <>
+      <TopBar title="Workout" back="/settings" bordered />
+      <div className="screen stack" style={{ paddingTop: 12 }}>
         <Field label="Default rest timer" htmlFor="u-rest" error={err} hint="Used when adding exercises. m:ss">
           <input id="u-rest" className="input" value={rest} onChange={(e) => setRest(e.target.value)} onBlur={() => {
             const v = parseMss(rest);
@@ -161,9 +176,42 @@ function UnitSettings() {
             profileRepo.updateSettings({ defaultRestSec: v });
           }} />
         </Field>
-        <p className="xs muted" style={{ margin: 0 }}>Values are stored in metric and converted for display.</p>
+        <label className="list-row setting-switch">
+          <span className="grow row-title">Keep screen on during workouts</span>
+          <input type="checkbox" checked={s.keepAwake !== false} onChange={(e) => profileRepo.updateSettings({ keepAwake: e.target.checked })} />
+        </label>
+        <label className="list-row setting-switch">
+          <span className="grow row-title">Vibrate on set complete and rest end</span>
+          <input type="checkbox" checked={s.vibrate !== false} onChange={(e) => profileRepo.updateSettings({ vibrate: e.target.checked })} />
+        </label>
+        <PlateSettings />
       </div>
     </>
+  );
+}
+
+/** Bar and plates for the plate calculator, in the weight unit in use. */
+function PlateSettings() {
+  const s = useDB((d) => d.settings);
+  const setup = plateSetup(s), unit = setup.unit;
+  const [bar, setBar] = useState(String(setup.bar));
+  const [err, setErr] = useState<string | null>(null);
+  useEffect(() => { setBar(String(setup.bar)); setErr(null); }, [unit, setup.bar]);
+  const save = (next: { bar?: number; plates?: number[] }) => profileRepo.updateSettings({ plates: { unit, bar: next.bar ?? setup.bar, plates: next.plates ?? setup.plates } });
+  const toggle = (p: number) => { const has = setup.plates.includes(p); if (has && setup.plates.length === 1) return; save({ plates: has ? setup.plates.filter((x) => x !== p) : [...setup.plates, p] }); };
+  return (
+    <div className="field"><span className="label">Plates</span>
+      <Field label={`Bar (${unit})`} htmlFor="u-bar" error={err}>
+        <input id="u-bar" className="input" inputMode="decimal" value={bar} onChange={(e) => setBar(e.target.value)} onBlur={() => {
+          const v = parseDecimal(bar);
+          if (v === null || v < 0 || v > 100) return setErr('Enter the bar weight.');
+          setErr(null); save({ bar: v });
+        }} />
+      </Field>
+      <div className="plate-choices" role="group" aria-label={`Plates you have (${unit})`}>
+        {PLATE_CHOICES[unit].map((p) => <button key={p} type="button" className="chip" aria-pressed={setup.plates.includes(p)} onClick={() => toggle(p)}>{fmtNum(p, 2)}</button>)}
+      </div>
+    </div>
   );
 }
 

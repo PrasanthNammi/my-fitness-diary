@@ -215,7 +215,7 @@ export function Onboarding() {
         ) : (
           <LogoMark width={64} />
         )}
-        <span className="small muted">{review ? 'Review' : `Step ${step + 1} of ${STEPS.length}`}</span>
+        <span className="small muted">{`Step ${step + 1} of ${STEPS.length + 1}`}</span>
       </div>
       <div className="progress-dots" style={{ marginBottom: 20 }} aria-hidden="true">
         {[...STEPS, null].map((_, i) => <span key={i} className={i <= step ? 'on' : ''} />)}

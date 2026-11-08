@@ -6,9 +6,9 @@ import { LineChart } from '../../components/Charts';
 import { useDB } from '../../data/store';
 import { exercises, exerciseName, workouts } from '../../data/repositories';
 import { routineSessions, lastExerciseSession, routineTrend } from '../../domain/routineStats';
-import { trackingFields, weightHeading } from '../../domain/training';
+import { trackingFields, weightHeading, workingVolume } from '../../domain/training';
 import type { Exercise, ExerciseBlock, SetEntry } from '../../domain/types';
-import { fmtNum, kgTo, mss } from '../../lib/format';
+import { duration, fmtNum, fmtVolume, kgTo, mss } from '../../lib/format';
 import { navigate } from '../../lib/router';
 import { ExercisePage } from './ExercisePage';
 
@@ -45,8 +45,8 @@ export function RoutineOverview({ routineId }: { routineId: string }) {
   return <>
     <TopBar title={routine.name} back="/training" bordered actions={<button className="icon-btn" aria-label="Edit routine" onClick={()=>navigate(`/training/routine/edit/${routine.id}`)}><Pencil/></button>}/>
     <div className="screen routine-overview">
-      <div className="small muted">{routine.exercises.length} exercises · {last?`Last trained ${date(last.startedAt)}`:'Not trained yet'}</div>
-      <button className="btn btn-primary btn-block" style={{marginTop:12,marginBottom:4}} onClick={()=>{if(!active)workouts.start(routine);navigate('/workout')}}><Play/>{active?'Resume current workout':'Start Workout'}</button>
+      <div className="small muted routine-sub">{routine.exercises.length} exercises · {last?`Last trained ${date(last.startedAt)}`:'Not trained yet'}</div>
+      <button className="btn btn-primary btn-block routine-go" onClick={()=>{if(!active)workouts.start(routine);navigate('/workout')}}><Play/>{active?'Resume current workout':'Start Workout'}</button>
       <div className="routine-exercise-list">
       {routine.exercises.map(b=>{const ex=catalogue.find(e=>e.id===b.exerciseId),previous=latest.get(b.exerciseId);return <button type="button" className="routine-exercise" key={b.id} onClick={()=>{const resolved=ex||exercises.byId(b.exerciseId);if(resolved)setSelected(resolved)}} disabled={!ex} aria-label={`View ${exerciseName(b.exerciseId)} stats`}>
         <RoutineThumbnail exercise={ex}/>
@@ -56,7 +56,12 @@ export function RoutineOverview({ routineId }: { routineId: string }) {
         </div><ChevronRight className="muted" size={16}/>
       </button>})}
       </div>
-      <section className="routine-trend" aria-label="Routine performance">
+      {sessions.length>0&&<div className="routine-stats" aria-label="Routine summary">
+        <div><div className="k">Sessions</div><div className="v">{sessions.length}</div></div>
+        <div><div className="k">Avg. time</div><div className="v">{duration(sessions.reduce((n,w)=>n+(w.endedAt-w.startedAt),0)/sessions.length/1000)}</div></div>
+        <div><div className="k">Best volume</div><div className="v">{fmtVolume(Math.max(...sessions.map(w=>workingVolume(w.exercises))),unit)}</div></div>
+      </div>}
+      <section className="routine-trend card" aria-label="Routine performance">
         <h3>{trend.label}</h3>
         {trend.points.length?<><div className="small muted">{trend.unit==='kg'?'Completed working sets · weight × reps':'Completed sets per session'}</div><LineChart points={trend.points.map(p=>({...p,y:trend.unit==='kg'?kgTo(p.y,unit):p.y}))} unit={trend.unit==='kg'?unit:'sets'} label={trend.label} height={140} format={v=>fmtNum(v,0)}/></>:<p className="small muted">Your trend appears after your first logged workout.</p>}
       </section>

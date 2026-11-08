@@ -89,6 +89,19 @@ export function allowedUnits(food: Food): PortionUnit[] {
   return food.servingSize ? [food.refUnit, 'serving'] : [food.refUnit];
 }
 
+/**
+ * Records what one serving weighs, so the food can be logged in servings and in grams (or ml).
+ * A per-serving food becomes a per-gram food with the same nutrition: N servings still give the
+ * same calories. Returns the food unchanged for a weight that is not a positive number.
+ */
+export function withServingWeight(food: Food, weight: number): Food {
+  if (!(weight > 0) || !Number.isFinite(weight)) return food;
+  if (food.refUnit === 'serving') {
+    return { ...food, refUnit: 'g', refAmount: food.refAmount * weight, servingSize: weight, servingLabel: food.servingLabel ?? 'serving' };
+  }
+  return { ...food, servingSize: weight, servingLabel: food.servingLabel ?? 'serving' };
+}
+
 /** Converts a portion into the food's reference unit. */
 export function portionInRefUnits(food: Food, amount: number, unit: PortionUnit): number {
   if (unit === food.refUnit) return amount;
@@ -135,3 +148,6 @@ export function fibreSummary(list: Nutrients[]) {
   const known = list.filter(n => n.fibre !== null && Number.isFinite(n.fibre));
   return { grams: known.length || !list.length ? known.reduce((sum,n)=>sum+n.fibre!,0) : null, missing: list.length-known.length };
 }
+
+/** Daily fibre target: 14 g per 1,000 kcal (the usual guideline), rounded. */
+export const fibreTarget = (kcal: number) => Math.round((kcal / 1000) * 14);

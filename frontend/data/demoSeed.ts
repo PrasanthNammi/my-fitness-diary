@@ -139,10 +139,9 @@ export function buildDemoDB(): DB {
     db.checkins.push({
       id: uid(),
       date: addDays(today, -i),
-      sleep: 2 + Math.round(r() * 3),
+      sleep: 6 + Math.round(r() * 6) / 2,
       energy: 2 + Math.round(r() * 3),
       soreness: 1 + Math.round(r() * 3),
-      stress: 1 + Math.round(r() * 3),
       note: '',
     });
   }
