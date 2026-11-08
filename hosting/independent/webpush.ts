@@ -9,8 +9,9 @@ export const fromB64u = (s: string) => Uint8Array.from(atob(s.replace(/-/g, '+')
 const concat = (...parts: Uint8Array[]) => {const out = new Uint8Array(parts.reduce((n, p) => n + p.length, 0)); let i = 0; for (const p of parts) {out.set(p, i); i += p.length;} return out;};
 
 async function hkdf(salt: Uint8Array, ikm: Uint8Array, info: Uint8Array, length: number) {
-  const key = await crypto.subtle.importKey('raw', ikm, 'HKDF', false, ['deriveBits']);
-  return new Uint8Array(await crypto.subtle.deriveBits({name: 'HKDF', hash: 'SHA-256', salt, info}, key, length * 8));
+  // Type-only casts: TypeScript 5.7+ types Uint8Array over ArrayBufferLike, which WebCrypto's BufferSource rejects.
+  const key = await crypto.subtle.importKey('raw', ikm as Uint8Array<ArrayBuffer>, 'HKDF', false, ['deriveBits']);
+  return new Uint8Array(await crypto.subtle.deriveBits({name: 'HKDF', hash: 'SHA-256', salt: salt as Uint8Array<ArrayBuffer>, info: info as Uint8Array<ArrayBuffer>}, key, length * 8));
 }
 
 /** Encrypts one record for a subscription. `salt` and `sender` are only passed by tests (RFC 8291 Appendix A). */
@@ -59,7 +60,7 @@ export async function sendPush(sub: PushSubscription, message: unknown, vapid: V
   const body = await encryptPayload(sub, text.encode(JSON.stringify(message)));
   const headers: Record<string, string> = {'Content-Encoding': 'aes128gcm', 'Content-Type': 'application/octet-stream', TTL: String(options.ttl ?? 300), Urgency: options.urgency ?? 'high', Authorization: await vapidHeader(sub.endpoint, vapid)};
   if (options.topic) headers.Topic = options.topic;
-  const r = await fetcher(sub.endpoint, {method: 'POST', headers, body, signal: AbortSignal.timeout(10000)});
+  const r = await fetcher(sub.endpoint, {method: 'POST', headers, body: body as Uint8Array<ArrayBuffer>, signal: AbortSignal.timeout(10000)});
   await r.body?.cancel(); // only the status matters; release the connection right away
   return r.status;
 }
