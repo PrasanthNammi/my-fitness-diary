@@ -379,7 +379,11 @@ function withTargets(blocks: ExerciseBlock[], s: AiSuggestion, only?: string[]):
   for (const ex of s.exercises) {
     if (only && !only.some((n) => n.toLowerCase() === ex.exercise.toLowerCase())) continue;
     const b = matchBlock(out, ex, exerciseName, suggestedExerciseId);
-    if (b && fits(b.tracking, ex.sets)) out = out.map((x) => (x === b ? applyTargets(x, ex.sets) : x));
+    if (b && fits(b.tracking, ex.sets)) {
+      const history = getDB().workouts;
+      const last = (i: number) => findPrevious(history, b.exerciseId, b.sets[i].type, ordinalWithinType(b.sets, i))?.weightKg;
+      out = out.map((x) => (x === b ? applyTargets(x, ex.sets, last) : x));
+    }
   }
   return out;
 }

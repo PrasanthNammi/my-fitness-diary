@@ -80,4 +80,12 @@ const aiLogged={...plan,sets:[{...S.targetSets([{kg:80,reps:5}],()=>'z')[0],done
 const three={exercises:[{exercise:'Bench Press'},{exercise:'Row'},{exercise:'Press'}]};
 assert.equal(S.acceptedCount({...three,status:'pending'}),'0/3');assert.equal(S.acceptedCount({...three,status:'used'}),'3/3','Use all');
 assert.equal(S.acceptedCount({...three,status:'used',usedExercises:['bench press']}),'1/3');assert.equal(S.acceptedCount({...three,status:'used',usedExercises:['Bench Press','Row']}),'2/3');
+// Reps-only targets: the weight falls back to last time's weight when the plan has none (or 0), never 0.
+const zeroPlan={id:'z',exerciseId:'x1',tracking:'weight_reps',restSec:90,note:'',supersetId:null,sets:[set('w1','warmup',{suggested:{weightKg:0,reps:10}}),set('s1','normal',{suggested:{weightKg:0,reps:6}}),set('s2','normal',{suggested:{weightKg:70,reps:6}})]};
+const prevW=i=>[30,80,80][i];
+const rz=S.applyTargets(zeroPlan,[{type:'warmup',reps:10},{reps:6},{reps:6}],prevW);
+assert.deepEqual([rz.sets[0].suggested.weightKg,rz.sets[1].suggested.weightKg,rz.sets[2].suggested.weightKg],[30,80,70],'0 replaced by last time; a real plan weight is kept');
+assert.deepEqual(rz.sets[1].aiPrev,{weightKg:0,reps:6},'plan remembered as it was');
+assert.equal(S.applyTargets(zeroPlan,[{reps:6}]).sets[1].suggested.weightKg,0,'no history: stays as planned');
+assert.equal(S.applyTargets({...zeroPlan,tracking:'reps'},[{reps:12}],prevW).sets[1].suggested.weightKg,0,'reps-only exercise: no weight added');
 console.log('PASS ai suggestions: dismiss restores the plan (ticked/typed kept, AI-added removed, original plan after two suggestions), newest per routine, dismissed/7-day/used-by-workout expiry, name matching, faded-only targets (ticked and typed untouched), warm-ups separate, extra sets, tracking fit');

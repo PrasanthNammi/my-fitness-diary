@@ -27,6 +27,7 @@ export function ActiveWorkoutScreen() {
   const keepAwake = useDB((d) => d.settings.keepAwake !== false);
   const vibrate = useDB((d) => d.settings.vibrate !== false);
   const allSuggestions = useDB((d) => d.aiSuggestions);
+  const [removingSuggestion, setRemovingSuggestion] = useState<string | null>(null);
   // A suggestion for this routine not yet used: offer it at the top of the workout.
   // This routine's suggestion stays reachable for the whole workout (new or already accepted), until it expires or is dismissed.
   const liveSuggestion = activeSuggestion(allSuggestions, a?.routineId, history);
@@ -95,7 +96,7 @@ export function ActiveWorkoutScreen() {
         {liveSuggestion && (
           <div className="ai-suggest-bar">
             <button type="button" className="ai-suggest-open" onClick={() => openSuggestion(liveSuggestion.id)}><Sparkles aria-hidden="true" /><span className="grow">{liveSuggestion.status === 'used' ? 'AI suggestions' : 'New AI suggestions'} · {suggestionSource(liveSuggestion)}</span><span className="go">{liveSuggestion.status === 'used' ? `${acceptedCount(liveSuggestion)} Accepted` : 'Review'}</span></button>
-            <button type="button" className="ai-suggest-x" aria-label="Dismiss AI suggestions" onClick={() => toast(suggestions.dismiss(liveSuggestion.id) ? 'AI targets removed' : 'Suggestion dismissed')}><X /></button>
+            <button type="button" className="ai-suggest-x" aria-label="Dismiss AI suggestions" onClick={() => setRemovingSuggestion(liveSuggestion.id)}><X /></button>
           </div>
         )}
         <div className="wo-summary" aria-label="Workout summary">
@@ -151,6 +152,9 @@ export function ActiveWorkoutScreen() {
         setReplaceId(null); toast('Exercise replaced');
       }} />}
       <SupersetSheet open={!!ssFor} onClose={() => setSsFor(null)} list={a.exercises} forId={ssFor} onPick={(o) => ssFor && setBlocks((l) => joinSuperset(l, ssFor, o))} />
+      <ConfirmSheet open={!!removingSuggestion} onClose={() => setRemovingSuggestion(null)} danger title="Remove AI suggestions?"
+        body="The suggested targets will be taken out of this workout, and you can't use this suggestion again." confirmLabel="Remove"
+        onConfirm={() => { if (removingSuggestion) toast(suggestions.dismiss(removingSuggestion) ? 'AI suggestions removed' : 'Suggestion removed'); setRemovingSuggestion(null); }} />
       <ConfirmSheet
         open={confirmDiscard}
         onClose={() => setConfirmDiscard(false)}

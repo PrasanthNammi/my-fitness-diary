@@ -85,17 +85,24 @@ export const setType = (t: TargetSet): SetType => (t.type === 'dropset' ? 'drop'
 /**
  * Puts targets on a block as faded values: warm-up targets on warm-up sets, the rest on working sets, in order.
  * Ticked sets and values the user typed are never changed (typed values win over faded ones anyway).
+ * previousWeight: when a target has reps but no weight and the plan's faded weight is empty or 0, the weight
+ * lifted last time for that set is shown instead (never a meaningless 0).
  */
-export function applyTargets(block: ExerciseBlock, targets: TargetSet[]): ExerciseBlock {
+export function applyTargets(block: ExerciseBlock, targets: TargetSet[], previousWeight?: (index: number) => number | null | undefined): ExerciseBlock {
   const queues = { warm: targets.filter(isWarm), work: targets.filter((t) => !isWarm(t)) };
   const used = { warm: 0, work: 0 };
-  const sets = block.sets.map((s): SetEntry => {
+  const sets = block.sets.map((s, i): SetEntry => {
     const q = s.type === 'warmup' ? 'warm' : 'work';
     const t = queues[q][used[q]++];
     if (!t || s.done) return s;
     // Remember the plan's faded values once (a second suggestion keeps the original plan to go back to).
     const prev = s.aiTarget ? s.aiPrev ?? null : s.suggested ?? null;
-    return { ...s, suggested: { ...(s.suggested ?? {}), ...targetValues(t) }, aiTarget: true, aiPrev: prev };
+    const suggested = { ...(s.suggested ?? {}), ...targetValues(t) };
+    if (t.kg == null && trackingFields(block.tracking)?.includes('weightKg') && !suggested.weightKg) {
+      const last = previousWeight?.(i);
+      if (last != null && last > 0) suggested.weightKg = last;
+    }
+    return { ...s, suggested, aiTarget: true, aiPrev: prev };
   });
   return { ...block, sets };
 }
