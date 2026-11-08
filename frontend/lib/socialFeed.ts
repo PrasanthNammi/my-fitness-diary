@@ -25,7 +25,7 @@ async function rows(query:any){const {data,error}=await query;if(error)throw err
 export class SocialFeed{
  rows=new Map<string,FeedRow>();reactions=new Map<string,FeedReaction>();comments=new Map<string,FeedComment>();photos=new Map<string,string>();
  private cursor:string|null=null;private cursorAt=0;private settled=false;private owners='';private checked=0;
- private oldest=new Map<string,string>();private complete=new Set<string>();
+ private oldest=new Map<string,string>();private complete=new Set<string>();private pinned=new Set<string>();
  constructor(private uid:string,private now:()=>number=()=>Date.now(),private storage:Pick<Storage,'getItem'|'setItem'|'removeItem'>|null=safeStorage()){this.restore()}
 
  windowStart(){return new Date(this.now()-FEED_DAYS*DAY).toISOString()}
@@ -72,10 +72,23 @@ export class SocialFeed{
   return page.length;
  }
 
+ /** One workout and its likes, comments and photo (e.g. an older one opened from a profile or comparison). Kept until the friend list changes. */
+ async loadWorkout(c:any,owner:string,workout:string){
+  const k=key(owner,workout);
+  if(!this.rows.has(k)){const found:FeedRow[]=await rows(c.from('mfd_social_workouts').select('*').eq('owner_id',owner).eq('workout_id',workout).limit(1));if(!found[0])return null;this.rows.set(k,found[0])}
+  this.pinned.add(k);
+  const [reactions,comments,photos]=await Promise.all([rows(c.from('mfd_reactions').select('*').eq('owner_id',owner).eq('workout_id',workout)),rows(c.from('mfd_comments').select('*').eq('owner_id',owner).eq('workout_id',workout)),rows(c.from('mfd_workout_photos').select('*').eq('owner_id',owner).eq('workout_id',workout))]);
+  for(const r of reactions)this.reactions.set(reactionKey(r),r);for(const x of comments)this.comments.set(x.id,x);for(const p of photos)this.photos.set(k,p.path);
+  return this.rows.get(k)!;
+ }
+ row(owner:string,workout:string){return this.rows.get(key(owner,workout))}
+ /** Who liked one workout, newest first. */
+ likesFor(owner:string,workout:string){const k=key(owner,workout);return [...this.reactions.values()].filter(r=>key(r.owner_id,r.workout_id)===k).sort((a,b)=>micros(b.created_at)-micros(a.created_at))}
+
  /** After this device adds or removes its own reaction: apply it at once, the next check confirms. */
  react(owner:string,workout:string,on:boolean){const r={user_id:this.uid,owner_id:owner,workout_id:workout,created_at:new Date(this.now()).toISOString()};if(on)this.reactions.set(reactionKey(r),r);else this.reactions.delete(reactionKey(r));this.save()}
 
- clear(){this.rows.clear();this.reactions.clear();this.comments.clear();this.photos.clear();this.cursor=null;this.cursorAt=0;this.settled=false;this.owners='';this.checked=0;this.oldest.clear();this.complete.clear();try{this.storage?.removeItem(STORAGE+this.uid)}catch{}}
+ clear(){this.rows.clear();this.reactions.clear();this.comments.clear();this.photos.clear();this.cursor=null;this.cursorAt=0;this.settled=false;this.owners='';this.checked=0;this.oldest.clear();this.complete.clear();this.pinned.clear();try{this.storage?.removeItem(STORAGE+this.uid)}catch{}}
 
  private async full(c:any,owners:string[]){
   const start=this.windowStart();
@@ -137,7 +150,8 @@ export class SocialFeed{
  /** Drops people who are no longer visible friends, and feed items that aged out of the window. */
  private prune(owners:Set<string>){
   const start=time(this.windowStart());
-  for(const [k,r] of this.rows)if(!owners.has(r.owner_id)||(time(r.started_at)<start&&!this.oldest.has(r.owner_id)))this.rows.delete(k);
+  for(const [k,r] of this.rows)if(!owners.has(r.owner_id)||(time(r.started_at)<start&&!this.oldest.has(r.owner_id)&&!this.pinned.has(k)))this.rows.delete(k);
+  for(const k of [...this.pinned])if(!this.rows.has(k))this.pinned.delete(k);
   for(const [k,r] of this.reactions)if(!this.rows.has(key(r.owner_id,r.workout_id)))this.reactions.delete(k);
   for(const [k,x] of this.comments)if(!this.rows.has(key(x.owner_id,x.workout_id)))this.comments.delete(k);
   for(const k of [...this.photos.keys()])if(!this.rows.has(k))this.photos.delete(k);

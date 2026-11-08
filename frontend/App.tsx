@@ -90,7 +90,7 @@ function Routes({ route }: { route: string[] }) {
       if (b === 'session' && c && d === 'edit') return <WorkoutEditor key={c} id={c} />;
       if (b === 'session' && c) return <SessionDetail id={c} />;
       return <ProgressHome tab={b === 'exercises' || b === 'body' ? b : 'summary'} />;
-    case 'friends':return <FriendsScreen view={b==='u'&&c?{kind:'profile',username:c}:b==='chat'&&c?{kind:'chat',username:c}:b==='me'?{kind:'me'}:{kind:'feed'}}/>;
+    case 'friends':return <FriendsScreen view={b==='u'&&c?{kind:'profile',username:c}:b==='chat'&&c?{kind:'chat',username:c}:b==='w'&&c&&d?{kind:'workout',owner:c,workout:decodeURIComponent(d)}:b==='compare'&&c?{kind:'compare',username:c,exercise:d}:b==='activity'?{kind:'activity'}:b==='me'?{kind:'me'}:{kind:'feed'}}/>;
     case 'coach':
       return <AiAssistants />;
     case 'settings':
