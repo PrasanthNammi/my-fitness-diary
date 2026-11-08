@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Notice, TopBar, toast } from '../../components/ui';
-import { aiPrefs, android, disablePush, enablePush, pushStatus, restAlertsOn, setAiPrefs, setRestAlerts, type PushStatus } from '../../lib/push';
+import { aiPrefs, android, cachedAiPref, disablePush, enablePush, pushStatus, restAlertsOn, setAiPrefs, setRestAlerts, type PushStatus } from '../../lib/push';
 
 const box = { width: 22, height: 22, accentColor: 'var(--accent)' } as const;
 
@@ -9,9 +9,9 @@ export function NotificationSettings() {
   const [status, setStatus] = useState<PushStatus | null>(null);
   const [busy, setBusy] = useState(false);
   const [rest, setRest] = useState(restAlertsOn);
-  const [ai, setAi] = useState<boolean | null>(null);
+  const [ai, setAi] = useState<boolean | null>(cachedAiPref);
   useEffect(() => { void pushStatus().then(setStatus); }, []);
-  useEffect(() => { if (status === 'on') aiPrefs().then((p) => setAi(p.ai)).catch(() => setAi(null)); }, [status]);
+  useEffect(() => { if (status === 'on') aiPrefs().then((p) => setAi(p.ai)).catch(() => setAi((v) => v)); }, [status]);
 
   const toggle = async (on: boolean) => {
     setBusy(true);

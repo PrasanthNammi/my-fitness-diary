@@ -28,9 +28,7 @@ export function SessionDetail({ id }: { id: string }) {
   return (
     <>
       <TopBar title={w.title} back="/training/history" bordered actions={<>
-        <button className="icon-btn" aria-label="Copy workout" title="Copy workout" onClick={() => setCopy(true)}><CopyPlus /></button>
-        <button className="icon-btn" aria-label="Edit workout" title="Edit workout" onClick={() => navigate(`/training/history/${w.id}/edit`)}><Pencil /></button>
-        <OverflowMenu title={w.title} actions={[{ label: 'Edit workout', icon: Pencil, onSelect: () => navigate(`/training/history/${w.id}/edit`) }, { label: 'Delete workout', icon: Trash2, danger: true, onSelect: () => setDel(true) }]} />
+        <OverflowMenu title={w.title} actions={[{ label: 'Copy workout', icon: CopyPlus, onSelect: () => setCopy(true) }, { label: 'Edit workout', icon: Pencil, onSelect: () => navigate(`/training/history/${w.id}/edit`) }, { label: 'Delete workout', icon: Trash2, danger: true, onSelect: () => setDel(true) }]} />
       </>} />
       <div className="screen">
         <p className="small muted" style={{ margin: '10px 0 6px' }}>{longDate(w.startedAt)}</p>
