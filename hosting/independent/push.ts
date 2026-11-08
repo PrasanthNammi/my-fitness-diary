@@ -7,7 +7,9 @@ import {knownPushService, sendPush, vapidPublicKey, type PushSubscription, type 
 // a short message when ChatGPT or Claude adds something. One PushHub object per user holds
 // that user's devices (push subscriptions), pending rest alarms and preferences. Nothing else.
 type Rest = {id: string; ends: number; label: string};
-type Prefs = {ai: boolean};
+type Prefs = {ai: boolean; social: boolean; messages: boolean};
+const PREF_KEYS = ['ai', 'social', 'messages'] as const;
+const SOCIAL_PER_HOUR = 30;
 const MAX_DEVICES = 5, MAX_RESTS = 10, MAX_AHEAD = 2 * 3600_000;
 // Rest IDs are the app's exercise-block IDs, e.g. "<workout uuid>:0".
 const ID = /^[\w:.-]{1,100}$/;
@@ -53,8 +55,8 @@ export class PushHub extends DurableObject<Record<string, unknown>> {
     this.sql.exec('DELETE FROM devices WHERE endpoint NOT IN (SELECT endpoint FROM devices ORDER BY added DESC LIMIT ?)', MAX_DEVICES);
   }
   async removeDevice(endpoint: string) {this.sql.exec('DELETE FROM devices WHERE endpoint=?', endpoint);}
-  async prefs(): Promise<Prefs> {return {ai: this.get('ai') !== 'off'};}
-  async setPrefs(p: Prefs) {this.put('ai', p.ai ? 'on' : 'off');}
+  async prefs(): Promise<Prefs> {return {ai: this.get('ai') !== 'off', social: this.get('social') !== 'off', messages: this.get('messages') !== 'off'};}
+  async setPrefs(p: Partial<Prefs>) {for (const k of PREF_KEYS) if (typeof p[k] === 'boolean') this.put(k, p[k] ? 'on' : 'off');}
 
   /** Replaces the pending rest alarms (an empty list cancels them). With `controls` (Android),
    * also shows one silent "Resting" notification with −15s / +15s buttons for the next rest. */
@@ -100,6 +102,18 @@ export class PushHub extends DurableObject<Record<string, unknown>> {
     await this.schedule();
   }
 
+  /** A friend liked, commented or sent a message. Respects the user's switches; at most 30 an hour.
+   * The tag groups them on the phone: a newer like on the same workout replaces the older one. */
+  async social(m: SocialMessage) {
+    if (this.get(m.kind === 'message' ? 'messages' : 'social') === 'off' || !this.devices().length) return false;
+    const hour = Math.floor(Date.now() / 3600_000), [h, n] = (this.get('social-rate') ?? '0:0').split(':').map(Number);
+    const count = h === hour ? (n ?? 0) + 1 : 1;
+    if (count > SOCIAL_PER_HOUR) return false;
+    this.put('social-rate', `${hour}:${count}`);
+    await this.broadcast({title: m.title, body: m.body, tag: m.tag, url: m.url}, m.kind === 'message' ? 'msg' : m.kind, 86400);
+    return true;
+  }
+
   /** One message per AI addition; repeats of the same request are ignored. */
   async aiAdded(requestId: string | null, message: {title: string; body: string}) {
     if (this.get('ai') === 'off' || !this.devices().length) return;
@@ -110,6 +124,36 @@ export class PushHub extends DurableObject<Record<string, unknown>> {
     }
     await this.broadcast({...message, tag: 'ai', url: '/'}, 'ai', 3600);
   }
+}
+
+// ── Friends: what a like, comment or message says (from the database's signed request) ──
+export type SocialMessage = {kind: 'like' | 'comment' | 'message'; recipient: string; title: string; body: string; tag: string; url: string};
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+const text = (v: unknown, max: number) => (typeof v === 'string' ? v.replace(/\s+/g, ' ').trim().slice(0, max) : '');
+export function socialMessage(b: Record<string, unknown>): SocialMessage | null {
+  const kind = b.kind, recipient = b.recipient, actor = text(b.actor_name, 80);
+  if ((kind !== 'like' && kind !== 'comment' && kind !== 'message') || typeof recipient !== 'string' || !UUID.test(recipient) || !actor) return null;
+  const count = typeof b.count === 'number' && Number.isInteger(b.count) && b.count > 0 ? Math.min(b.count, 9999) : 1;
+  if (kind === 'message') {
+    const user = typeof b.actor_username === 'string' && /^[a-z0-9._]{3,24}$/.test(b.actor_username) ? b.actor_username : null;
+    if (!user) return null;
+    return {kind, recipient, title: actor, body: count > 1 ? `${count} new messages` : 'Sent you a message', tag: 'msg:' + user, url: '/#/friends/chat/' + user};
+  }
+  const workout = typeof b.workout === 'string' && /^[\w:.-]{1,100}$/.test(b.workout) ? b.workout : null;
+  if (!workout) return null;
+  const title = text(b.title, 80) || 'workout', url = `/#/friends/w/${recipient}/${encodeURIComponent(workout)}`;
+  if (kind === 'like') {
+    const others = count - 1;
+    return {kind, recipient, title: others > 0 ? `${actor} and ${others} other${others === 1 ? '' : 's'} liked your ${title}` : `${actor} liked your ${title}`, body: 'Tap to see your workout', tag: 'like:' + workout, url};
+  }
+  return {kind, recipient, title: `${actor} commented on your ${title}`, body: text(b.text, 160), tag: 'comment:' + workout, url};
+}
+/** The database signs its requests with a shared secret (Vault "mfd_social_hook" = Worker secret MFD_SOCIAL_HOOK). */
+export function hookAllowed(header: string | null, env: Record<string, unknown>) {
+  const secret = typeof env.MFD_SOCIAL_HOOK === 'string' ? env.MFD_SOCIAL_HOOK : '';
+  if (secret.length < 32 || !header || header.length !== secret.length) return false;
+  let diff = 0; for (let i = 0; i < secret.length; i++) diff |= secret.charCodeAt(i) ^ header.charCodeAt(i);
+  return diff === 0;
 }
 
 // ── What the AI added, in one line ────────────────────────────────
@@ -162,6 +206,13 @@ export async function handlePush(request: Request, env: Record<string, unknown>,
     const vapid = vapidOf(env, config.authOrigin), ns = env.MFD_PUSH as PushNamespace | undefined;
     if (!vapid || !ns) return privateJson({error: 'Notifications unavailable'}, 503);
     if (path === '/push/key' && method === 'GET') return privateJson({key: vapidPublicKey(vapid.jwk)});
+    // From the database (pg_net), not a browser: signed with the shared secret instead of a user token.
+    if (path === '/push/social' && method === 'POST') {
+      if (!hookAllowed(request.headers.get('x-mfd-hook'), env)) return privateJson({error: 'Forbidden'}, 403);
+      const m = socialMessage(await body(request));
+      if (!m) return privateJson({error: 'Invalid notification'}, 400);
+      return privateJson({ok: true, sent: await ns.get(ns.idFromName(m.recipient)).social(m)});
+    }
     const user = await userId(config, fetcher, request);
     if (!user) return privateJson({error: 'Sign in required'}, 401);
     const hub = ns.get(ns.idFromName(user));
@@ -174,7 +225,7 @@ export async function handlePush(request: Request, env: Record<string, unknown>,
     }
     if (path === '/push/devices/remove' && method === 'POST') {const b = await body(request); if (typeof b.endpoint !== 'string') return privateJson({error: 'Invalid endpoint'}, 400); await hub.removeDevice(b.endpoint); return privateJson({ok: true});}
     if (path === '/push/prefs' && method === 'GET') return privateJson(await hub.prefs());
-    if (path === '/push/prefs' && method === 'POST') {const b = await body(request); if (typeof b.ai !== 'boolean') return privateJson({error: 'Invalid preferences'}, 400); await hub.setPrefs({ai: b.ai}); return privateJson({ok: true});}
+    if (path === '/push/prefs' && method === 'POST') {const b = await body(request), p: Partial<Prefs> = {}; for (const k of PREF_KEYS) if (k in b) {if (typeof b[k] !== 'boolean') return privateJson({error: 'Invalid preferences'}, 400); p[k] = b[k] as boolean;} if (!Object.keys(p).length) return privateJson({error: 'Invalid preferences'}, 400); await hub.setPrefs(p); return privateJson({ok: true});}
     if (path === '/push/rests' && method === 'GET') return privateJson({rests: await hub.rests()});
     if (path === '/push/rests' && method === 'POST') {
       const b = await body(request), list = restList(b.rests);
