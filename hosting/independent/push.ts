@@ -166,6 +166,7 @@ export function aiMessage(connection: string, operation: string, args: Record<st
   if (operation === 'log_workout') return {title: `${app} logged a workout`, body: s(args.name) || `${count(args.exercises)} exercises`};
   if (operation === 'create_routine') return {title: `${app} created a routine`, body: s(args.name)};
   if (operation === 'log_weight') return {title: `${app} logged your weight`, body: typeof args.kg === 'number' ? `${args.kg} kg` : ''};
+  if (operation === 'start_workout') return {title: `${app} started a workout`, body: [s(args.name) || s(args.routine) || 'Workout', count(args.exercises) ? `${count(args.exercises)} exercises` : '', 'open the app to begin'].filter(Boolean).join(' · ')};
   if (operation === 'suggest_workout_targets') return {title: `${app} suggested targets`, body: [s(args.routine), `${count(args.exercises)} exercises · review in the app`].filter(Boolean).join(' · ')};
   return null;
 }
