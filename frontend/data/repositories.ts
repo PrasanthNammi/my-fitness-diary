@@ -131,6 +131,19 @@ export const workouts = {
     };
     update((d) => void (d.active = a));
   },
+  /** A new workout with the exercises and sets of a finished one (own history or a friend's), not linked to a routine. */
+  startFrom(w: Workout) {
+    const blocks = routineFromWorkout(w, w.title || 'Workout', null).exercises.map(prepareActiveBlock);
+    const a: ActiveWorkout = {
+      id: uid(),
+      title: w.title || 'Workout',
+      routineId: null,
+      startedAt: Date.now(),
+      exercises: blocks,
+      timers: Object.fromEntries(blocks.map((b) => [b.id, { durationSec: b.restSec, endsAt: null, pausedRemainingSec: null }])),
+    };
+    update((d) => void (d.active = a));
+  },
   mutate(fn: (a: ActiveWorkout) => void) {
     if (workouts.expire()) return;
     update((d) => {

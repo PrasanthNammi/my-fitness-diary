@@ -8,7 +8,7 @@ import {ArrowLeft,ArrowUp,Ban,Camera,Check,ChevronDown,Clock,CopyPlus,GitCompare
 import {client,engine} from '../adapters/engine';
 import {useDB,update} from '../data/store';
 import {ConfirmSheet,Empty,InfoButton,Segmented,Sheet,TopBar,toast} from '../components/ui';
-import {routineFromWorkout} from '../data/repositories';
+import {CopyWorkoutSheet} from './training/CopyWorkoutSheet';
 import {toDB} from '../adapters/compat';
 
 type P={user_id:string;username:string;display_name:string;avatar_path?:string|null;created_at?:string};
@@ -24,7 +24,7 @@ export function FriendsScreen({view}:{view:View}){
  const [profiles,setProfiles]=useState<P[]>([]),[links,setLinks]=useState<any[]>([]),[blocks,setBlocks]=useState<any[]>([]),[mine,setMine]=useState<P|null>(null);
  const [workouts,setWorkouts]=useState<any[]>([]),[reactions,setReactions]=useState<any[]>([]),[photos,setPhotos]=useState<Record<string,string>>({});
  const [busy,setBusy]=useState(false),[error,setError]=useState(''),[reload,setReload]=useState(0),[limit,setLimit]=useState(50),[loading,setLoading]=useState(false);
- const [people,setPeople]=useState(false),[inbox,setInbox]=useState(false),[menu,setMenu]=useState(false),[compare,setCompare]=useState(false),[unread,setUnread]=useState<any[]>([]);
+ const [people,setPeople]=useState(false),[inbox,setInbox]=useState(false),[menu,setMenu]=useState(false),[copy,setCopy]=useState<{w:any,extra:any[]}|null>(null),[compare,setCompare]=useState(false),[unread,setUnread]=useState<any[]>([]);
  const [confirm,setConfirm]=useState<{title:string;body?:string;label:string;run:()=>Promise<any>}|null>(null);
  const [thread,setThread]=useState<{owner:string;workout:string;title:string}|null>(null),[,setTick]=useState(0);
  const localHistory=useDB(d=>d.workouts);const imageCache=useRef(new SignedImages());
@@ -80,7 +80,7 @@ export function FriendsScreen({view}:{view:View}){
   if(old?.path||old?.avatar_path)await c.storage.from(bucket).remove([old.path||old.avatar_path])},'Photo saved')}
  async function removePhoto(id?:string){await run(async()=>{if(id){let old=await checked(c.from('mfd_workout_photos').select('*').eq('owner_id',uid).eq('workout_id',id).maybeSingle());if(old){await checked(c.from('mfd_workout_photos').delete().eq('owner_id',uid).eq('workout_id',id));await c.storage.from('mfd-workout-photos').remove([old.path])}}else if(mine?.avatar_path){await checked(c.from('mfd_profiles').update({avatar_path:null}).eq('user_id',uid));await c.storage.from('mfd-avatars').remove([mine.avatar_path])}},'Photo removed')}
  const photoInput=(id?:string,label='Add photo')=><label className="chip social-chip" title={label}><Camera aria-hidden="true"/>{label}<input hidden disabled={busy} type="file" accept="image/*" onChange={e=>{if(e.target.files?.[0])upload(e.target.files[0],id);e.target.value=''}}/></label>;
- function copyWorkout(w:any){let original=engine().peek(),db=toDB({...original,state:{...original.state,sessions:[w.data],routines:[],active:null}},engine().catalogue()),session=db.workouts[0];if(session){let routine=routineFromWorkout(session,w.data.name,null);update(d=>{for(let e of db.customExercises)if(!d.customExercises.some(x=>x.id===e.id))d.customExercises.push(e);d.routines.push(routine)});toast(`${w.data.name} copied to Training`)}}
+ function copyWorkout(w:any){let original=engine().peek(),db=toDB({...original,state:{...original.state,sessions:[w.data],routines:[],active:null}},engine().catalogue()),session=db.workouts[0];if(session)setCopy({w:{...session,title:w.data.name||session.title},extra:db.customExercises})}
  const request=(p:P)=>run(()=>checked(c.from('mfd_friendships').insert({recipient:p.user_id})),'Request sent');
  const accept=(l:any)=>run(()=>checked(c.from('mfd_friendships').update({status:'accepted'}).eq('id',l.id)),'You are now friends');
  const cancel=(l:any,msg:string)=>run(()=>checked(c.from('mfd_friendships').delete().eq('id',l.id)),msg);
@@ -95,7 +95,7 @@ export function FriendsScreen({view}:{view:View}){
    <div className="social-actions">
     <button className={'social-icon'+(liked?' liked':'')} aria-pressed={liked} aria-label={`${liked?'Remove like':'Like'} · ${likes}`} onClick={()=>run(async()=>{if(liked)await checked(c.from('mfd_reactions').delete().eq('user_id',uid).eq('owner_id',w.owner_id).eq('workout_id',w.workout_id));else await checked(c.from('mfd_reactions').insert({owner_id:w.owner_id,workout_id:w.workout_id}));feedRef.current?.react(w.owner_id,w.workout_id,!liked);setReactions(feedRef.current?.reactionList()||[])})}><Heart aria-hidden="true" fill={liked?'currentColor':'none'}/>{likes>0&&<span className="tnum">{likes}</span>}</button>
     <button className="social-icon" aria-label={`Comments · ${comments}`} onClick={()=>setThread({owner:w.owner_id,workout:w.workout_id,title:s.name})}><MessageCircle aria-hidden="true"/>{comments>0&&<span className="tnum">{comments}</span>}</button>
-    <button className="social-icon" aria-label="Copy as a routine" onClick={()=>copyWorkout(w)}><CopyPlus aria-hidden="true"/></button>
+    <button className="social-icon" aria-label="Copy workout" onClick={()=>copyWorkout(w)}><CopyPlus aria-hidden="true"/></button>
     {own&&<span className="social-actions-end">
      <label className="social-icon" aria-label={photos[key]?'Change photo':'Add photo'} title={photos[key]?'Change photo':'Add photo'}><Camera aria-hidden="true"/><input hidden disabled={busy} type="file" accept="image/*" onChange={e=>{if(e.target.files?.[0])upload(e.target.files[0],w.workout_id);e.target.value=''}}/></label>
      {photos[key]&&<button className="social-icon" aria-label="Remove photo" onClick={()=>setConfirm({title:'Remove this photo?',label:'Remove',run:()=>removePhoto(w.workout_id)})}><Trash2 aria-hidden="true"/></button>}
@@ -150,6 +150,7 @@ export function FriendsScreen({view}:{view:View}){
     {view.kind==='profile'&&!selected&&profiles.length>0&&<Empty icon={Users} title="No one with this username"/>}
    </>}
   </div>
+  <CopyWorkoutSheet workout={copy?.w??null} extraExercises={copy?.extra} onClose={()=>setCopy(null)}/>
   <PeopleSheet open={people} onClose={()=>setPeople(false)} uid={uid!} profiles={profiles} links={links} friend={friend} avatar={avatar} onOpen={openProfile} onChat={openChat} onRequest={request} onAccept={accept} onCancel={cancel} busy={busy}/>
   <Sheet open={inbox} onClose={()=>setInbox(false)} title="Inbox">
    <div className="social-list">{profiles.filter(p=>friend(p.user_id)).sort((a,b)=>unread.filter(m=>m.sender===b.user_id).length-unread.filter(m=>m.sender===a.user_id).length).map(p=>{const n=unread.filter(m=>m.sender===p.user_id).length;return <button key={p.user_id} className="social-person" onClick={()=>openChat(p)}>{avatar(p)}<span className="grow"><span className="name">{p.display_name}</span><span className={'sub'+(n?' strong':'')}>{n?`${n} new ${n===1?'message':'messages'}`:'@'+p.username}</span></span>{n>0&&<span className="count-badge static">{n}</span>}</button>})}

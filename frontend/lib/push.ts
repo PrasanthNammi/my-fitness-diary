@@ -38,11 +38,15 @@ export async function disablePush() {
   await api('devices/remove', { endpoint: sub.endpoint }).catch(() => undefined);
   await sub.unsubscribe();
 }
-export const aiPrefs = () => api<{ ai: boolean }>('prefs');
-export const setAiPrefs = (ai: boolean) => api('prefs', { ai });
 
 const read = (k: string) => { try { return localStorage.getItem(k); } catch { return null; } };
 const write = (k: string, v: string | null) => { try { if (v === null) localStorage.removeItem(k); else localStorage.setItem(k, v); } catch { /* per-device convenience */ } };
+// The AI choice lives on the server (per account); the last known value is remembered here so the
+// settings page shows it at once instead of waiting for the server.
+const AI_KEY = 'mfd-push-ai';
+export const cachedAiPref = (): boolean | null => { const v = read(AI_KEY); return v === 'on' ? true : v === 'off' ? false : null; };
+export const aiPrefs = async () => { const p = await api<{ ai: boolean }>('prefs'); write(AI_KEY, p.ai ? 'on' : 'off'); return p; };
+export const setAiPrefs = async (ai: boolean) => { const r = await api('prefs', { ai }); write(AI_KEY, ai ? 'on' : 'off'); return r; };
 export const restAlertsOn = () => read(REST_KEY) !== 'off';
 export const setRestAlerts = (on: boolean) => write(REST_KEY, on ? 'on' : 'off');
 
