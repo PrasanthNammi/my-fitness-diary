@@ -1,3 +1,4 @@
+import {syncKey,syncNow} from '../lib/sync';
 import {ExercisePicker} from './training/ExercisePicker';
 import {useRef,useState,useSyncExternalStore,type ReactNode} from 'react';
 import {Timer,UserRound,Ruler,Goal,Library,Database,ShieldUser,Utensils,Dumbbell,Flag,Download,Upload,Archive,LogOut,RefreshCw,Bell,Palette,Bot,ChevronRight} from 'lucide-react';
@@ -23,7 +24,7 @@ function appearance(){try{const v=localStorage.getItem('mfd-appearance');return 
 
 export function SettingsLive({section}:{section:string|null}){
  const [importing,setImporting]=useState(false),[leaving,setLeaving]=useState(false);
- const sync=useSyncExternalStore(fn=>engine()?.subscribe(fn)||(()=>{}),()=>{const s=engine()?.peek();return s?.conflict||s?.error?'attention':s?.offline?'offline':s?.dirty||s?.busy?'pending':'saved'});
+ const syncState=useSyncExternalStore(fn=>engine()?.subscribe(fn)||(()=>{}),syncKey);const [sync,syncText]=syncState.split('|') as [string,string];
  const profile=useDB(d=>d.profile),settings=useDB(d=>d.settings),account=useDB(d=>d.account),t=useTargets()?.targets;
  const file=useRef<HTMLInputElement>(null);
  // Closing the exercise list steps back (it used to open Catalogue again, so the back arrow returned to Exercises).
@@ -32,7 +33,6 @@ export function SettingsLive({section}:{section:string|null}){
  if(section==='notifications')return <NotificationSettings/>;
  if(section==='appearance')return <AppearanceSettings/>;
  const go=(p:string)=>()=>navigate('/settings/'+p);
- const syncText=sync==='attention'?'Sync needs attention':sync==='offline'?'Offline · changes on this device':sync==='pending'?'Saving changes…':'Saved to the cloud';
  const pages:Record<string,{title:string;items:Item[]}>={
   catalogue:{title:'Exercise & food catalogue',items:[
    {icon:<Dumbbell/>,label:'Exercises',sub:'Browse, search, create your own',onClick:go('exercises')},
@@ -42,7 +42,7 @@ export function SettingsLive({section}:{section:string|null}){
    {icon:<Download/>,label:'Export',sub:'Download a backup of your diary',onClick:()=>openTool('backup')},
    {icon:<Flag/>,label:'Reports',sub:'Nutrition data you reported',onClick:()=>openTool('reports')}]},
   account:{title:'Account',items:[
-   {icon:<RefreshCw/>,label:'Sync',sub:syncText,dot:sync==='attention',onClick:()=>openTool('account')},
+   {icon:<RefreshCw/>,label:'Sync now',sub:syncText,dot:sync==='attention',onClick:()=>{void syncNow()}},
    {icon:<LogOut/>,label:'Log out',danger:true,onClick:()=>setLeaving(true)}]},
  };
  const page=section?pages[section]:undefined;

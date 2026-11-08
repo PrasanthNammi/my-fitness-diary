@@ -1,6 +1,12 @@
 import {useSyncExternalStore} from 'react';
-import {CloudOff,CloudUpload} from 'lucide-react';
-import {engine,openTool} from '../adapters/engine';
-// Problems (conflict, error) are shown by the attention dot on the avatar and on Settings > Account.
-function status(){const s=engine()?.peek();return !s||s.conflict||s.error?'':s.offline?'offline':s.dirty||s.busy?'pending':''}
-export function SyncStatus(){const value=useSyncExternalStore(fn=>engine()?.subscribe(fn)||(()=>{}),status);if(!value)return null;const Icon=value==='offline'?CloudOff:CloudUpload;return <button className="icon-btn sync-status" aria-label={value==='offline'?'Offline. Changes stay on this device until reconnection.':'Saved on this device. Cloud sync pending.'} title={value==='offline'?'Offline':'Saving'} onClick={()=>openTool('account')}><Icon/></button>}
+import {CloudOff,CloudUpload,RefreshCw} from 'lucide-react';
+import {engine} from '../adapters/engine';
+import {syncKey,syncNow} from '../lib/sync';
+// Shown only while something isn't in the cloud yet. Tap = Sync now (with feedback). Problems also show the
+// attention dot on the avatar and on Settings > Account.
+export function SyncStatus(){
+ const key=useSyncExternalStore(fn=>engine()?.subscribe(fn)||(()=>{}),syncKey);const [kind,label]=key.split('|') as [string,string];
+ if(kind==='saved'||kind==='attention')return null;
+ const Icon=kind==='offline'?CloudOff:kind==='retrying'?RefreshCw:CloudUpload;
+ return <button className={'icon-btn sync-status '+kind} aria-label={label+'. Tap to sync now.'} title={label} onClick={()=>{void syncNow()}}><Icon/></button>;
+}
