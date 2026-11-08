@@ -42,7 +42,7 @@ function Review({ s }: { s: AiSuggestion }) {
   const fmt = (t: TargetSet) => t.kg != null ? `${fmtNum(kgTo(t.kg, unit), 2)} ${unit}${t.reps != null ? ` × ${t.reps}` : ''}`
     : t.reps != null ? `${t.reps} reps` : t.duration_seconds != null ? mss(t.duration_seconds) : t.distance_meters != null ? `${fmtNum(t.distance_meters / 1000, 2)} km` : '—';
   const close = () => openSuggestion(null);
-  const status = expired || !current ? 'Expired' : s.status === 'used' ? (s.usedExercises ? 'Partly used' : 'Accepted') : 'Review';
+  const status = expired || !current ? 'Expired' : s.status === 'used' ? 'Accepted' : 'Review';
   return (
     <Sheet open onClose={close} title="AI suggestions" size="full"
       headerActions={<InfoButton title="AI workout suggestions" lines={['Use only fills the faded values. A set is saved when you tick it.', 'Ticked sets and numbers you typed are never changed.', 'A newer suggestion replaces this one. Suggestions expire after the next workout of this routine or after 7 days.']} />}
@@ -59,7 +59,6 @@ function Review({ s }: { s: AiSuggestion }) {
           const ok = block ? fits(block.tracking, ex.sets) : known ? fits(known.tracking, ex.sets) : false;
           const extra = running && block && ok ? extraTargets(block, ex.sets).length : 0;
           const last = lastWorking(workouts, block?.exerciseId ?? known?.id);
-          const used = s.status === 'used' && (!s.usedExercises || s.usedExercises.some((n) => n.toLowerCase() === ex.exercise.toLowerCase()));
           return (
             <section key={ex.exercise} className="ai-suggest-ex">
               <div className="ai-suggest-ex-head"><strong className="ellipsis">{block ? exerciseName(block.exerciseId) : ex.exercise}</strong>{ex.reason && <InfoButton title={ex.exercise} lines={[ex.reason]} />}</div>
@@ -67,7 +66,7 @@ function Review({ s }: { s: AiSuggestion }) {
               <p className="target tnum">→ {ex.sets.map(fmt).join(' · ')}</p>
               {!ok ? <p className="cant">{block || known ? 'Can’t apply to how this exercise is tracked' : 'Not in this routine'}</p>
                 : !expired && current && <div className="ai-suggest-actions">
-                  {block && (used ? <span className="done-chip">Used</span> : <button className="btn btn-soft btn-sm" onClick={() => { suggestions.use(s.id, ex.exercise); toast(running ? `${ex.exercise}: targets added` : `${ex.exercise}: ready for your next workout`); }}>Use for this exercise</button>)}
+                  {block && (<button className="btn btn-soft btn-sm" onClick={() => { suggestions.use(s.id, ex.exercise); toast(running ? `${ex.exercise}: targets added` : `${ex.exercise}: ready for your next workout`); }}>Use for this exercise</button>)}
                   {extra > 0 && <button className="btn btn-secondary btn-sm" onClick={() => { suggestions.addSets(s.id, ex.exercise); toast(`${extra} set${extra === 1 ? '' : 's'} added`); }}><Plus aria-hidden="true" />Add {extra} set{extra === 1 ? '' : 's'}</button>}
                   {!block && running && known && <button className="btn btn-secondary btn-sm" onClick={() => { if (suggestions.addExercise(s.id, ex.exercise)) toast(`${known.name} added`); }}><Plus aria-hidden="true" />Add exercise</button>}
                 </div>}

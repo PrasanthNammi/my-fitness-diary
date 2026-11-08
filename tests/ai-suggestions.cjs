@@ -52,11 +52,11 @@ const block={id:'b1',exerciseId:'x1',tracking:'weight_reps',restSec:90,note:'',s
 const targets=[{type:'warmup',kg:30,reps:8},{kg:62.5,reps:8},{kg:62.5,reps:8},{kg:62.5,reps:7},{kg:60,reps:10}];
 const r=S.applyTargets(block,targets);
 assert.deepEqual(r.sets[0].suggested,{weightKg:30,reps:8},'warm-up target on the warm-up');
-assert.deepEqual(r.sets[1],block.sets[1],'ticked set untouched');
+assert.deepEqual(r.sets[1],block.sets[1],'ticked set untouched (no AI mark)');assert.equal(r.sets[3].aiTarget,true,'AI mark on targeted sets');
 assert.equal(r.sets[2].weightKg,65,'typed value kept');assert.deepEqual(r.sets[2].suggested,{weightKg:62.5,reps:8},'faded target beside it');
 assert.deepEqual(r.sets[3].suggested,{weightKg:62.5,reps:7});assert.equal(r.sets[3].weightKg,null,'still only faded');assert.equal(r.sets[3].done,false);
 assert.equal(block.sets[3].suggested.weightKg,60,'original not mutated');
 assert.deepEqual(S.extraTargets(block,targets),[{kg:60,reps:10}],'one working target beyond the 3 working sets');
 let n=0;const added=S.targetSets([{kg:60,reps:10,type:'dropset'}],()=>'n'+(++n));
-assert.deepEqual(added,[{id:'n1',type:'drop',weightKg:null,reps:null,timeSec:null,distanceKm:null,rpe:null,done:false,suggested:{weightKg:60,reps:10}}],'new sets are unticked with faded targets');
+assert.deepEqual(added,[{id:'n1',type:'drop',weightKg:null,reps:null,timeSec:null,distanceKm:null,rpe:null,done:false,suggested:{weightKg:60,reps:10},aiTarget:true}],'new sets are unticked with faded targets, marked as AI');
 console.log('PASS ai suggestions: newest per routine, dismissed/7-day/used-by-workout expiry, name matching, faded-only targets (ticked and typed untouched), warm-ups separate, extra sets, tracking fit');

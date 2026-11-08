@@ -1642,3 +1642,10 @@ button.social-person { cursor: pointer; border-left: 0; border-right: 0; }
 .ai-suggest-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 6px; }
 .ai-suggest-actions .btn svg { width: 14px; height: 14px; }
 .ai-suggest-actions .done-chip { display: inline-flex; align-items: center; height: 32px; padding: 0 12px; border-radius: 999px; background: var(--success-soft); color: var(--success-text); font-size: 13px; font-weight: 700; }
+
+/* Sets carrying an AI target: sparkle on the set number, a short purple flash when applied (Lovable) */
+.set-label .set-ai { position: absolute; top: 2px; right: 2px; width: 11px; height: 11px; color: var(--ai); }
+.set-label { position: relative; }
+.set-row.ai-target { animation: ai-target-flash 1.2s ease; }
+@keyframes ai-target-flash { from { background: var(--ai-soft); } to { background: transparent; } }
+@media (prefers-reduced-motion: reduce) { .set-row.ai-target { animation: none; } }

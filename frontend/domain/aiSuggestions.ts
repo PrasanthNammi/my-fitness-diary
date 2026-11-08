@@ -93,7 +93,7 @@ export function applyTargets(block: ExerciseBlock, targets: TargetSet[]): Exerci
     const q = s.type === 'warmup' ? 'warm' : 'work';
     const t = queues[q][used[q]++];
     if (!t || s.done) return s;
-    return { ...s, suggested: { ...(s.suggested ?? {}), ...targetValues(t) } };
+    return { ...s, suggested: { ...(s.suggested ?? {}), ...targetValues(t) }, aiTarget: true };
   });
   return { ...block, sets };
 }
@@ -107,6 +107,6 @@ export function extraTargets(block: ExerciseBlock, targets: TargetSet[]): Target
 export function targetSets(targets: TargetSet[], newId: () => string): SetEntry[] {
   return targets.map((t) => ({
     id: newId(), type: setType(t), weightKg: null, reps: null, timeSec: null, distanceKm: null, rpe: null, done: false,
-    suggested: targetValues(t),
+    suggested: targetValues(t), aiTarget: true,
   }));
 }

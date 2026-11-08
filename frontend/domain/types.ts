@@ -76,6 +76,8 @@ export interface SetEntry {
   steps?: number | null;
   rpe: number | null;
   done: boolean;
+  /** The faded values come from an AI suggestion the user chose to use (shown with a sparkle). */
+  aiTarget?: boolean;
 }
 
 export interface ExerciseBlock {
