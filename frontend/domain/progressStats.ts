@@ -1,5 +1,6 @@
 // Progress screen numbers: pure functions over the diary, so they can be tested without the app.
 import type { CheckIn, ISODate, WeightEntry, Workout } from './types';
+import { daysIntoWeek } from './week';
 import { workingVolume } from './training';
 
 export type RangeDays = 30 | 90 | 180 | 365 | 0; // 0 = all time
@@ -32,10 +33,10 @@ export function summary(list: Workout[]) {
 
 export type StatMetric = 'workouts' | 'volume' | 'minutes';
 const valueOf = (w: Workout, m: StatMetric) => (m === 'workouts' ? 1 : m === 'volume' ? workingVolume(w.exercises) : minutesOf(w));
-const monday = (t: number) => { const d = new Date(t); d.setHours(0, 0, 0, 0); d.setDate(d.getDate() - ((d.getDay() + 6) % 7)); return d; };
+const monday = (t: number) => { const d = new Date(t); d.setHours(0, 0, 0, 0); d.setDate(d.getDate() - daysIntoWeek(d)); return d; };
 
 /**
- * Totals per week (Monday start) for ranges up to 6 months, per month for longer ones, from the
+ * Totals per week (from the chosen week start) for ranges up to 6 months, per month for longer ones, from the
  * start of the range (or the first workout for "All") to today. Empty weeks/months count as 0.
  */
 export function buckets(list: Workout[], from: ISODate | null, metric: StatMetric, now = Date.now()) {
