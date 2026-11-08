@@ -64,6 +64,12 @@ begin
  if jsonb_typeof(doc->'routines') is distinct from 'array' then raise exception 'Finish setting up the diary app first' using errcode='22023'; end if;
  select r into routine from jsonb_array_elements(doc->'routines') r where lower(btrim(r->>'name'))=lower(btrim(args->>'routine')) limit 1;
  if routine is null then raise exception 'Routine "%" not found; use get_routines and give its exact name', btrim(args->>'routine') using errcode='22023'; end if;
+ -- Names as get_routines returns them can differ from the app's display names: attach the routine
+ -- exercise's catalogue id (when it has one) so the app links the suggestion to the right exercise.
+ select coalesce(jsonb_agg(case when l.cat is not null then x||jsonb_build_object('catalogId',l.cat) else x end order by t.n),'[]') into exercises
+  from jsonb_array_elements(exercises) with ordinality t(x,n)
+  left join lateral (select e->>'catalogId' cat from jsonb_array_elements(coalesce(routine->'exercises','[]')) e
+   where lower(btrim(e->>'name'))=lower(btrim(x->>'exercise')) and coalesce(e->>'catalogId','')<>'' limit 1) l on true;
  if rid is not null then
   select e->>'id' into existing from jsonb_array_elements(coalesce(doc->'aiSuggestions','[]')) e
    where e->'addedBy'->>'connection'=conn and e->'addedBy'->>'request'=rid limit 1;
