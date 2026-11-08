@@ -15,7 +15,7 @@ declare
  u uuid := auth.uid(); c text := auth.jwt()->>'client_id'; conn text := args->>'connection';
  tz text; today date; doc jsonb; rev bigint; used integer; rid text := args->>'request_id';
  routine jsonb; ex jsonb; st jsonb; i integer; g integer := 0; kg numeric; reps numeric; dur numeric; dist numeric;
- sets jsonb := '[]'; rest jsonb := '{}'; nm text; eid text := gen_random_uuid()::text; cat text; active jsonb;
+ sets jsonb := '[]'; rest jsonb := '{}'; nm text; eid text := gen_random_uuid()::text; cat text; trk text; active jsonb;
  started bigint := (extract(epoch from now())*1000)::bigint; source jsonb; rest_s numeric;
 begin
  -- Same session, audience and consent checks as mfd_mcp.dispatch.
@@ -82,13 +82,18 @@ begin
       or jsonb_typeof(ex->'sets') is distinct from 'array' or jsonb_array_length(ex->'sets') not between 1 and 20
       or (ex ? 'rest_seconds' and (rest_s is null or rest_s not between 0 and 900 or rest_s<>trunc(rest_s))) then
     raise exception 'Invalid exercise %', g+1 using errcode='22023'; end if;
-   -- Link to the app's catalogue exercise: the same name in the user's routines or past workouts.
-   select x.cat into cat from (
-    select e->>'catalogId' cat from jsonb_array_elements(doc->'routines') r, jsonb_array_elements(coalesce(r->'exercises','[]')) e
-     where lower(btrim(e->>'name'))=lower(btrim(ex->>'exercise')) and coalesce(e->>'catalogId','')<>''
+   -- Link to the app's catalogue exercise and reuse how it's tracked: the same name in the user's routines or past
+   -- workouts (most recent first). Without that, a reps-only plan leaves the type to the app's catalogue
+   -- (Goblet Squat → weight × reps, Push-Up → reps) instead of guessing.
+   cat := null; trk := null;
+   select x.cat, x.trk into cat, trk from (
+    select nullif(e->>'catalogId','') cat, coalesce(nullif(d->>'tracking',''),nullif(e->>'tracking','')) trk, 0 o from jsonb_array_elements(doc->'routines') r, jsonb_array_elements(coalesce(r->'exercises','[]')) e
+     left join lateral (select x2 d from jsonb_array_elements(coalesce(e->'setDetails','[]')) x2 limit 1) dd on true
+     where lower(btrim(e->>'name'))=lower(btrim(ex->>'exercise'))
     union all
-    select s->>'catalogId' from (select value w from jsonb_array_elements(doc->'sessions') order by (value->>'started') desc nulls last limit 200) w2, jsonb_array_elements(coalesce(w2.w->'sets','[]')) s
-     where lower(btrim(s->>'exercise'))=lower(btrim(ex->>'exercise')) and coalesce(s->>'catalogId','')<>'') x limit 1;
+    select nullif(s->>'catalogId',''), nullif(s->>'tracking',''), 1 from (select value w from jsonb_array_elements(doc->'sessions') order by (value->>'started') desc nulls last limit 200) w2, jsonb_array_elements(coalesce(w2.w->'sets','[]')) s
+     where lower(btrim(s->>'exercise'))=lower(btrim(ex->>'exercise'))) x
+   where x.cat is not null or x.trk is not null order by (x.cat is null), x.o limit 1;
    i := 0;
    for st in select value from jsonb_array_elements(ex->'sets') loop
     i := i+1; kg := mfd_mcp.safe_num(st->'kg'); reps := mfd_mcp.safe_num(st->'reps'); dur := mfd_mcp.safe_num(st->'duration_seconds'); dist := mfd_mcp.safe_num(st->'distance_meters');
@@ -99,8 +104,8 @@ begin
      raise exception 'Invalid set % of exercise %', i, g+1 using errcode='22023'; end if;
     sets := sets || jsonb_build_array(jsonb_strip_nulls(jsonb_build_object('id',eid||':'||g||':'||i,'exercise',btrim(ex->>'exercise'),'group',g,'set',i,
      'type',coalesce(st->>'type','normal'),'kg',kg,'reps',reps,'duration_seconds',dur,'distance_meters',dist,'catalogId',cat,
-     'tracking',case when dist is not null then 'distance_duration' when dur is not null and kg is not null then 'weight_duration'
-       when dur is not null then 'duration' when kg is not null then 'weight_reps' else 'reps' end,'done',false)));
+     'tracking',coalesce(trk,case when dist is not null then 'distance_duration' when dur is not null and kg is not null then 'weight_duration'
+       when dur is not null then 'duration' when kg is not null then 'weight_reps' end),'done',false)));
    end loop;
    rest := rest || jsonb_build_object(g::text,jsonb_build_object('duration',coalesce(rest_s,90),'end',0));
    g := g+1;
