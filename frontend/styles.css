@@ -1839,3 +1839,4 @@ button.social-person { cursor: pointer; border-left: 0; border-right: 0; }
 .sync-status.offline svg{color:var(--warn)}
 @keyframes sync-pulse{50%{opacity:.35}}
 @media(prefers-reduced-motion:reduce){.sync-status svg{animation:none!important}}
+.settings-page .settings-group-title{margin:6px 4px -4px;font-size:12px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-3)}

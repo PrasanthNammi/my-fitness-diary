@@ -32,7 +32,7 @@ self.addEventListener('push',event=>{
  event.waitUntil((async()=>{
  // The app already announced this rest's end itself: the server's backup replaces it quietly.
  const quiet=!!m.silent||(m.tag==='rest'&&(await self.registration.getNotifications({tag:'rest'})).some(n=>n.data?.over&&n.data?.id===m.id));
- await self.registration.showNotification(String(m.title||'My Fitness Diary').slice(0,120),{body:String(m.body||'').slice(0,200),tag:String(m.tag||'mfd'),renotify:!quiet,silent:quiet,icon:'/legacy/icon-256.png',vibrate:quiet?undefined:[120,60,120],actions,data:{id:typeof m.id==='string'?m.id:null,over:m.title==='Rest over',url:m.tag==='rest'?'/#/workout':'/'}})})());
+ await self.registration.showNotification(String(m.title||'My Fitness Diary').slice(0,120),{body:String(m.body||'').slice(0,200),tag:String(m.tag||'mfd'),renotify:!quiet,silent:quiet,icon:'/legacy/icon-256.png',vibrate:quiet?undefined:[120,60,120],actions,data:{id:typeof m.id==='string'?m.id:null,over:m.title==='Rest over',url:m.tag==='rest'?'/#/workout':typeof m.url==='string'&&/^\/#\/[\w\/.:%-]{1,200}$/.test(m.url)?m.url:'/'}})})());
 });
 self.addEventListener('notificationclick',event=>{
  const n=event.notification,{id,url}=n.data||{};
@@ -45,5 +45,5 @@ self.addEventListener('notificationclick',event=>{
    await fetch('/api/push/rests/adjust',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify({id,sec})}).catch(()=>{})})());
   return}
  n.close();
- event.waitUntil((async()=>{const windows=await self.clients.matchAll({type:'window',includeUncontrolled:true});const open=windows.find(w=>new URL(w.url).origin===self.location.origin);if(open){await open.focus();return}await self.clients.openWindow(url||'/')})());
+ event.waitUntil((async()=>{const windows=await self.clients.matchAll({type:'window',includeUncontrolled:true});const open=windows.find(w=>new URL(w.url).origin===self.location.origin);if(open){await open.focus();if(url&&url!=='/')open.postMessage({type:'MFD_OPEN',url});return}await self.clients.openWindow(url||'/')})());
 });

@@ -52,4 +52,9 @@ export function installSyncWake() {
   window.addEventListener('online', wake);
   window.addEventListener('pagehide', flush);
   document.addEventListener('visibilitychange', () => (document.hidden ? flush() : wake()));
+  // Tapping a notification while MFD is open: go to what it was about (only in-app links).
+  navigator.serviceWorker?.addEventListener('message', (e: MessageEvent) => {
+    const url = e.data?.type === 'MFD_OPEN' ? e.data.url : null;
+    if (typeof url === 'string' && /^\/#\/[\w/.:%-]{1,200}$/.test(url)) location.hash = url.slice(2);
+  });
 }
