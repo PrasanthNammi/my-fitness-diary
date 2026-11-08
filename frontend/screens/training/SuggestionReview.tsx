@@ -48,11 +48,11 @@ function Review({ s }: { s: AiSuggestion }) {
     <Sheet open onClose={close} title="AI suggestions" size="full" hideClose
       headerActions={<InfoButton title="AI workout suggestions" lines={['Use only fills the faded values. A set is saved when you tick it.', 'Ticked sets and numbers you typed are never changed.', 'A newer suggestion replaces this one. Suggestions expire after the next workout of this routine or after 7 days.']} />}
       footer={!expired && current ? <>
-        {s.status === 'used' && <button className="btn btn-secondary" onClick={() => { const removed = suggestions.clear(s.id); close(); if (removed) toast('AI targets removed'); }}>Dismiss</button>}
+        {!allUsed && <button className="btn btn-secondary" onClick={close}>Dismiss</button>}
         {allUsed
           ? <button className="btn btn-primary" onClick={close}>Done</button>
           : <button className="btn btn-primary" onClick={() => { suggestions.use(s.id); close(); toast(running ? 'Targets added as faded values' : 'Ready for your next workout'); }}>Use all</button>}
-      </> : undefined}>
+      </> : <button className="btn btn-secondary" onClick={close}>Dismiss</button>}>
       <p className="ai-suggest-meta"><Sparkles aria-hidden="true" />{suggestionSource(s)} · {ago(s.createdAt)} · {status}</p>
       <p className="ai-suggest-routine">{routine?.name ?? s.routineName ?? 'Routine'}</p>
       {s.note && <p className="ai-suggest-note">{s.note}</p>}
