@@ -150,6 +150,9 @@ function UnitSettings() {
         <div className="field"><span className="label">Length</span>
           <Segmented label="Length unit" value={s.lengthUnit ?? 'cm'} onChange={(v) => profileRepo.updateSettings({ lengthUnit: v })} options={[{ value: 'cm', label: 'Centimetres (cm)' }, { value: 'in', label: 'Inches (in)' }]} />
         </div>
+        <div className="field"><span className="label">Week starts on</span>
+          <Segmented label="Week starts on" value={String(s.weekStart ?? 1) as '1' | '0' | '6'} onChange={(v) => profileRepo.updateSettings({ weekStart: Number(v) as 0 | 1 | 6 })} options={[{ value: '1', label: 'Monday' }, { value: '0', label: 'Sunday' }, { value: '6', label: 'Saturday' }]} />
+        </div>
         <div className="field"><span className="label">Energy</span>
           <Segmented label="Energy unit" value={s.energyUnit} onChange={(v) => profileRepo.updateSettings({ energyUnit: v })} options={[{ value: 'kcal', label: 'Calories (kcal)' }, { value: 'kJ', label: 'Kilojoules (kJ)' }]} />
         </div>

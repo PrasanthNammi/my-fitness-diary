@@ -51,7 +51,7 @@ export function SettingsLive({section}:{section:string|null}){
   {title:'You',items:[
    {icon:<UserRound/>,label:'Profile',sub:profile?[profile.name,`${fmtInt(profile.heightCm)} cm`,`${fmtNum(kgTo(profile.weightKg,settings.weightUnit),1)} ${settings.weightUnit}`].filter(Boolean).join(' · '):'Set up your profile',onClick:go('profile')},
    {icon:<Goal/>,label:'Targets',sub:t?`${fmtInt(energyValue(t.kcal,settings.energyUnit))} ${settings.energyUnit} · P ${t.protein} · C ${t.carbs} · F ${t.fat}`:undefined,onClick:go('targets')},
-   {icon:<Ruler/>,label:'Units',sub:`${settings.weightUnit} · ${settings.energyUnit} · ${settings.lengthUnit ?? 'cm'}`,onClick:go('units')}]},
+   {icon:<Ruler/>,label:'Units',sub:[settings.weightUnit,settings.energyUnit,settings.lengthUnit ?? 'cm',settings.weekStart===0?'week from Sun':settings.weekStart===6?'week from Sat':''].filter(Boolean).join(' · '),onClick:go('units')}]},
   {title:'App',items:[
    {icon:<Palette/>,label:'Appearance',sub:appearance(),onClick:go('appearance')},
    {icon:<Timer/>,label:'Workout',sub:`Screen, vibration, rest ${mss(settings.defaultRestSec)}`,onClick:go('workout')},
@@ -72,7 +72,7 @@ export function SettingsLive({section}:{section:string|null}){
      <ChevronRight className="chev" aria-hidden="true"/>
     </button>
     {groups.map(g=><section key={g.title} className="settings-group"><div className="eyebrow">{g.title}</div><Rows items={g.items}/></section>)}
-    <p className="settings-version">My Fitness Diary 1.0</p>
+    <p className="settings-version">My Fitness Diary 1.1</p>
    </>}
   </div>
   <input ref={file} type="file" accept=".json,application/json" hidden onChange={async e=>{let f=e.target.files?.[0];e.target.value='';if(!f)return;setImporting(false);try{await engine().restore(f);openTool('restore')}catch(error){toast(error instanceof Error?error.message:'Import failed')}}}/>

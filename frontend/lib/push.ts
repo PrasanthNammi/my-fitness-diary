@@ -38,11 +38,16 @@ export async function disablePush() {
   await api('devices/remove', { endpoint: sub.endpoint }).catch(() => undefined);
   await sub.unsubscribe();
 }
-export const aiPrefs = () => api<{ ai: boolean }>('prefs');
-export const setAiPrefs = (ai: boolean) => api('prefs', { ai });
 
 const read = (k: string) => { try { return localStorage.getItem(k); } catch { return null; } };
 const write = (k: string, v: string | null) => { try { if (v === null) localStorage.removeItem(k); else localStorage.setItem(k, v); } catch { /* per-device convenience */ } };
+// Which notifications this account gets (AI entries, friends' likes & comments, messages) lives on the server;
+// the last known values are remembered here so the settings page shows them at once, then refreshed.
+const PREFS_KEY = 'mfd-push-prefs';
+export type PushPrefs = { ai: boolean; social: boolean; messages: boolean };
+export const cachedPushPrefs = (): PushPrefs | null => { try { const v = JSON.parse(read(PREFS_KEY) || 'null'); if (v && typeof v.ai === 'boolean') return { ai: v.ai, social: v.social !== false, messages: v.messages !== false }; const old = read('mfd-push-ai'); return old ? { ai: old === 'on', social: true, messages: true } : null; } catch { return null; } };
+export const pushPrefs = async (): Promise<PushPrefs> => { const p = await api<Partial<PushPrefs>>('prefs'); const v = { ai: p.ai !== false, social: p.social !== false, messages: p.messages !== false }; write(PREFS_KEY, JSON.stringify(v)); return v; };
+export const setPushPrefs = async (p: Partial<PushPrefs>) => { const r = await api('prefs', p); write(PREFS_KEY, JSON.stringify({ ...(cachedPushPrefs() ?? { ai: true, social: true, messages: true }), ...p })); return r; };
 export const restAlertsOn = () => read(REST_KEY) !== 'off';
 export const setRestAlerts = (on: boolean) => write(REST_KEY, on ? 'on' : 'off');
 

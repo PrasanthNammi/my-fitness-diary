@@ -2,6 +2,7 @@ import { useWorkoutLimit } from './lib/useWorkoutLimit';
 import { RoutineOverview } from './screens/training/RoutineOverview';
 import {SyncStatus} from './components/SyncStatus';
 import {installSyncWake} from './lib/sync';
+import {setWeekStartDay} from './domain/week';
 import { RestBar } from './components/RestBar';
 import { AiAddedNotice } from './components/AiAddedNotice';
 import { useEffect, useState, useSyncExternalStore } from 'react';
@@ -91,7 +92,7 @@ function Routes({ route }: { route: string[] }) {
       if (b === 'session' && c && d === 'edit') return <WorkoutEditor key={c} id={c} />;
       if (b === 'session' && c) return <SessionDetail id={c} />;
       return <ProgressHome tab={b === 'exercises' || b === 'body' ? b : 'summary'} />;
-    case 'friends':return <FriendsScreen view={b==='u'&&c?{kind:'profile',username:c}:b==='chat'&&c?{kind:'chat',username:c}:b==='me'?{kind:'me'}:{kind:'feed'}}/>;
+    case 'friends':return <FriendsScreen view={b==='u'&&c?{kind:'profile',username:c}:b==='chat'&&c?{kind:'chat',username:c}:b==='w'&&c&&d?{kind:'workout',owner:c,workout:decodeURIComponent(d)}:b==='compare'&&c?{kind:'compare',username:c,exercise:d}:b==='activity'?{kind:'activity'}:b==='me'?{kind:'me'}:{kind:'feed'}}/>;
     case 'coach':
       return <AiAssistants />;
     case 'settings':
@@ -110,8 +111,11 @@ export function App() {
   const route = useRoute();
   const [hub, setHub] = useState(false);
   const routeKey = route.join('/');
+  // Week start from Settings, applied before any screen below renders its weeks.
+  setWeekStartDay(useDB((d) => d.settings.weekStart));
   useEffect(() => installSyncWake(), []);
-  useEffect(() => setHub(false), [routeKey]);// useRoute returns a new array each render: compare the text
+  useEffect(() => setHub(false), [routeKey]);
+  useEffect(() => { const open = () => setHub(true); window.addEventListener('mfd-ai-hub', open); return () => window.removeEventListener('mfd-ai-hub', open); }, []);// useRoute returns a new array each render: compare the text
 
   useEffect(() => {
     const titles: Record<string, string> = { today: 'Overview', training: 'Training', workout: 'Workout', food: 'Food', progress: 'Progress', coach: 'AI assistants', settings: 'Settings' };

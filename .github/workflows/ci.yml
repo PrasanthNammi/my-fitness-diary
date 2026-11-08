@@ -35,6 +35,8 @@ jobs:
           node tests/ai-suggestions.cjs
           node tests/chat-sync.cjs
           node tests/food-summary.cjs
+          node tests/social-stats.cjs
+          node tests/week-start.cjs
   database:
     # Postgres + PostgREST in Docker with Supabase stand-ins: every SQL test, the JavaScript/SQL
     # equivalence proof, the sync engine end to end, and a verified compaction rehearsal.
