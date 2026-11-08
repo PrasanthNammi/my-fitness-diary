@@ -51,7 +51,7 @@ export function SettingsLive({section}:{section:string|null}){
   {title:'You',items:[
    {icon:<UserRound/>,label:'Profile',sub:profile?[profile.name,`${fmtInt(profile.heightCm)} cm`,`${fmtNum(kgTo(profile.weightKg,settings.weightUnit),1)} ${settings.weightUnit}`].filter(Boolean).join(' · '):'Set up your profile',onClick:go('profile')},
    {icon:<Goal/>,label:'Targets',sub:t?`${fmtInt(energyValue(t.kcal,settings.energyUnit))} ${settings.energyUnit} · P ${t.protein} · C ${t.carbs} · F ${t.fat}`:undefined,onClick:go('targets')},
-   {icon:<Ruler/>,label:'Units',sub:`${settings.weightUnit} · ${settings.energyUnit} · ${settings.lengthUnit ?? 'cm'}`,onClick:go('units')}]},
+   {icon:<Ruler/>,label:'Units',sub:[settings.weightUnit,settings.energyUnit,settings.lengthUnit ?? 'cm',settings.weekStart===0?'week from Sun':settings.weekStart===6?'week from Sat':''].filter(Boolean).join(' · '),onClick:go('units')}]},
   {title:'App',items:[
    {icon:<Palette/>,label:'Appearance',sub:appearance(),onClick:go('appearance')},
    {icon:<Timer/>,label:'Workout',sub:`Screen, vibration, rest ${mss(settings.defaultRestSec)}`,onClick:go('workout')},

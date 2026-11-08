@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { daysIntoWeek, weekdayNames } from '../../domain/week';
 import { Activity, ChevronLeft, ChevronRight, Library, Moon, Pencil, Plus, Search, Trash2, Trophy, Zap } from 'lucide-react';
 import type { CheckIn, Exercise } from '../../domain/types';
 import { BarChart, LineChart } from '../../components/Charts';
@@ -85,7 +86,7 @@ function Calendar() {
   const [month, setMonth] = useState(today.slice(0, 7));
   const byDay = useMemo(() => { const m = new Map<string, typeof all>(); for (const w of all) { const k = localISO(w.startedAt); m.set(k, [...(m.get(k) ?? []), w]); } return m; }, [all]);
   const [y, mo] = month.split('-').map(Number);
-  const first = new Date(y, mo - 1, 1), offset = (first.getDay() + 6) % 7, days = new Date(y, mo, 0).getDate();
+  const first = new Date(y, mo - 1, 1), offset = daysIntoWeek(first), days = new Date(y, mo, 0).getDate();
   const shift = (n: number) => { const d = new Date(y, mo - 1 + n, 1); const m = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`; setMonth(m); };
   const [picked, setPicked] = useState<string | null>(null);
   const monthList = useMemo(() => all.filter((w) => localISO(w.startedAt).startsWith(month)).sort((a, b) => b.startedAt - a.startedAt), [all, month]);
@@ -98,7 +99,7 @@ function Calendar() {
         <button className="icon-btn" aria-label="Next month" disabled={month >= today.slice(0, 7)} onClick={() => { shift(1); setPicked(null); }}><ChevronRight /></button>
       </div>
       <div className="progress-cal">
-        {['M', 'T', 'W', 'T', 'F', 'S', 'S'].map((d, i) => <span key={i} className="dow">{d}</span>)}
+        {weekdayNames('narrow').map((d, i) => <span key={i} className="dow">{d}</span>)}
         {Array.from({ length: offset }, (_, i) => <span key={'e' + i} />)}
         {Array.from({ length: days }, (_, i) => {
           const iso = `${month}-${String(i + 1).padStart(2, '0')}`, trained = byDay.has(iso);

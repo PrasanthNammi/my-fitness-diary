@@ -5,8 +5,9 @@ import { addDays, fromISODate, todayISO, toISODate } from '../lib/format';
 import { profileRepo } from '../data/repositories';
 import { useDB } from '../data/store';
 import { Sheet } from './ui';
+import { daysIntoWeek, weekdayNames } from '../domain/week';
 
-const mondayOf = (d: ISODate) => addDays(d, -((fromISODate(d).getDay() + 6) % 7));
+const mondayOf = (d: ISODate) => addDays(d, -daysIntoWeek(fromISODate(d)));
 const weeksBetween = (a: ISODate, b: ISODate) => Math.round((fromISODate(b).getTime() - fromISODate(a).getTime()) / (7 * 86_400_000));
 const CHUNK = 26; // weeks added each time you swipe back to the start
 
@@ -87,16 +88,16 @@ export function DateStrip({ date }: { date: ISODate }) {
   );
 }
 
-/** Month grid (Monday first) with dots on logged days; swipe or use the arrows to change month. */
+/** Month grid (from the chosen week start) with dots on logged days; swipe or use the arrows to change month. */
 function MonthCalendar({ selected, today, logged, onPick }: { selected: ISODate; today: ISODate; logged: Set<string>; onPick: (d: ISODate) => void }) {
   const [month, setMonth] = useState(() => selected.slice(0, 7));
   const touch = useRef<number | null>(null);
   const first = fromISODate(month + '-01');
   const shift = (n: number) => { const d = new Date(first.getFullYear(), first.getMonth() + n, 1); const m = toISODate(d).slice(0, 7); if (m <= today.slice(0, 7)) setMonth(m); };
-  const start = addDays(month + '-01', -((first.getDay() + 6) % 7));
+  const start = addDays(month + '-01', -daysIntoWeek(first));
   const daysInMonth = new Date(first.getFullYear(), first.getMonth() + 1, 0).getDate();
-  const cells = Math.ceil((((first.getDay() + 6) % 7) + daysInMonth) / 7) * 7;
-  const names = Array.from({ length: 7 }, (_, i) => fromISODate(addDays('2024-01-01', i)).toLocaleDateString(undefined, { weekday: 'short' }).slice(0, 2));
+  const cells = Math.ceil((daysIntoWeek(first) + daysInMonth) / 7) * 7;
+  const names = weekdayNames('short').map((n) => n.slice(0, 2));
   return (
     <div className="month-cal" onTouchStart={(e) => { touch.current = e.touches[0]?.clientX ?? null; }}
       onTouchEnd={(e) => { const x = e.changedTouches[0]?.clientX; if (x !== undefined && touch.current !== null && Math.abs(x - touch.current) > 45) shift(x < touch.current ? 1 : -1); touch.current = null; }}>

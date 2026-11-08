@@ -2,6 +2,7 @@ import { useWorkoutLimit } from './lib/useWorkoutLimit';
 import { RoutineOverview } from './screens/training/RoutineOverview';
 import {SyncStatus} from './components/SyncStatus';
 import {installSyncWake} from './lib/sync';
+import {setWeekStartDay} from './domain/week';
 import { RestBar } from './components/RestBar';
 import { AiAddedNotice } from './components/AiAddedNotice';
 import { useEffect, useState, useSyncExternalStore } from 'react';
@@ -110,6 +111,8 @@ export function App() {
   const route = useRoute();
   const [hub, setHub] = useState(false);
   const routeKey = route.join('/');
+  // Week start from Settings, applied before any screen below renders its weeks.
+  setWeekStartDay(useDB((d) => d.settings.weekStart));
   useEffect(() => installSyncWake(), []);
   useEffect(() => setHub(false), [routeKey]);// useRoute returns a new array each render: compare the text
 
