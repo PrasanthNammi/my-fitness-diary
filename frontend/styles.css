@@ -447,20 +447,33 @@ button.list-row:hover { background: var(--row-alt); }
 @media (min-width: 900px){.update-banner{top:12px;left:244px}}
 @media(prefers-reduced-motion:reduce){.update-banner{animation:none}}
 
-/* ── Date strip ─────────────────────────────────────────────── */
-.date-strip { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; }
+/* ── Date picker (Lovable): heading opens a month calendar; week strip of day cards, swipe for earlier weeks ── */
+.date-picker { margin-bottom: 4px; }
+.date-heading { display: inline-flex; align-items: center; gap: 8px; min-height: 44px; padding: 0; border: 0; background: none; color: var(--ink); font-size: 15px; font-weight: 700; cursor: pointer; }
+.date-heading svg { width: 18px; height: 18px; flex: none; }
+.date-weeks { display: flex; overflow-x: auto; scroll-snap-type: x mandatory; overscroll-behavior-x: contain; margin: 2px 0 6px; padding: 4px 0 8px; }
+.no-scrollbar { scrollbar-width: none; } .no-scrollbar::-webkit-scrollbar { display: none; }
+.date-strip { flex: 0 0 100%; scroll-snap-align: start; display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; padding: 0 1px; box-sizing: border-box; }
 .date-cell {
-  border: 0; background: none; border-radius: 10px; min-height: 52px; display: flex; flex-direction: column; align-items: center; justify-content: center;
-  gap: 2px; padding: 4px 0; color: var(--ink-2);
+  border: 0; background: var(--surface); box-shadow: var(--shadow); border-radius: 16px; min-height: 72px; min-width: 0;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; padding: 8px 0; color: var(--ink); cursor: pointer;
 }
-.date-cell .dow { font-size: 11px; font-weight: 600; color: var(--ink-3); text-transform: uppercase; letter-spacing: 0.04em; }
-.date-cell .dom { font-size: 15px; font-weight: 700; }
-.date-cell .dot { width: 4px; height: 4px; border-radius: 2px; background: transparent; }
-.date-cell .dot.on { background: var(--accent); }
-.date-cell[aria-pressed='true'] { background: var(--ink); color: var(--on-ink); }
-.date-cell[aria-pressed='true'] .dow { color: color-mix(in srgb, var(--on-ink) 75%, transparent); }
-.date-cell[aria-pressed='true'] .dot.on { background: var(--on-ink); }
+.date-cell .dow { font-size: 11px; font-weight: 700; color: var(--ink-3); text-transform: uppercase; letter-spacing: 0.03em; }
+.date-cell .dom { font-size: 18px; font-weight: 800; line-height: 1; }
+.date-cell .dot, .month-cal-day .dot { width: 6px; height: 6px; border-radius: 3px; background: transparent; }
+.date-cell .dot.on, .month-cal-day .dot.on { background: var(--accent); }
+.date-cell[aria-pressed='true'] { background: var(--ink); color: var(--on-ink); box-shadow: none; }
+.date-cell[aria-pressed='true'] .dow { color: color-mix(in srgb, var(--on-ink) 70%, transparent); }
 .date-cell.today:not([aria-pressed='true']) .dom { color: var(--accent); }
+.date-cell:disabled { opacity: .4; cursor: default; box-shadow: none; }
+.month-cal { padding-bottom: 8px; touch-action: pan-y; }
+.month-cal-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+.month-cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px 2px; }
+.month-cal-dow { text-align: center; font-size: 12px; font-weight: 600; color: var(--ink-3); padding: 4px 0 6px; }
+.month-cal-day { border: 0; background: none; color: var(--ink); min-height: 48px; border-radius: 12px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; font-size: 15px; font-weight: 600; cursor: pointer; }
+.month-cal-day.today:not([aria-pressed='true']) { color: var(--accent); font-weight: 800; }
+.month-cal-day[aria-pressed='true'] { background: var(--ink); color: var(--on-ink); }
+.month-cal-day:disabled { color: var(--ink-3); opacity: .45; cursor: default; }
 
 /* ── Training: exercise blocks (Hevy-style compact layout) ──── */
 .ex-block { padding: 12px 0 10px; border-bottom: 1px solid var(--line); }
