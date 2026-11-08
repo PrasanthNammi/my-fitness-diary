@@ -77,4 +77,7 @@ assert.equal(back.sets[3].reps,9);assert.equal(back.sets[3].suggested,undefined)
 assert.equal(S.removeTargets(plan),plan,'no AI marks: same block');
 const aiOnly={...plan,sets:S.targetSets([{kg:80,reps:5}],()=>'z')};assert.equal(S.removeTargets(aiOnly),null,'AI-added exercise with nothing logged goes away');
 const aiLogged={...plan,sets:[{...S.targetSets([{kg:80,reps:5}],()=>'z')[0],done:true,weightKg:80,reps:5}]};assert.equal(S.removeTargets(aiLogged).sets.length,1,'AI-added exercise with a ticked set stays');
+const three={exercises:[{exercise:'Bench Press'},{exercise:'Row'},{exercise:'Press'}]};
+assert.equal(S.acceptedCount({...three,status:'pending'}),'0/3');assert.equal(S.acceptedCount({...three,status:'used'}),'3/3','Use all');
+assert.equal(S.acceptedCount({...three,status:'used',usedExercises:['bench press']}),'1/3');assert.equal(S.acceptedCount({...three,status:'used',usedExercises:['Bench Press','Row']}),'2/3');
 console.log('PASS ai suggestions: dismiss restores the plan (ticked/typed kept, AI-added removed, original plan after two suggestions), newest per routine, dismissed/7-day/used-by-workout expiry, name matching, faded-only targets (ticked and typed untouched), warm-ups separate, extra sets, tracking fit');

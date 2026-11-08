@@ -9,7 +9,7 @@ import { useDB } from '../../data/store';
 import { routineFromWorkout, training, workouts, suggestions } from '../../data/repositories';
 import { duration, fmtVolume } from '../../lib/format';
 import { useNow, useWakeLock } from '../../lib/hooks';
-import { activeSuggestion } from '../../domain/aiSuggestions';
+import { acceptedCount, activeSuggestion } from '../../domain/aiSuggestions';
 import { openSuggestion, suggestionSource } from './SuggestionReview';
 import { goBack, navigate } from '../../lib/router';
 import { ExerciseBlockView } from './ExerciseBlockView';
@@ -94,7 +94,7 @@ export function ActiveWorkoutScreen() {
       <div className="screen wo-screen">
         {liveSuggestion && (
           <div className="ai-suggest-bar">
-            <button type="button" className="ai-suggest-open" onClick={() => openSuggestion(liveSuggestion.id)}><Sparkles aria-hidden="true" /><span className="grow">{liveSuggestion.status === 'used' ? 'AI suggestions' : 'New AI suggestions'} · {suggestionSource(liveSuggestion)}</span><span className="go">{liveSuggestion.status === 'used' ? 'Accepted' : 'Review'}</span></button>
+            <button type="button" className="ai-suggest-open" onClick={() => openSuggestion(liveSuggestion.id)}><Sparkles aria-hidden="true" /><span className="grow">{liveSuggestion.status === 'used' ? 'AI suggestions' : 'New AI suggestions'} · {suggestionSource(liveSuggestion)}</span><span className="go">{liveSuggestion.status === 'used' ? `${acceptedCount(liveSuggestion)} Accepted` : 'Review'}</span></button>
             <button type="button" className="ai-suggest-x" aria-label="Dismiss AI suggestions" onClick={() => toast(suggestions.dismiss(liveSuggestion.id) ? 'AI targets removed' : 'Suggestion dismissed')}><X /></button>
           </div>
         )}

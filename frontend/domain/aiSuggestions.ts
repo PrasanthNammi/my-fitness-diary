@@ -132,3 +132,12 @@ export function removeTargets(block: ExerciseBlock): ExerciseBlock | null {
   if (!changed) return block;
   return sets.length ? { ...block, sets } : null;
 }
+
+/** "2/3": exercises used out of the suggestion's exercises (Use all counts every one). */
+export function acceptedCount(s: AiSuggestion): string {
+  const total = s.exercises.length;
+  if (s.status !== 'used') return `0/${total}`;
+  if (!s.usedExercises) return `${total}/${total}`;
+  const used = s.exercises.filter((x) => s.usedExercises!.some((n) => n.toLowerCase() === x.exercise.toLowerCase())).length;
+  return `${used}/${total}`;
+}

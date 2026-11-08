@@ -3,7 +3,7 @@ import { Plus, Sparkles } from 'lucide-react';
 import { InfoButton, Sheet, toast } from '../../components/ui';
 import { useDB } from '../../data/store';
 import { exerciseForSuggestion, exerciseName, suggestedExerciseId, suggestions } from '../../data/repositories';
-import { activeSuggestion, extraTargets, fits, isExpired, matchBlock, type AiSuggestion, type TargetSet } from '../../domain/aiSuggestions';
+import { acceptedCount, activeSuggestion, extraTargets, fits, isExpired, matchBlock, type AiSuggestion, type TargetSet } from '../../domain/aiSuggestions';
 import { aiSource } from '../../domain/aiSource';
 import type { ExerciseBlock, Workout } from '../../domain/types';
 import { fmtNum, kgTo, mss } from '../../lib/format';
@@ -43,7 +43,7 @@ function Review({ s }: { s: AiSuggestion }) {
     : t.reps != null ? `${t.reps} reps` : t.duration_seconds != null ? mss(t.duration_seconds) : t.distance_meters != null ? `${fmtNum(t.distance_meters / 1000, 2)} km` : '—';
   const close = () => openSuggestion(null);
   const allUsed = s.status === 'used' && (!s.usedExercises || s.exercises.every((x) => s.usedExercises!.some((n) => n.toLowerCase() === x.exercise.toLowerCase())));
-  const status = expired || !current ? 'Expired' : s.status === 'used' ? 'Accepted' : 'Review';
+  const status = expired || !current ? 'Expired' : s.status === 'used' ? `${acceptedCount(s)} Accepted` : 'Review';
   return (
     <Sheet open onClose={close} title="AI suggestions" size="full" hideClose
       headerActions={<InfoButton title="AI workout suggestions" lines={['Use only fills the faded values. A set is saved when you tick it.', 'Ticked sets and numbers you typed are never changed.', 'A newer suggestion replaces this one. Suggestions expire after the next workout of this routine or after 7 days.']} />}
