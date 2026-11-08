@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { ClipboardList, Pencil, Trash2 } from 'lucide-react';
+import { ClipboardList, CopyPlus, Pencil, Trash2 } from 'lucide-react';
+import { CopyWorkoutSheet } from '../training/CopyWorkoutSheet';
 import { setLabels, trackingFields, workingVolume } from '../../domain/training';
 import { ConfirmSheet, Empty, OverflowMenu, TopBar, toast } from '../../components/ui';
 import { useDB } from '../../data/store';
@@ -14,6 +15,7 @@ export function SessionDetail({ id }: { id: string }) {
   const w = useDB((d) => d.workouts.find((x) => x.id === id));
   const unit = useDB((d) => d.settings.weightUnit);
   const [del, setDel] = useState(false);
+  const [copy, setCopy] = useState(false);
   if (!w) {
     return (
       <>
@@ -26,7 +28,8 @@ export function SessionDetail({ id }: { id: string }) {
   return (
     <>
       <TopBar title={w.title} back="/training/history" bordered actions={<>
-        <button className="btn btn-ghost btn-sm" onClick={() => navigate(`/training/history/${w.id}/edit`)}><Pencil /> Edit</button>
+        <button className="icon-btn" aria-label="Copy workout" title="Copy workout" onClick={() => setCopy(true)}><CopyPlus /></button>
+        <button className="icon-btn" aria-label="Edit workout" title="Edit workout" onClick={() => navigate(`/training/history/${w.id}/edit`)}><Pencil /></button>
         <OverflowMenu title={w.title} actions={[{ label: 'Edit workout', icon: Pencil, onSelect: () => navigate(`/training/history/${w.id}/edit`) }, { label: 'Delete workout', icon: Trash2, danger: true, onSelect: () => setDel(true) }]} />
       </>} />
       <div className="screen">
@@ -65,6 +68,7 @@ export function SessionDetail({ id }: { id: string }) {
           );
         })}
       </div>
+      <CopyWorkoutSheet workout={copy ? w : null} onClose={() => setCopy(false)} />
       <ConfirmSheet open={del} onClose={() => setDel(false)} title="Delete this workout?" body="It will be removed from your history and progress charts." confirmLabel="Delete" danger onConfirm={() => {
         workoutRepo.deleteWorkout(w.id);
         toast('Workout deleted');
