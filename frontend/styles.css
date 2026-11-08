@@ -1422,7 +1422,7 @@ button.social-person { cursor: pointer; border-left: 0; border-right: 0; }
 .toast-wrap { padding-left: 0; }
 
 /* ── Muscles (Progress → Muscles: Balance, Body map, Trends) ── */
-.muscle-screen { max-width: none; display: flex; flex-direction: column; gap: 12px; }
+.muscle-screen { max-width: none; margin: 0; width: 100%; display: flex; flex-direction: column; gap: 12px; }
 .muscle-screen .muscle-chart { max-width: 380px; }
 .muscle-screen .muscle-chart text { font: 600 12px var(--font); fill: var(--muted); }
 .muscle-legend { display: flex; justify-content: center; gap: 20px; font-size: 13px; color: var(--muted); }
@@ -1500,3 +1500,73 @@ button.social-person { cursor: pointer; border-left: 0; border-right: 0; }
 .recap-tile .v small { font-size: 13px; font-weight: 700; color: var(--muted); }
 .recap-tile.good { background: var(--success-soft); }
 .recap-tile.good .v { color: var(--success-text); }
+
+/* ── Progress, Lovable layout (8c) ── */
+.progress-tabs { display: flex; gap: 6px; }
+.progress-tabs::-webkit-scrollbar { display: none; }
+.progress-tabs .chip { flex: 1 1 auto; justify-content: center; min-width: 0; height: 36px; padding: 0 8px; font-size: 13px; font-weight: 700; }
+.progress-tabs .chip[aria-selected='true'] { background: var(--ink); border-color: var(--ink); color: var(--on-ink); }
+.progress-cal-head .eyebrow { margin: 0; }
+.progress-cal { gap: 6px; }
+.progress-cal button { aspect-ratio: 1; max-height: none; border-radius: 50%; background: var(--surface-2); color: var(--ink-2); font-size: 12px; font-weight: 700; }
+.progress-cal button.trained { background: var(--accent); color: var(--on-accent); }
+.progress-cal button[aria-pressed='true'] { box-shadow: 0 0 0 2px var(--surface), 0 0 0 4px var(--ink); }
+.progress-cal button.today:not(.trained) { box-shadow: inset 0 0 0 1.5px var(--accent); }
+.progress-cal button:disabled { background: transparent; color: var(--faint); }
+.body-head { align-items: flex-end; }
+.body-head > div { display: flex; flex-direction: column; gap: 2px; }
+.body-head .eyebrow { display: inline-flex; align-items: center; gap: 2px; }
+.body-goal { font-size: 14px; font-weight: 700; color: var(--success-text); }
+.chart-legend { display: flex; gap: 16px; font-size: 12px; font-weight: 600; color: var(--muted); }
+.chart-legend span { display: inline-flex; align-items: center; gap: 6px; }
+.chart-legend .dot { width: 8px; height: 8px; border-radius: 50%; border: 1.5px solid var(--faint); }
+.chart-legend .line { width: 16px; height: 0; border-top: 2.5px solid var(--accent); }
+.quick-entry { display: grid; grid-template-columns: minmax(0, 1fr) auto 48px; gap: 8px; align-items: center; }
+.date-chip { position: relative; display: inline-flex; align-items: center; height: 36px; padding: 0 12px; border-radius: 999px; background: var(--surface-2); font-size: 13px; font-weight: 700; color: var(--ink-2); cursor: pointer; white-space: nowrap; }
+.date-chip input { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; border: 0; padding: 0; }
+.round-add { width: 48px; height: 48px; border: 0; border-radius: 50%; display: grid; place-items: center; background: var(--accent); color: var(--on-accent); cursor: pointer; }
+.round-add svg { width: 20px; height: 20px; }
+.progress-card-head .chip svg { width: 13px; height: 13px; }
+.measure-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.measure-tile { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; padding: 12px; border: 0; border-radius: var(--r); background: var(--surface-2); color: var(--ink); font: inherit; text-align: left; cursor: pointer; min-width: 0; }
+.measure-tile[aria-pressed='true'] { box-shadow: inset 0 0 0 2px var(--accent); }
+.measure-tile .k { font-size: 12px; font-weight: 700; color: var(--muted); }
+.measure-tile .v { font-size: 20px; font-weight: 800; }
+.measure-tile .v small { font-size: 12px; color: var(--muted); }
+.measure-tile .d { font-size: 11px; font-weight: 700; }
+.measure-tile .d.down { color: var(--success-text); }
+.measure-tile .d.up { color: var(--warmup-text); }
+.measure-row { grid-template-columns: 64px minmax(0, 1fr) auto; }
+.measure-row .muted { font-size: 13px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.slider-row { display: flex; flex-direction: column; gap: 4px; }
+.slider-head { display: flex; justify-content: space-between; align-items: center; font-weight: 700; }
+.slider-head > span { display: inline-flex; align-items: center; gap: 8px; }
+.slider-head svg { width: 16px; height: 16px; color: var(--accent); }
+.slider-row input[type='range'] { width: 100%; accent-color: var(--accent); }
+.muscle-screen { gap: 12px; }
+.muscle-title { margin: 4px 0 0; font-size: 18px; font-weight: 800; }
+.muscle-switch { display: flex; align-items: center; gap: 6px; }
+.muscle-switch .segmented { flex: 1; }
+.muscle-stats { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.muscle-stats .card { padding: 12px; display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.muscle-stats .k { font-size: 11px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: var(--muted); }
+.muscle-stats .v { font-size: 20px; font-weight: 800; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.muscle-screen .muscle-chart text.radar-label { fill: var(--ink); font-weight: 700; font-size: 12px; }
+.muscle-legend i.line { width: 16px; height: 0; border-radius: 0; background: none; border-top: 2.5px solid var(--brand); }
+.muscle-legend i.dashed { width: 16px; height: 0; border-radius: 0; border: 0; border-top: 2px dashed var(--faint); }
+.muscle-value small { display: block; font-size: 11px; font-weight: 700; color: var(--muted); }
+.muscle-value small.up { color: var(--success-text); }
+.muscle-row { min-height: 48px; }
+.muscle-screen .muscle-days button { background: var(--surface); }
+.muscle-screen .muscle-days button.trained { background: var(--accent); color: var(--on-accent); }
+.muscle-screen .muscle-days button.trained small { color: inherit; opacity: .85; }
+.muscle-screen .muscle-days button.trained i.on { background: var(--on-accent); }
+.muscle-screen .muscle-days button[aria-pressed='true'] { background: var(--ink); color: var(--on-ink); }
+.muscle-screen .muscle-days button[aria-pressed='true'] i.on { background: var(--accent); }
+.muscle-map { border-radius: var(--r-lg); overflow: hidden; }
+.muscle-pick { padding: 14px 16px; background: var(--accent-soft); border-color: var(--accent-line); display: flex; flex-direction: column; gap: 6px; }
+.muscle-pick-head { display: flex; justify-content: space-between; align-items: center; }
+.muscle-pick-head .icon-btn { width: 32px; height: 32px; min-height: 32px; }
+.muscle-pick p { margin: 0; font-size: 14px; }
+.muscle-pick p b { font-size: 24px; }
+.muscle-top { display: flex; justify-content: space-between; gap: 8px; padding: 8px 0; border: 0; border-top: 1px solid var(--accent-line); background: none; color: var(--ink); font: inherit; font-weight: 600; text-align: left; cursor: pointer; }

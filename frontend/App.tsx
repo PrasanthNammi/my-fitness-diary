@@ -1,4 +1,3 @@
-import { MuscleStats } from './screens/progress/MuscleStats';
 import { useWorkoutLimit } from './lib/useWorkoutLimit';
 import { RoutineOverview } from './screens/training/RoutineOverview';
 import {SyncStatus} from './components/SyncStatus';
@@ -85,7 +84,7 @@ function Routes({ route }: { route: string[] }) {
     case 'food':
       return <FoodScreen />;
     case 'progress':
-      if (b === 'muscles') return <MuscleStats view={c} />;
+      if (b === 'muscles') return <ProgressHome tab="muscles" view={c} />;
       // Old links: workout history now lives under Training.
       if (b === 'session' && c && d === 'edit') return <WorkoutEditor key={c} id={c} />;
       if (b === 'session' && c) return <SessionDetail id={c} />;

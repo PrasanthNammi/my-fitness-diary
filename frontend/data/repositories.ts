@@ -318,6 +318,26 @@ export const body = {
       d.checkins.sort((a, b) => a.date.localeCompare(b.date));
     });
   },
+  /** Several measurements taken together (cm), saved as one dated row; empty fields are left out. */
+  addMeasurements(date: ISODate, values: Partial<Record<'waist' | 'chest' | 'hips' | 'arms', number>>) {
+    const set = Object.fromEntries(Object.entries(values).filter(([, v]) => v != null && Number.isFinite(v)));
+    if (!Object.keys(set).length) return;
+    update((d) => {
+      d.checkins.push({ id: uid(), date, ...set, note: '' });
+      d.checkins.sort((a, b) => a.date.localeCompare(b.date));
+    });
+  },
+  /** Removes all measurements from a row (recovery values on the same row stay). */
+  removeMeasurements(id: ID) {
+    update((d) => {
+      d.checkins = d.checkins.flatMap((x) => {
+        if (x.id !== id) return [x];
+        const kept = { ...x, waist: null, chest: null, hips: null, arms: null };
+        const left = ['sleep', 'steps', 'energy', 'soreness'].some((k) => kept[k as 'sleep'] != null && kept[k as 'sleep'] !== '') || !!kept.note?.trim();
+        return left ? [kept] : [];
+      });
+    });
+  },
   /** Clears one measurement from a row; the row goes when nothing is left on it. */
   removeMeasurement(id: ID, field: 'waist' | 'chest' | 'hips' | 'arms') {
     update((d) => {

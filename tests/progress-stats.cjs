@@ -5,7 +5,7 @@ const assert=require('assert/strict'),esbuild=require('esbuild'),path=require('p
 const out=path.join(os.tmpdir(),'mfd-progress-stats.cjs');
 esbuild.buildSync({stdin:{contents:`export * from './frontend/domain/progressStats';export {body} from './frontend/data/repositories';export {getDB} from './frontend/data/store';`,resolveDir:process.cwd(),loader:'ts'},loader:{'.svg':'text'},bundle:true,platform:'node',format:'cjs',outfile:out});
 let state={profile:{onboarded:true,name:'Test',age:26,sex:'male',height:175,weight:70,target:70,activity:1.55,goal:'Maintain',days:4},sessions:[],routines:[],folders:[],meals:[],products:[],weights:[],checkins:[{id:'old',date:'2026-10-01',sleep:'7.5',steps:'9000',waist:'82',note:'from the older screen'}],water:{},active:null},v=0;
-const bridge={peek:()=>({state,ready:true,version:v,dataVersion:v,user:{id:'synthetic',email:'test@example.invalid'}}),catalogue:()=>({foods:[],exercises:[]}),subscribe:()=>()=>{},set:next=>{state=next;v++}};
+const listeners=new Set();const bridge={peek:()=>({state,ready:true,version:v,dataVersion:v,user:{id:'synthetic',email:'test@example.invalid'}}),catalogue:()=>({foods:[],exercises:[]}),subscribe:fn=>{listeners.add(fn);return()=>listeners.delete(fn)},set:next=>{state=next;v++;listeners.forEach(f=>f())}};
 global.document={getElementById:()=>({contentWindow:{MFDBridge:bridge}})};global.window={addEventListener(){}};
 const P=require(out),{body,getDB}=P;
 const at=(iso,h=18)=>new Date(`${iso}T${String(h).padStart(2,'0')}:00:00`).getTime();
@@ -56,4 +56,11 @@ const old=state.checkins.find(c=>c.id==='old');assert.ok(old,'row kept');assert.
 // Deleting its recovery part leaves nothing, so the row goes.
 body.deleteCheckIn('old');assert.equal(state.checkins.some(c=>c.id==='old'),false,'empty row removed');
 body.removeMeasurement(arm.id,'arms');assert.equal(state.checkins.some(c=>c.id===arm.id),false,'measurement-only row removed');
+// Several measurements in one row (Lovable form); empty ones left out; nothing saved when all empty; removing the row's measurements keeps its recovery values.
+const n0=state.checkins.length;body.addMeasurements('2026-11-06',{});assert.equal(state.checkins.length,n0,'nothing to save');
+body.addMeasurements('2026-11-06',{waist:83,hips:97.5,arms:undefined});const multi=state.checkins.find(c=>c.date==='2026-11-06'&&c.waist===83);
+assert.ok(multi&&multi.hips===97.5&&!('arms' in multi),'one row, empty field left out');
+body.removeMeasurements(multi.id);assert.equal(state.checkins.some(c=>c.id===multi.id),false,'measurement-only row removed');
+bridge.set({...state,checkins:[...state.checkins,{id:'mix',date:'2026-10-02',sleep:'6',chest:'100',hips:'99',note:''}]});
+body.removeMeasurements('mix');const kept=state.checkins.find(c=>c.id==='mix');assert.ok(kept,'row with recovery values stays');assert.ok(kept.chest==null&&kept.hips==null,'measurements cleared');assert.equal(Number(kept.sleep),6,'sleep kept');
 console.log('PASS progress stats: local ranges, totals from completed sets, Monday weeks and months with empty buckets, body series from weigh-ins and check-ins (old text values), recovery list, measurements and check-ins stored in the older shape with partial removal');
