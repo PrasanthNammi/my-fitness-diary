@@ -58,5 +58,23 @@ assert.deepEqual(r.sets[3].suggested,{weightKg:62.5,reps:7});assert.equal(r.sets
 assert.equal(block.sets[3].suggested.weightKg,60,'original not mutated');
 assert.deepEqual(S.extraTargets(block,targets),[{kg:60,reps:10}],'one working target beyond the 3 working sets');
 let n=0;const added=S.targetSets([{kg:60,reps:10,type:'dropset'}],()=>'n'+(++n));
-assert.deepEqual(added,[{id:'n1',type:'drop',weightKg:null,reps:null,timeSec:null,distanceKm:null,rpe:null,done:false,suggested:{weightKg:60,reps:10},aiTarget:true}],'new sets are unticked with faded targets, marked as AI');
-console.log('PASS ai suggestions: newest per routine, dismissed/7-day/used-by-workout expiry, name matching, faded-only targets (ticked and typed untouched), warm-ups separate, extra sets, tracking fit');
+assert.deepEqual(added,[{id:'n1',type:'drop',weightKg:null,reps:null,timeSec:null,distanceKm:null,rpe:null,done:false,suggested:{weightKg:60,reps:10},aiTarget:true,aiAdded:true}],'new sets are unticked with faded targets, marked as AI-added');
+// Dismiss after use: plan values back, AI-added sets gone unless ticked or typed, ticked kept, marks cleared.
+const plan={id:'p',exerciseId:'x1',tracking:'weight_reps',restSec:90,note:'',supersetId:null,sets:[set('a','normal',{suggested:{weightKg:60,reps:8}}),set('b','normal',{suggested:{weightKg:60,reps:8}}),set('c','normal',{suggested:{weightKg:60,reps:8}})]};
+const t1=[{kg:62.5,reps:8},{kg:62.5,reps:8},{kg:62.5,reps:7}];
+let ap=S.applyTargets(plan,t1);assert.deepEqual(ap.sets[0].aiPrev,{weightKg:60,reps:8},'plan remembered');
+// A second suggestion on top keeps the ORIGINAL plan to go back to.
+ap=S.applyTargets(ap,[{kg:65,reps:6},{kg:65,reps:6},{kg:65,reps:6}]);assert.deepEqual(ap.sets[0].suggested,{weightKg:65,reps:6});assert.deepEqual(ap.sets[0].aiPrev,{weightKg:60,reps:8},'original plan, not the first suggestion');
+// Tick set a, type in set b, add two AI sets (one typed in).
+let n2=0;const extra=S.targetSets([{kg:60,reps:10},{kg:60,reps:10}],()=>'e'+(++n2));extra[1]={...extra[1],reps:9};
+const working={...ap,sets:[{...ap.sets[0],done:true,weightKg:65,reps:6},{...ap.sets[1],weightKg:64},ap.sets[2],...extra]};
+const back=S.removeTargets(working);
+assert.equal(back.sets.length,4,'untouched AI set removed, typed-in AI set kept');
+assert.deepEqual([back.sets[0].done,back.sets[0].weightKg,back.sets[0].aiTarget,back.sets[0].aiPrev],[true,65,undefined,undefined],'ticked set kept as logged, mark cleared');
+assert.equal(back.sets[1].weightKg,64,'typed value kept');assert.deepEqual(back.sets[1].suggested,{weightKg:60,reps:8},'faded back to the plan');
+assert.deepEqual(back.sets[2].suggested,{weightKg:60,reps:8});assert.equal(back.sets[2].aiTarget,undefined);
+assert.equal(back.sets[3].reps,9);assert.equal(back.sets[3].suggested,undefined);assert.equal(back.sets[3].aiAdded,undefined,'typed-in AI set stays as a normal set');
+assert.equal(S.removeTargets(plan),plan,'no AI marks: same block');
+const aiOnly={...plan,sets:S.targetSets([{kg:80,reps:5}],()=>'z')};assert.equal(S.removeTargets(aiOnly),null,'AI-added exercise with nothing logged goes away');
+const aiLogged={...plan,sets:[{...S.targetSets([{kg:80,reps:5}],()=>'z')[0],done:true,weightKg:80,reps:5}]};assert.equal(S.removeTargets(aiLogged).sets.length,1,'AI-added exercise with a ticked set stays');
+console.log('PASS ai suggestions: dismiss restores the plan (ticked/typed kept, AI-added removed, original plan after two suggestions), newest per routine, dismissed/7-day/used-by-workout expiry, name matching, faded-only targets (ticked and typed untouched), warm-ups separate, extra sets, tracking fit');

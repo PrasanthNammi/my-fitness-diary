@@ -15,7 +15,7 @@ import type {
 } from '../domain/types';
 import { uid } from '../lib/format';
 import { resolveExercise } from '../catalogue/runtime';
-import { activeSuggestion, applyTargets, extraTargets, fits, matchBlock, targetSets, type AiSuggestion } from '../domain/aiSuggestions';
+import { activeSuggestion, applyTargets, extraTargets, fits, matchBlock, removeTargets, targetSets, type AiSuggestion } from '../domain/aiSuggestions';
 import { getDB, update } from './store';
 
 
@@ -441,7 +441,24 @@ export const suggestions = {
     });
     return true;
   },
+  /** Hide it; in this routine's running workout also take the AI targets back out (ticked sets stay). Returns whether targets were removed. */
   dismiss(id: string) {
-    update((d) => { const s = findSuggestion(d, id); if (s) s.status = 'dismissed'; });
+    let removed = false;
+    update((d) => {
+      const s = findSuggestion(d, id);
+      if (!s) return;
+      s.status = 'dismissed';
+      if (d.active?.routineId === s.routineId) {
+        const before = d.active.exercises;
+        const next = before.map(removeTargets).filter((b): b is ExerciseBlock => !!b);
+        removed = next.length !== before.length || next.some((b, i) => b !== before[i]);
+        if (removed) {
+          const kept = new Set(next.map((b) => b.id));
+          d.active.exercises = next;
+          d.active.timers = Object.fromEntries(Object.entries(d.active.timers).filter(([k]) => kept.has(k)));
+        }
+      }
+    });
+    return removed;
   },
 };

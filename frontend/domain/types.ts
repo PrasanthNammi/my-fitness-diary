@@ -78,6 +78,10 @@ export interface SetEntry {
   done: boolean;
   /** The faded values come from an AI suggestion the user chose to use (shown with a sparkle). */
   aiTarget?: boolean;
+  /** The faded values before the AI targets were applied (restored if the suggestion is dismissed). */
+  aiPrev?: SetEntry['suggested'] | null;
+  /** A set the AI suggestion added (removed again on dismiss unless ticked or typed in). */
+  aiAdded?: boolean;
 }
 
 export interface ExerciseBlock {

@@ -93,7 +93,9 @@ export function applyTargets(block: ExerciseBlock, targets: TargetSet[]): Exerci
     const q = s.type === 'warmup' ? 'warm' : 'work';
     const t = queues[q][used[q]++];
     if (!t || s.done) return s;
-    return { ...s, suggested: { ...(s.suggested ?? {}), ...targetValues(t) }, aiTarget: true };
+    // Remember the plan's faded values once (a second suggestion keeps the original plan to go back to).
+    const prev = s.aiTarget ? s.aiPrev ?? null : s.suggested ?? null;
+    return { ...s, suggested: { ...(s.suggested ?? {}), ...targetValues(t) }, aiTarget: true, aiPrev: prev };
   });
   return { ...block, sets };
 }
@@ -107,6 +109,26 @@ export function extraTargets(block: ExerciseBlock, targets: TargetSet[]): Target
 export function targetSets(targets: TargetSet[], newId: () => string): SetEntry[] {
   return targets.map((t) => ({
     id: newId(), type: setType(t), weightKg: null, reps: null, timeSec: null, distanceKm: null, rpe: null, done: false,
-    suggested: targetValues(t), aiTarget: true,
+    suggested: targetValues(t), aiTarget: true, aiAdded: true,
   }));
+}
+
+const typedIn = (s: SetEntry) => (['weightKg', 'reps', 'timeSec', 'distanceKm', 'floors', 'steps'] as const).some((f) => s[f] != null);
+/**
+ * Dismissing a used suggestion in a running workout: unticked sets go back to the plan's faded values, sets the
+ * AI added go away unless ticked or typed in, and ticked sets are kept as logged. null = the AI added this whole
+ * exercise and nothing in it was logged.
+ */
+export function removeTargets(block: ExerciseBlock): ExerciseBlock | null {
+  let changed = false;
+  const sets = block.sets.flatMap((s): SetEntry[] => {
+    if (!s.aiTarget && !s.aiAdded) return [s];
+    changed = true;
+    const { aiTarget: _t, aiPrev, aiAdded, ...rest } = s;
+    if (s.done) return [rest];
+    if (aiAdded && !typedIn(s)) return [];
+    return [{ ...rest, suggested: aiAdded ? undefined : aiPrev ?? undefined }];
+  });
+  if (!changed) return block;
+  return sets.length ? { ...block, sets } : null;
 }

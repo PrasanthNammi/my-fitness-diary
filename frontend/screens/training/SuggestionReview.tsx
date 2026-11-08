@@ -47,7 +47,7 @@ function Review({ s }: { s: AiSuggestion }) {
     <Sheet open onClose={close} title="AI suggestions" size="full"
       headerActions={<InfoButton title="AI workout suggestions" lines={['Use only fills the faded values. A set is saved when you tick it.', 'Ticked sets and numbers you typed are never changed.', 'A newer suggestion replaces this one. Suggestions expire after the next workout of this routine or after 7 days.']} />}
       footer={!expired && current ? <>
-        <button className="btn btn-secondary" onClick={() => { suggestions.dismiss(s.id); close(); toast('Suggestion dismissed'); }}>Dismiss</button>
+        <button className="btn btn-secondary" onClick={() => { const removed = suggestions.dismiss(s.id); close(); toast(removed ? 'AI targets removed' : 'Suggestion dismissed'); }}>Dismiss</button>
         <button className="btn btn-primary" onClick={() => { suggestions.use(s.id); close(); toast(running ? 'Targets added as faded values' : 'Ready for your next workout'); }}>Use all</button>
       </> : undefined}>
       <p className="ai-suggest-meta"><Sparkles aria-hidden="true" />{suggestionSource(s)} · {ago(s.createdAt)} · {status}</p>

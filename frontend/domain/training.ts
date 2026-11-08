@@ -160,6 +160,6 @@ export function logSetValues(s: SetEntry, tracking: TrackingMode, previous?: Set
 /** A saved workout keeps only logged sets: empty sets are dropped, then exercises left without sets. */
 export function loggedBlocks(blocks: ExerciseBlock[]): ExerciseBlock[] {
   return blocks
-    .map((b) => ({ ...b, sets: b.sets.filter((s) => trackingFields(b.tracking).some((f) => s[f] != null)).map((s) => ({ ...s, done: true, suggested: undefined, aiTarget: undefined })) }))
+    .map((b) => ({ ...b, sets: b.sets.filter((s) => trackingFields(b.tracking).some((f) => s[f] != null)).map((s) => ({ ...s, done: true, suggested: undefined, aiTarget: undefined, aiPrev: undefined, aiAdded: undefined })) }))
     .filter((b) => b.sets.length);
 }
