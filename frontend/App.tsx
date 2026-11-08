@@ -13,6 +13,7 @@ import { useNow } from './lib/hooks';
 import { duration, mss } from './lib/format';
 import { timerRemaining, timerState } from './domain/training';
 import { LogoMark, ToastHost } from './components/ui';
+import { SuggestionHost } from './screens/training/SuggestionReview';
 import { AuthScreen, SetPasswordScreen } from './screens/auth/AuthScreen';
 import { Onboarding } from './screens/auth/Onboarding';
 import { TodayScreen } from './screens/today/TodayScreen';
@@ -157,6 +158,7 @@ export function App() {
       {/* Outside the header: the header's blur would make the fixed rest dock position against it. */}
       <RestBar />
       <ToastHost />
+      <SuggestionHost />
       <AiAddedNotice />
       <AiHub open={hub} onClose={() => setHub(false)} />
     </div>

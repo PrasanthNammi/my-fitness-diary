@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { ChevronDown, ClipboardList, Dumbbell, Folder as FolderIcon, FolderInput, FolderPlus, Pencil, Play, Plus, SquarePen, Trash2, Type } from 'lucide-react';
 import type { Folder, Routine } from '../../domain/types';
+import { SuggestionChip } from './SuggestionReview';
 import { AiBadge, ConfirmSheet, Empty, OverflowMenu, Segmented, Sheet, TabChips, TopBar, toast, Field } from '../../components/ui';
 import { useDB } from '../../data/store';
 import { exerciseName, exercises, training, workouts } from '../../data/repositories';
@@ -157,6 +158,7 @@ function RoutineCard({ r, folders, onStart }: { r: Routine; folders: Folder[]; o
           ]}
         />
       </div>
+      <SuggestionChip routineId={r.id} />
       {preview && <button className="routine-open preview" aria-label={`View exercises in ${r.name}`} onClick={view}>{preview}</button>}
       <button className="btn btn-dark btn-block routine-start" onClick={onStart}>
         <Play aria-hidden="true" /><span className="ellipsis">Start {r.name}</span>

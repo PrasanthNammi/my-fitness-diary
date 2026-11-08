@@ -1,5 +1,7 @@
 import { useState } from 'react';
-import { Bot, Dumbbell, ExternalLink, Link2, ListChecks, Scale, Undo2, Utensils } from 'lucide-react';
+import { Bot, Dumbbell, ExternalLink, Link2, ListChecks, Scale, Sparkles, Undo2, Utensils } from 'lucide-react';
+import { activeSuggestions, type AiSuggestion } from '../domain/aiSuggestions';
+import { openSuggestion, suggestionSource } from '../screens/training/SuggestionReview';
 import { useDB } from '../data/store';
 import { entryNutrients } from '../data/selectors';
 import { body, diary as diaryRepo, training, workouts as workoutRepo } from '../data/repositories';
@@ -28,6 +30,9 @@ export function AiHub({ open, onClose }: { open: boolean; onClose: () => void })
     ...routines.map((r): AiCandidate => ({ id: r.id, kind: 'routine', label: `Routine · ${r.name}`, addedBy: r.addedBy })),
   ]);
   const recent = aiAddedRecently(all, now);
+  const suggestionList = useDB((d) => d.aiSuggestions), workoutList = useDB((d) => d.workouts), routineList = useDB((d) => d.routines);
+  const suggested = activeSuggestions(suggestionList, workoutList, now);
+  const routineName = (x: AiSuggestion) => routineList.find((r) => r.id === x.routineId)?.name ?? x.routineName ?? 'Routine';
   const last = (name: string) => aiLastAdded(all, name);
   const Icon = { food: Utensils, workout: Dumbbell, weight: Scale, routine: ListChecks };
   const undo = (a: AiAdded) => {
@@ -54,6 +59,18 @@ export function AiHub({ open, onClose }: { open: boolean; onClose: () => void })
               );
             })}
           </div>
+          {suggested.length > 0 && <>
+            <div className="eyebrow">Workout suggestions</div>
+            <ul className="ai-hub-list">
+              {suggested.map((x) => (
+                <li key={x.id}>
+                  <Sparkles aria-hidden="true" />
+                  <span className="grow"><span className="row-title ellipsis">{routineName(x)}</span><span className="row-sub">{suggestionSource(x)} · {x.status === 'used' ? 'Accepted' : 'New'}</span></span>
+                  <button className="btn btn-soft btn-sm" onClick={() => { onClose(); openSuggestion(x.id); }}>Review</button>
+                </li>
+              ))}
+            </ul>
+          </>}
           <div className="eyebrow">Added in the last 24 hours</div>
           {recent.length ? (
             <ul className="ai-hub-list">

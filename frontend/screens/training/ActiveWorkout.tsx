@@ -1,7 +1,7 @@
 import {WorkoutClock} from './WorkoutClock';
 import { prepareActiveBlock, replaceExerciseBlock } from '../../domain/training';
 import { useEffect, useMemo, useState } from 'react';
-import { ChevronDown, Dumbbell, Pencil, Plus, Trash2 } from 'lucide-react';
+import { ChevronDown, Dumbbell, Pencil, Plus, Trash2, Sparkles } from 'lucide-react';
 import type { ExerciseBlock, RestTimer, Workout } from '../../domain/types';
 import { countSets, pauseTimer, resetTimer, startTimer, workingVolume } from '../../domain/training';
 import { ConfirmSheet, Empty, Field, InfoButton, Notice, Sheet, toast } from '../../components/ui';
@@ -9,6 +9,8 @@ import { useDB } from '../../data/store';
 import { routineFromWorkout, training, workouts } from '../../data/repositories';
 import { duration, fmtVolume } from '../../lib/format';
 import { useNow, useWakeLock } from '../../lib/hooks';
+import { activeSuggestion } from '../../domain/aiSuggestions';
+import { openSuggestion, suggestionSource } from './SuggestionReview';
 import { goBack, navigate } from '../../lib/router';
 import { ExerciseBlockView } from './ExerciseBlockView';
 import { ExercisePicker } from './ExercisePicker';
@@ -24,6 +26,9 @@ export function ActiveWorkoutScreen() {
   const weightUnit = useDB((d) => d.settings.weightUnit);
   const keepAwake = useDB((d) => d.settings.keepAwake !== false);
   const vibrate = useDB((d) => d.settings.vibrate !== false);
+  const allSuggestions = useDB((d) => d.aiSuggestions);
+  // A suggestion for this routine not yet used: offer it at the top of the workout.
+  const liveSuggestion = (() => { const s = activeSuggestion(allSuggestions, a?.routineId, history); return s && s.status === 'pending' ? s : null; })();
   useWakeLock(keepAwake && !!a);
   const now = useNow(1000, !!a);
   const [pickerOpen, setPickerOpen] = useState(false);
@@ -86,6 +91,7 @@ export function ActiveWorkoutScreen() {
         <button className="btn btn-primary btn-sm wo-finish" onClick={() => setFinishOpen(true)}>Finish</button>
       </header>
       <div className="screen wo-screen">
+        {liveSuggestion && <button type="button" className="ai-suggest-bar" onClick={() => openSuggestion(liveSuggestion.id)}><Sparkles aria-hidden="true" /><span className="grow">New AI suggestions · {suggestionSource(liveSuggestion)}</span><span className="go">Review</span></button>}
         <div className="wo-summary" aria-label="Workout summary">
           <div><div className="k">Duration</div><div className="v accent-text">{duration(elapsed)}</div></div>
           <div><div className="k">Volume</div><div className="v">{volumeParts(fmtVolume(workingVolume(a.exercises), weightUnit))}</div></div>

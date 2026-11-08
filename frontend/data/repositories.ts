@@ -14,6 +14,7 @@ import type {
   Meal, PortionUnit, Profile, Routine, SetEntry, SetType, Settings, TrackingMode, Workout,
 } from '../domain/types';
 import { uid } from '../lib/format';
+import { activeSuggestion, applyTargets, extraTargets, fits, matchBlock, targetSets, type AiSuggestion } from '../domain/aiSuggestions';
 import { getDB, update } from './store';
 
 
@@ -115,7 +116,10 @@ export const workouts = {
     const blocks: ExerciseBlock[] = routine
       ? structuredClone(routine.exercises).map((b) => ({ ...b, id: uid(), sets: b.sets.map((s) => ({ ...s, suggested: undefined, id: uid(), done: false })) }))
       : [];
-    const plannedBlocks = blocks.map(prepareActiveBlock);
+    let plannedBlocks = blocks.map(prepareActiveBlock);
+    // Targets the user accepted for this routine (Use) become the faded values of the new workout.
+    const accepted = routine ? activeSuggestion(getDB().aiSuggestions, routine.id, getDB().workouts) : null;
+    if (accepted?.status === 'used') plannedBlocks = withTargets(plannedBlocks, accepted, accepted.usedExercises);
     const a: ActiveWorkout = {
       id: uid(),
       title: routine?.name ?? 'Workout',
@@ -366,3 +370,61 @@ export const profileRepo = {
 };
 
 export const TRACKING_MODES: TrackingMode[] = ['weight_reps', 'reps', 'time', 'weight_time', 'distance_time', 'weight_distance','weighted_bodyweight','assisted_bodyweight','floors_time','steps_time'];
+
+// ── AI workout suggestions ─────────────────────────────────────────
+/** Suggested targets onto the matching exercises (all, or only the ones the user picked). */
+function withTargets(blocks: ExerciseBlock[], s: AiSuggestion, only?: string[]): ExerciseBlock[] {
+  let out = blocks;
+  for (const ex of s.exercises) {
+    if (only && !only.some((n) => n.toLowerCase() === ex.exercise.toLowerCase())) continue;
+    const b = matchBlock(out, ex.exercise, exerciseName);
+    if (b && fits(b.tracking, ex.sets)) out = out.map((x) => (x === b ? applyTargets(x, ex.sets) : x));
+  }
+  return out;
+}
+const findSuggestion = (d: { aiSuggestions: AiSuggestion[] }, id: string) => d.aiSuggestions.find((x) => x.id === id);
+/** Catalogue exercise for a suggested name (exact name, case and spaces ignored). */
+export const exerciseByName = (name: string) => { const n = name.trim().toLowerCase().replace(/\s+/g, ' '); return exercises.all().find((e) => e.name.trim().toLowerCase().replace(/\s+/g, ' ') === n); };
+
+export const suggestions = {
+  /**
+   * Use (all, or one exercise). In this routine's running workout the targets become faded values right away;
+   * otherwise they are applied when the routine is started next. Nothing is logged until a set is ticked.
+   */
+  use(id: string, exercise?: string) {
+    update((d) => {
+      const s = findSuggestion(d, id);
+      if (!s) return;
+      const picked = exercise ? [...new Set([...(s.status === 'used' ? s.usedExercises ?? [] : []), exercise])] : undefined;
+      Object.assign(s, { status: 'used', usedAt: Date.now(), usedExercises: picked });
+      if (d.active?.routineId === s.routineId) d.active.exercises = withTargets(d.active.exercises, s, exercise ? [exercise] : undefined);
+    });
+  },
+  /** Running workout only: extra target sets beyond the exercise's current sets, as unticked sets. */
+  addSets(id: string, exercise: string) {
+    update((d) => {
+      const s = findSuggestion(d, id), ex = s?.exercises.find((x) => x.exercise === exercise);
+      if (!s || !ex || d.active?.routineId !== s.routineId) return;
+      const b = matchBlock(d.active.exercises, ex.exercise, exerciseName);
+      if (!b || !fits(b.tracking, ex.sets)) return;
+      const extra = extraTargets(b, ex.sets);
+      d.active.exercises = d.active.exercises.map((x) => (x === b ? { ...x, sets: [...x.sets, ...targetSets(extra, uid)] } : x));
+    });
+  },
+  /** Running workout only: a suggested exercise that isn't in it yet, with unticked target sets. */
+  addExercise(id: string, exercise: string) {
+    const found = exerciseByName(exercise);
+    if (!found) return false;
+    update((d) => {
+      const s = findSuggestion(d, id), ex = s?.exercises.find((x) => x.exercise === exercise);
+      if (!s || !ex || d.active?.routineId !== s.routineId || !fits(found.tracking, ex.sets)) return;
+      const block: ExerciseBlock = { id: uid(), exerciseId: found.id, tracking: found.tracking, restSec: d.settings.defaultRestSec, note: '', supersetId: null, sets: targetSets(ex.sets, uid) };
+      d.active.exercises = [...d.active.exercises, block];
+      d.active.timers = { ...d.active.timers, [block.id]: { durationSec: block.restSec, endsAt: null, pausedRemainingSec: null } };
+    });
+    return true;
+  },
+  dismiss(id: string) {
+    update((d) => { const s = findSuggestion(d, id); if (s) s.status = 'dismissed'; });
+  },
+};

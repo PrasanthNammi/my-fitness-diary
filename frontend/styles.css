@@ -1619,3 +1619,26 @@ button.social-person { cursor: pointer; border-left: 0; border-right: 0; }
 .password-toggle { position: absolute; right: 4px; top: 50%; transform: translateY(-50%); width: 40px; height: 40px; border: 0; border-radius: 10px; background: none; color: var(--muted); display: grid; place-items: center; cursor: pointer; }
 .password-toggle:hover { background: var(--hover); }
 .password-toggle svg { width: 18px; height: 18px; }
+
+/* ── AI workout suggestions ── */
+.ai-suggest-chip { display: inline-flex; align-items: center; gap: 6px; align-self: flex-start; height: 30px; padding: 0 12px; border: 0; border-radius: 999px; background: var(--ai-soft); color: var(--ai-text); font: inherit; font-size: 13px; font-weight: 700; cursor: pointer; margin: 2px 0 0; }
+.ai-suggest-chip svg { width: 13px; height: 13px; }
+.routine-card .ai-suggest-chip { margin: 0 0 10px; }
+.ai-suggest-bar { width: 100%; display: flex; align-items: center; gap: 10px; padding: 10px 14px; margin-bottom: 10px; border: 0; border-radius: var(--r); background: var(--ai-soft); color: var(--ai-text); font: inherit; font-weight: 700; text-align: left; cursor: pointer; }
+.ai-suggest-bar svg { width: 16px; height: 16px; flex: none; }
+.ai-suggest-bar .go { padding: 4px 12px; border-radius: 999px; background: var(--ai); color: #fff; font-size: 13px; }
+.ai-suggest-meta { display: flex; align-items: center; gap: 6px; margin: 0; font-size: 13px; font-weight: 700; color: var(--ai-text); }
+.ai-suggest-meta svg { width: 14px; height: 14px; }
+.ai-suggest-routine { margin: 4px 0 0; font-size: 20px; font-weight: 800; }
+.ai-suggest-note { margin: 6px 0 0; font-size: 14px; color: var(--ink-2); }
+.ai-suggest-list { display: flex; flex-direction: column; margin-top: 8px; }
+.ai-suggest-ex { padding: 12px 0; border-bottom: 1px solid var(--line-2); display: flex; flex-direction: column; gap: 4px; }
+.ai-suggest-ex:last-child { border-bottom: 0; }
+.ai-suggest-ex-head { display: flex; align-items: center; gap: 4px; min-width: 0; }
+.ai-suggest-ex-head strong { font-size: 15px; min-width: 0; }
+.ai-suggest-ex .last { margin: 0; font-size: 13px; color: var(--muted); }
+.ai-suggest-ex .target { margin: 0; font-size: 14px; font-weight: 700; color: var(--ai-text); }
+.ai-suggest-ex .cant { margin: 4px 0 0; font-size: 13px; font-weight: 700; color: var(--warmup-text); }
+.ai-suggest-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 6px; }
+.ai-suggest-actions .btn svg { width: 14px; height: 14px; }
+.ai-suggest-actions .done-chip { display: inline-flex; align-items: center; height: 32px; padding: 0 12px; border-radius: 999px; background: var(--success-soft); color: var(--success-text); font-size: 13px; font-weight: 700; }
