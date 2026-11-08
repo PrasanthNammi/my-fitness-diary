@@ -13,7 +13,7 @@ const req=(path,method='GET',body,headers={})=>new Request(origin+path,{method,h
  assert.equal(calls[0].url,PUSH+'/push/rests');assert.equal(new Headers(calls[0].init.headers).get('Authorization'),'Bearer '+token);assert.deepEqual(JSON.parse(calls[0].init.body),{rests:[{id:'b1',ends:1,label:'Bench'}],tz:'Europe/Berlin'});
  assert.equal(r.headers.get('Cache-Control'),'private, no-store');
  calls=[];r=await handle(req('/api/push/rests','POST',{rests:[]},{Cookie:jar,Origin:'https://evil.example'}),deps);assert.equal(r.status,403);assert.equal(calls.length,0,'cross-site requests are refused');
- for(const p of ['/api/push/other','/api/push/rests%2Fadjust','/api/push/rests/','/api/push/devices/remove/x']){calls=[];r=await handle(req(p,'POST',{},{Cookie:jar}),deps);assert.equal(r.status,404,p);assert.equal(calls.length,0,p)}
+ for(const p of ['/api/push/social','/api/push/other','/api/push/rests%2Fadjust','/api/push/rests/','/api/push/devices/remove/x']){calls=[];r=await handle(req(p,'POST',{},{Cookie:jar}),deps);assert.equal(r.status,404,p);assert.equal(calls.length,0,p)}
  calls=[];r=await handle(req('/api/push/rests','DELETE',undefined,{Cookie:jar}),deps);assert.equal(r.status,404);assert.equal(calls.length,0);
  calls=[];r=await handle(new Request(origin+'/api/push/prefs',{method:'POST',headers:{Origin:origin,'Content-Type':'text/plain',Cookie:jar},body:'x'}),deps);assert.equal(r.status,415);assert.equal(calls.length,0,'JSON only');
  console.log('PASS push proxy: session forwarded, same-origin only, fixed paths, JSON only');
