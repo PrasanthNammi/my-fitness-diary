@@ -28,7 +28,8 @@ export function ActiveWorkoutScreen() {
   const vibrate = useDB((d) => d.settings.vibrate !== false);
   const allSuggestions = useDB((d) => d.aiSuggestions);
   // A suggestion for this routine not yet used: offer it at the top of the workout.
-  const liveSuggestion = (() => { const s = activeSuggestion(allSuggestions, a?.routineId, history); return s && s.status === 'pending' ? s : null; })();
+  // This routine's suggestion stays reachable for the whole workout (new or already accepted), until it expires or is dismissed.
+  const liveSuggestion = activeSuggestion(allSuggestions, a?.routineId, history);
   useWakeLock(keepAwake && !!a);
   const now = useNow(1000, !!a);
   const [pickerOpen, setPickerOpen] = useState(false);
@@ -91,7 +92,7 @@ export function ActiveWorkoutScreen() {
         <button className="btn btn-primary btn-sm wo-finish" onClick={() => setFinishOpen(true)}>Finish</button>
       </header>
       <div className="screen wo-screen">
-        {liveSuggestion && <button type="button" className="ai-suggest-bar" onClick={() => openSuggestion(liveSuggestion.id)}><Sparkles aria-hidden="true" /><span className="grow">New AI suggestions · {suggestionSource(liveSuggestion)}</span><span className="go">Review</span></button>}
+        {liveSuggestion && <button type="button" className="ai-suggest-bar" onClick={() => openSuggestion(liveSuggestion.id)}><Sparkles aria-hidden="true" /><span className="grow">{liveSuggestion.status === 'used' ? 'AI suggestions' : 'New AI suggestions'} · {suggestionSource(liveSuggestion)}</span><span className="go">{liveSuggestion.status === 'used' ? 'Accepted' : 'Review'}</span></button>}
         <div className="wo-summary" aria-label="Workout summary">
           <div><div className="k">Duration</div><div className="v accent-text">{duration(elapsed)}</div></div>
           <div><div className="k">Volume</div><div className="v">{volumeParts(fmtVolume(workingVolume(a.exercises), weightUnit))}</div></div>
