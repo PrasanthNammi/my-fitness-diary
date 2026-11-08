@@ -1833,3 +1833,9 @@ button.social-person { cursor: pointer; border-left: 0; border-right: 0; }
 .fr-ex .ex-thumb img, .fr-ex-name .ex-thumb img, .fr-ex-head .ex-thumb img, .fr-common-row .ex-thumb img { width: 100%; height: 100%; object-fit: cover; }
 .fr-ex .ex-thumb svg, .fr-ex-name .ex-thumb svg, .fr-common-row .ex-thumb svg, .fr-ex-head .ex-thumb svg { width: 16px; height: 16px; }
 .social-screen .fr-card + .fr-card, .social-screen .card + .fr-card { margin-top: 12px; }
+/* Sync status icon: saving pulses gently, retrying turns, offline stays still (warn colour) */
+.sync-status.saving svg{animation:sync-pulse 1.4s ease-in-out infinite}
+.sync-status.retrying svg{animation:spin 1.6s linear infinite;color:var(--warn)}
+.sync-status.offline svg{color:var(--warn)}
+@keyframes sync-pulse{50%{opacity:.35}}
+@media(prefers-reduced-motion:reduce){.sync-status svg{animation:none!important}}
