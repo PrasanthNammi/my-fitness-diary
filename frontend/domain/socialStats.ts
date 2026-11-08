@@ -4,10 +4,12 @@ import type { Exercise, ExerciseBlock, TrackingMode, Workout } from './types';
 import { RADAR_GROUPS, muscleMapping } from './muscleStats';
 import { setMetrics, type Metric } from './records';
 import { workingVolume } from './training';
+import { daysIntoWeek } from './week';
 
 const DAY = 86_400_000;
 const startOfDay = (t: number) => { const d = new Date(t); return new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime(); };
-export const mondayOf = (t: number) => { const d = new Date(startOfDay(t)); d.setDate(d.getDate() - ((d.getDay() + 6) % 7)); return d.getTime(); };
+/** First day of the week containing `t` (week start from Settings; Monday by default). */
+export const mondayOf = (t: number) => { const d = new Date(startOfDay(t)); d.setDate(d.getDate() - daysIntoWeek(d)); return d.getTime(); };
 const addDays = (t: number, n: number) => { const d = new Date(t); d.setDate(d.getDate() + n); return d.getTime(); };
 
 const working = (b: ExerciseBlock) => b.sets.filter((s) => s.done && s.type !== 'warmup');

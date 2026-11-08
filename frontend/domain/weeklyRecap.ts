@@ -2,12 +2,13 @@
 import type { DiaryEntry, ISODate, WeightEntry, Workout } from './types';
 import { nutrientsFor } from './nutrition';
 import { localISO, summary } from './progressStats';
+import { daysIntoWeek } from './week';
 
 const DAY = 86_400_000;
 const at = (d: ISODate) => new Date(d + 'T12:00:00').getTime();
 export const shiftISO = (d: ISODate, n: number): ISODate => localISO(at(d) + n * DAY);
-/** Monday of the week containing `d`. */
-export const mondayOf = (d: ISODate): ISODate => shiftISO(d, -((new Date(at(d)).getDay() + 6) % 7));
+/** First day of the week containing `d` (the week start chosen in Settings; Monday by default). */
+export const mondayOf = (d: ISODate): ISODate => shiftISO(d, -daysIntoWeek(new Date(at(d))));
 
 /** Average of the weigh-ins in the 7 days ending on `date` (inclusive); null without any. */
 export function weightAverage(weights: WeightEntry[], date: ISODate, days = 7): number | null {
@@ -40,7 +41,7 @@ export interface WeekRecap {
   empty: boolean;
 }
 
-/** Last week (Monday to Sunday before the week containing `today`). */
+/** Last week (the 7 days before the week containing `today`, from the chosen week start). */
 export function weekRecap(input: {
   today: ISODate; workouts: Workout[]; diary: DiaryEntry[]; weights: WeightEntry[];
   goal: number; kcalTarget: number | null; proteinTarget: number | null;
