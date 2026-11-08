@@ -250,6 +250,8 @@ export interface Settings {
   lengthUnit?: 'cm' | 'in';
   /** First day of the week: 1 Monday (default), 0 Sunday, 6 Saturday. */
   weekStart?: 0 | 1 | 6;
+  /** AI additions hidden from the AI lists ("kind:id"; not undone). */
+  aiHidden?: string[];
   /** Plate calculator: the bar and plates at the user's gym, in `unit`. */
   plates?: { unit: 'kg' | 'lb'; bar: number; plates: number[] };
 }

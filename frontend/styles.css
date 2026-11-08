@@ -1840,3 +1840,9 @@ button.social-person { cursor: pointer; border-left: 0; border-right: 0; }
 @keyframes sync-pulse{50%{opacity:.35}}
 @media(prefers-reduced-motion:reduce){.sync-status svg{animation:none!important}}
 .settings-page .settings-group-title{margin:6px 4px -4px;font-size:12px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-3)}
+/* One AI banner on Overview: tap to review in the AI sheet, ✕ hides (never undoes) */
+.ai-notice{padding:6px 6px 6px 12px}
+.ai-notice-open{flex:1;min-width:0;display:flex;align-items:center;gap:12px;border:0;background:none;padding:6px 0;text-align:left;color:var(--ink);cursor:pointer;min-height:48px}
+.ai-notice-review{flex:none;font-size:14px;font-weight:700;color:var(--ai-text);padding:8px 12px;border-radius:999px;background:color-mix(in srgb,var(--ai-text) 12%,transparent)}
+.ai-notice-x{flex:none;color:var(--ai-text)}
+.ai-hub-list li .ai-hub-hide{flex:none;margin-left:-4px;color:var(--muted)}

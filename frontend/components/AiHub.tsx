@@ -1,12 +1,11 @@
 import { useState } from 'react';
-import { Bot, Dumbbell, ExternalLink, Link2, ListChecks, Scale, Sparkles, Undo2, Utensils } from 'lucide-react';
+import { Bot, Dumbbell, ExternalLink, Link2, ListChecks, Scale, Sparkles, Undo2, Utensils, X } from 'lucide-react';
 import { activeSuggestions, type AiSuggestion } from '../domain/aiSuggestions';
 import { openSuggestion, suggestionSource } from '../screens/training/SuggestionReview';
 import { useDB } from '../data/store';
-import { entryNutrients } from '../data/selectors';
 import { body, diary as diaryRepo, training, workouts as workoutRepo } from '../data/repositories';
-import { aiAdded, aiAddedRecently, aiAgo, aiLastAdded, type AiAdded, type AiCandidate } from '../domain/aiActivity';
-import { fmtEnergy, fmtWeight } from '../lib/format';
+import { aiAgo, aiLastAdded, type AiAdded } from '../domain/aiActivity';
+import { aiKey, hideAiActivity, useAiActivity } from '../lib/aiRecent';
 import { navigate } from '../lib/router';
 import { ConfirmSheet, Sheet, toast } from './ui';
 
@@ -19,17 +18,10 @@ const CONNECTIONS = 'https://mfd-connect.shanustylish777.workers.dev/oauth/mcp/c
  * connected is only known to the connector, so that lives on its page (Manage connections).
  */
 export function AiHub({ open, onClose }: { open: boolean; onClose: () => void }) {
-  const entries = useDB((d) => d.diary), sessions = useDB((d) => d.workouts), weights = useDB((d) => d.weights), routines = useDB((d) => d.routines);
   const settings = useDB((d) => d.settings);
   const [confirm, setConfirm] = useState<AiAdded | null>(null);
   const now = Date.now();
-  const all = aiAdded([
-    ...entries.map((e): AiCandidate => ({ id: e.id, kind: 'food', label: `${e.food.name} · ${fmtEnergy(entryNutrients(e).kcal, settings.energyUnit)}`, addedBy: e.addedBy })),
-    ...sessions.map((w): AiCandidate => ({ id: w.id, kind: 'workout', label: w.title, addedBy: w.addedBy })),
-    ...weights.map((w): AiCandidate => ({ id: w.id, kind: 'weight', label: `Weight · ${fmtWeight(w.kg, settings.weightUnit)}`, addedBy: w.addedBy })),
-    ...routines.map((r): AiCandidate => ({ id: r.id, kind: 'routine', label: `Routine · ${r.name}`, addedBy: r.addedBy })),
-  ]);
-  const recent = aiAddedRecently(all, now);
+  const { all, recent, recentAll } = useAiActivity(now);
   const suggestionList = useDB((d) => d.aiSuggestions), workoutList = useDB((d) => d.workouts), routineList = useDB((d) => d.routines);
   // Only suggestions for routines that still exist.
   const suggested = activeSuggestions(suggestionList, workoutList, now).filter((x) => routineList.some((r) => r.id === x.routineId));
@@ -78,16 +70,17 @@ export function AiHub({ open, onClose }: { open: boolean; onClose: () => void })
               {recent.map((a) => {
                 const I = Icon[a.kind];
                 return (
-                  <li key={a.kind + a.id}>
+                  <li key={aiKey(a)}>
                     <I aria-hidden="true" />
                     <span className="grow"><span className="row-title ellipsis">{a.label}</span><span className="row-sub">{a.by} · {aiAgo(a.at, now)}</span></span>
                     <button className="btn btn-soft btn-sm" onClick={() => setConfirm(a)}><Undo2 aria-hidden="true" />Undo</button>
+                    <button className="icon-btn ai-hub-hide" aria-label={`Hide ${a.label} (keeps it)`} title="Hide (keeps it)" onClick={() => hideAiActivity([a], recentAll, settings.aiHidden)}><X aria-hidden="true" /></button>
                   </li>
                 );
               })}
             </ul>
           ) : (
-            <p className="small muted ai-hub-empty">Nothing from ChatGPT or Claude today.</p>
+            <p className="small muted ai-hub-empty">{recentAll.length ? 'All caught up.' : 'Nothing from ChatGPT or Claude today.'}</p>
           )}
           <button className="btn btn-primary btn-block" onClick={() => { onClose(); navigate('/coach'); }}><Link2 aria-hidden="true" />Connect an assistant</button>
           <a className="btn btn-soft btn-block" href={CONNECTIONS} target="_blank" rel="noopener noreferrer"><ExternalLink aria-hidden="true" />Manage connections</a>
