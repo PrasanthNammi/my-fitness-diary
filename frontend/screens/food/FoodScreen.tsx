@@ -7,7 +7,7 @@ import {Camera,Copy,Flag} from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Pencil, Plus, ScanBarcode, Search, SearchX, Star, Trash2, UtensilsCrossed } from 'lucide-react';
 import type { DiaryEntry, Food, Meal, PortionUnit } from '../../domain/types';
-import { allowedUnits, withServingWeight } from '../../domain/nutrition';
+import { allowedUnits, withServingWeight, fibreTarget } from '../../domain/nutrition';
 import { AiBadge, ConfirmSheet, Empty, OverflowMenu, Segmented, Sheet, TopBar, toast } from '../../components/ui';
 import { DateStrip } from '../../components/DateStrip';
 import { useDB } from '../../data/store';
@@ -43,7 +43,7 @@ export function FoodScreen() {
   function remove(entry:DiaryEntry){const at=allEntries.findIndex(e=>e.id===entry.id);diary.remove(entry.id);setFeedback({text:`Removed ${entry.food.name}`,entry,kind:'remove',at})}
   function added(entry:DiaryEntry){setExpanded(old=>new Set([...old,entry.meal]));setFeedback({text:`Added ${entry.food.name} to ${MEALS.find(m=>m.id===entry.meal)?.label}`,entry,kind:'add'})}
   const left=t?t.kcal-total.kcal:0;
-  const macroTotals=([['Protein',total.protein,t?.protein,'var(--protein)'],['Carbs',total.carbs,t?.carbs,'var(--carbs)'],['Fat',total.fat,t?.fat,'var(--fat)'],['Fibre',fibre.grams,null,'var(--fibre)']] as const);
+  const macroTotals=([['Protein',total.protein,t?.protein,'var(--protein)'],['Carbs',total.carbs,t?.carbs,'var(--carbs)'],['Fat',total.fat,t?.fat,'var(--fat)'],['Fibre',fibre.grams,t?fibreTarget(t.kcal):null,'var(--fibre)']] as const);
   return <div className="food-log-page">
     <TopBar title="Food" actions={<button className="btn btn-soft btn-sm food-summary-btn" onClick={()=>setSummary(true)}><ChartNoAxesColumnIncreasing aria-hidden="true"/>Summary</button>}/>
     <div className="screen food-log-screen"><DateStrip date={date}/>

@@ -62,7 +62,7 @@ export function ExercisePage({exercise,onClose}:{exercise:Exercise;onClose:()=>v
    <div className="exercise-title"><h1>{ex.name}</h1><p>{[ex.primaryMuscle,ex.equipment,level].filter(Boolean).join(' · ')}</p></div>
    <button className="icon-btn" aria-label="Close exercise" onClick={close}><X/></button>
   </header>
-  <nav className="exercise-tabs" aria-label="Exercise details">{TABS.map(([id,label])=><button key={id} aria-label={id} aria-pressed={tab===id} onClick={()=>setTab(id)}>{label}</button>)}</nav>
+  <nav className="exercise-tabs tab-chips" role="tablist" aria-label="Exercise details">{TABS.map(([id,label])=><button key={id} type="button" role="tab" className="chip" aria-label={id} aria-selected={tab===id} aria-pressed={tab===id} onClick={()=>setTab(id)}>{label}</button>)}</nav>
   <div className="exercise-page-body" key={ex.id}>
   {(tab==='history'||tab==='charts')&&ranges}
   {tab==='history'&&<section className="card exercise-inline-trend" aria-label="Exercise performance"><div className="exercise-card-head"><h3>{chartInfo.title}</h3><button className="btn btn-link" onClick={()=>setTab('charts')}>All charts</button></div>{points.length?<LineChart key={`preview-${selected}-${range}-${ex.id}`} points={points} unit={metricUnit(selected)} label={chartInfo.title} height={140} format={v=>fmtNum(v,1)}/>:<div className="exercise-empty"><BarChart3 aria-label="No chart data"/></div>}</section>}

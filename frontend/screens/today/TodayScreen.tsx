@@ -1,6 +1,6 @@
 import { useMemo, useState, type ReactNode } from 'react';
 import { Bot, ChevronRight, Droplets, Minus, Play, Plus, Sparkles, TrendingDown, TrendingUp, Undo2 } from 'lucide-react';
-import { AiBadge, ConfirmSheet, InfoButton, TopBar, toast } from '../../components/ui';
+import { AiBadge, ConfirmSheet, Empty, InfoButton, TopBar, toast } from '../../components/ui';
 import { DateStrip } from '../../components/DateStrip';
 import { useDB } from '../../data/store';
 import { entryNutrients, useDay, useSelectedDate, useTargets } from '../../data/selectors';
@@ -8,6 +8,7 @@ import { diary, workouts as workoutRepo } from '../../data/repositories';
 import { aiAdded, aiAddedRecently, aiAgo, type AiAdded } from '../../domain/aiActivity';
 import { addDays, duration, energyValue, fmtEnergy, fmtInt, fmtNum, fmtVolume, kgTo, todayISO, toISODate } from '../../lib/format';
 import { workingVolume } from '../../domain/training';
+import { fibreTarget } from '../../domain/nutrition';
 import { navigate } from '../../lib/router';
 import { weightTrend } from '../../domain/weeklyRecap';
 import { WeekRecap } from './WeekRecap';
@@ -89,7 +90,7 @@ export function TodayScreen() {
 
   return (
     <>
-      <TopBar title={profile ? `Hi, ${profile.firstName || profile.name}` : 'Overview'} />
+      <TopBar title={<span className="title-stack">Overview{profile && <small>Hi, {profile.firstName || profile.name}</small>}</span>} />
       <div className="screen overview">
         <DateStrip date={date} />
 
@@ -103,10 +104,12 @@ export function TodayScreen() {
 
         {isToday && <WeekRecap />}
 
+        {entries.length === 0 && <Empty icon={Plus} title="No food entries" action={<button className="btn btn-primary" onClick={() => navigate('/food')}>Log your first meal</button>} />}
+
         {t && (
           <section className="card overview-card" aria-label="Calories and macros">
             <div className="overview-card-head">
-              <span className="eyebrow">Food<InfoButton title="Calorie balance" lines={['Protein and carbs give 4 kcal per gram, fat 9 and fibre 2.', 'Other is energy the food data does not split into nutrients.']} /></span>
+              <span className="eyebrow">Fuel<InfoButton title="Calorie balance" lines={['Protein and carbs give 4 kcal per gram, fat 9 and fibre 2.', 'Other is energy the food data does not split into nutrients.']} /></span>
               <button className="btn btn-link" onClick={() => navigate('/food')}>Food log<ChevronRight aria-hidden="true" /></button>
             </div>
             <div className="fuel-top">
@@ -123,7 +126,7 @@ export function TodayScreen() {
             {total.kcal > 0 && (
               <div className="fuel-legend">
                 {segments.filter((x) => x.kcal > 0).map((x) => (
-                  <span key={x.label}><i style={{ background: x.color }} /><span className="grow">{x.label}</span><b className="tnum">{Math.round(x.share * 100)}%</b></span>
+                  <span key={x.label}><i style={{ background: x.color }} /><span className="grow">{x.label}</span><b className="tnum">{fmtInt(energyValue(x.kcal, eU))} · {Math.round(x.share * 100)}%</b></span>
                 ))}
               </div>
             )}
@@ -138,7 +141,7 @@ export function TodayScreen() {
             </div>
             <div className="fibre-row">
               <i style={{ background: 'var(--fibre)' }} /><span className="muted">Fibre</span>
-              <strong className="tnum">{fibre.grams === null ? '—' : `${Number(fibre.grams.toFixed(1))} g`}</strong>
+              <strong className="tnum">{fibre.grams === null ? '—' : Number(fibre.grams.toFixed(1))} / {fibreTarget(t.kcal)} g</strong>
               {(fibre.grams === null || fibre.missing) && entries.length > 0 && <span className="chip-warn">Incomplete<InfoButton title="Fibre" lines={['Some foods logged on this day have no fibre value, so the total may be low.']} /></span>}
             </div>
           </section>

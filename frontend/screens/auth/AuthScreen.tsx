@@ -1,9 +1,15 @@
 import {LogoFull} from '../../components/ui';
 import {useEffect,useState} from 'react';
-import {MailCheck} from 'lucide-react';
+import {Eye,EyeOff,MailCheck} from 'lucide-react';
 import {auth} from '../../adapters/auth';
 
 const RESEND_AFTER=60_000;
+
+/** Password box with a show/hide button. */
+function PasswordInput(props:React.InputHTMLAttributes<HTMLInputElement>){
+ const [show,setShow]=useState(false);
+ return <span className="password-field"><input className="input" {...props} type={show?'text':'password'}/><button type="button" className="password-toggle" aria-label={show?'Hide password':'Show password'} aria-pressed={show} onClick={()=>setShow(!show)}>{show?<EyeOff/>:<Eye/>}</button></span>;
+}
 type Mode='signin'|'signup'|'forgot';
 
 /**
@@ -47,8 +53,8 @@ export function AuthScreen(){
   </>}
   <form className="auth-form" onSubmit={e=>{e.preventDefault();submit()}}>
    <label>Email<input className="input" type="email" required value={email} autoComplete="email" onChange={e=>setEmail(e.target.value)}/></label>
-   {mode!=='forgot'&&<label>Password<input className="input" type="password" required minLength={mode==='signup'?12:1} value={password} placeholder={mode==='signup'?'At least 12 characters':undefined} autoComplete={mode==='signup'?'new-password':'current-password'} onChange={e=>setPassword(e.target.value)}/></label>}
-   {mode==='signup'&&<label>Confirm password<input className="input" type="password" required minLength={12} value={again} autoComplete="new-password" aria-invalid={!!again&&again!==password} onChange={e=>setAgain(e.target.value)}/></label>}
+   {mode!=='forgot'&&<label>Password<PasswordInput required minLength={mode==='signup'?12:1} value={password} placeholder={mode==='signup'?'At least 12 characters':undefined} autoComplete={mode==='signup'?'new-password':'current-password'} onChange={e=>setPassword(e.target.value)}/></label>}
+   {mode==='signup'&&<label>Confirm password<PasswordInput required minLength={12} value={again} autoComplete="new-password" aria-invalid={!!again&&again!==password} onChange={e=>setAgain(e.target.value)}/></label>}
    {mode==='signin'&&<button type="button" className="btn-link auth-forgot" onClick={()=>go('forgot')}>Forgot password?</button>}
    {error&&<p role="alert" className="auth-error">{error}</p>}
    <button className="btn btn-primary btn-block auth-submit" disabled={busy} type="submit">{busy?'Please wait…':mode==='signup'?'Create account':mode==='forgot'?'Send reset link':'Sign in'}</button>
@@ -65,8 +71,8 @@ export function SetPasswordScreen({onDone}:{onDone:()=>void}){
   <LogoFull width={180}/>
   <h1 className="auth-title">{done?'Password changed':'Set a new password'}</h1>
   {done?<button className="btn btn-primary btn-block auth-submit" onClick={onDone}>Continue</button>:<form className="auth-form" onSubmit={e=>{e.preventDefault();submit()}}>
-   <label>New password<input className="input" type="password" required minLength={12} value={password} placeholder="At least 12 characters" autoComplete="new-password" onChange={e=>setPassword(e.target.value)}/></label>
-   <label>Confirm new password<input className="input" type="password" required minLength={12} value={again} autoComplete="new-password" aria-invalid={!!again&&again!==password} onChange={e=>setAgain(e.target.value)}/></label>
+   <label>New password<PasswordInput required minLength={12} value={password} placeholder="At least 12 characters" autoComplete="new-password" onChange={e=>setPassword(e.target.value)}/></label>
+   <label>Confirm new password<PasswordInput required minLength={12} value={again} autoComplete="new-password" aria-invalid={!!again&&again!==password} onChange={e=>setAgain(e.target.value)}/></label>
    {error&&<p role="alert" className="auth-error">{error}</p>}
    <button className="btn btn-primary btn-block auth-submit" disabled={busy} type="submit">{busy?'Please wait…':'Save new password'}</button>
   </form>}

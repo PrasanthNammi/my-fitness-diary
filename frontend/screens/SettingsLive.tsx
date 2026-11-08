@@ -1,6 +1,6 @@
 import {ExercisePicker} from './training/ExercisePicker';
 import {useRef,useState,useSyncExternalStore,type ReactNode} from 'react';
-import {UserRound,Ruler,Goal,Library,Database,ShieldUser,Utensils,Dumbbell,Flag,Download,Upload,Archive,LogOut,RefreshCw,Bell,Palette,Bot,ChevronRight} from 'lucide-react';
+import {Timer,UserRound,Ruler,Goal,Library,Database,ShieldUser,Utensils,Dumbbell,Flag,Download,Upload,Archive,LogOut,RefreshCw,Bell,Palette,Bot,ChevronRight} from 'lucide-react';
 import {AppearanceSettings} from './settings/AppearanceSettings';
 import {NotificationSettings} from './settings/NotificationSettings';
 import {ConfirmSheet,TopBar,Sheet,toast} from '../components/ui';
@@ -28,19 +28,19 @@ export function SettingsLive({section}:{section:string|null}){
  const file=useRef<HTMLInputElement>(null);
  // Closing the exercise list steps back (it used to open Catalogue again, so the back arrow returned to Exercises).
  if(section==='exercises')return <ExercisePicker browse open onClose={()=>goBack('/settings/catalogue')} onAdd={()=>{}}/>;
- if(['profile','targets','units'].includes(section||''))return <SettingsScreen section={section}/>;
+ if(['profile','targets','units','workout'].includes(section||''))return <SettingsScreen section={section}/>;
  if(section==='notifications')return <NotificationSettings/>;
  if(section==='appearance')return <AppearanceSettings/>;
  const go=(p:string)=>()=>navigate('/settings/'+p);
  const syncText=sync==='attention'?'Sync needs attention':sync==='offline'?'Offline · changes on this device':sync==='pending'?'Saving changes…':'Saved to the cloud';
  const pages:Record<string,{title:string;items:Item[]}>={
-  catalogue:{title:'Catalogue',items:[
+  catalogue:{title:'Exercise & food catalogue',items:[
    {icon:<Dumbbell/>,label:'Exercises',sub:'Browse, search, create your own',onClick:go('exercises')},
-   {icon:<Utensils/>,label:'Foods',sub:'Shared and your own foods',onClick:()=>openTool('food')},
-   {icon:<Flag/>,label:'Reports',sub:'Nutrition data you reported',onClick:()=>openTool('reports')}]},
+   {icon:<Utensils/>,label:'Foods',sub:'Shared and your own foods',onClick:()=>openTool('food')}]},
   data:{title:'Data',items:[
    {icon:<Upload/>,label:'Import',sub:'Hevy workouts or an MFD backup',onClick:()=>setImporting(true)},
-   {icon:<Download/>,label:'Export',sub:'Download a backup of your diary',onClick:()=>openTool('backup')}]},
+   {icon:<Download/>,label:'Export',sub:'Download a backup of your diary',onClick:()=>openTool('backup')},
+   {icon:<Flag/>,label:'Reports',sub:'Nutrition data you reported',onClick:()=>openTool('reports')}]},
   account:{title:'Account',items:[
    {icon:<RefreshCw/>,label:'Sync',sub:syncText,dot:sync==='attention',onClick:()=>openTool('account')},
    {icon:<LogOut/>,label:'Log out',danger:true,onClick:()=>setLeaving(true)}]},
@@ -51,14 +51,15 @@ export function SettingsLive({section}:{section:string|null}){
   {title:'You',items:[
    {icon:<UserRound/>,label:'Profile',sub:profile?[profile.name,`${fmtInt(profile.heightCm)} cm`,`${fmtNum(kgTo(profile.weightKg,settings.weightUnit),1)} ${settings.weightUnit}`].filter(Boolean).join(' · '):'Set up your profile',onClick:go('profile')},
    {icon:<Goal/>,label:'Targets',sub:t?`${fmtInt(energyValue(t.kcal,settings.energyUnit))} ${settings.energyUnit} · P ${t.protein} · C ${t.carbs} · F ${t.fat}`:undefined,onClick:go('targets')},
-   {icon:<Ruler/>,label:'Units & workout',sub:`${settings.weightUnit} · ${settings.energyUnit} · rest ${mss(settings.defaultRestSec)}`,onClick:go('units')}]},
+   {icon:<Ruler/>,label:'Units',sub:`${settings.weightUnit} · ${settings.energyUnit} · ${settings.lengthUnit ?? 'cm'}`,onClick:go('units')}]},
   {title:'App',items:[
    {icon:<Palette/>,label:'Appearance',sub:appearance(),onClick:go('appearance')},
-   {icon:<Bell/>,label:'Notifications',sub:'Rest timer',onClick:go('notifications')},
-   {icon:<Library/>,label:'Catalogue',sub:'Exercises, foods, reports',onClick:go('catalogue')},
+   {icon:<Timer/>,label:'Workout',sub:`Screen, vibration, rest ${mss(settings.defaultRestSec)}`,onClick:go('workout')},
+   {icon:<Bell/>,label:'Notifications',sub:'Rest timers, AI entries',onClick:go('notifications')},
+   {icon:<Library/>,label:'Exercise & food catalogue',sub:'Exercises, foods',onClick:go('catalogue')},
    {icon:<Bot/>,label:'AI assistants',sub:'ChatGPT and Claude',onClick:()=>navigate('/coach')}]},
   {title:'Data & account',items:[
-   {icon:<Database/>,label:'Data',sub:'Import, export',onClick:go('data')},
+   {icon:<Database/>,label:'Data',sub:'Import, export, reports',onClick:go('data')},
    {icon:<ShieldUser/>,label:'Account',sub:sync==='saved'?account?.email??syncText:syncText,dot:sync==='attention',onClick:go('account')}]},
  ];
  return <>

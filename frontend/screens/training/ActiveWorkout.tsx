@@ -23,6 +23,7 @@ export function ActiveWorkoutScreen() {
   const folders = useDB((d) => d.folders);
   const weightUnit = useDB((d) => d.settings.weightUnit);
   const keepAwake = useDB((d) => d.settings.keepAwake !== false);
+  const vibrate = useDB((d) => d.settings.vibrate !== false);
   useWakeLock(keepAwake && !!a);
   const now = useNow(1000, !!a);
   const [pickerOpen, setPickerOpen] = useState(false);
@@ -120,7 +121,7 @@ export function ActiveWorkoutScreen() {
               onMove={(dir) => setBlocks((l) => moveBlock(l, i, dir))}
               onSuperset={() => setSsFor(b.id)}
               onUnsuperset={() => setBlocks((l) => leaveSuperset(l, b.id))}
-              onToggleDone={(setId) => workouts.toggleDone(b.id, setId)}
+              onToggleDone={(setId) => { const was = b.sets.find((x) => x.id === setId)?.done; workouts.toggleDone(b.id, setId); if (!was && vibrate) navigator.vibrate?.(35); }}
               onTimer={(action, sec) => onTimer(b.id, action, sec)}
             />
           ))

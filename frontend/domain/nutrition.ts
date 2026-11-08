@@ -148,3 +148,6 @@ export function fibreSummary(list: Nutrients[]) {
   const known = list.filter(n => n.fibre !== null && Number.isFinite(n.fibre));
   return { grams: known.length || !list.length ? known.reduce((sum,n)=>sum+n.fibre!,0) : null, missing: list.length-known.length };
 }
+
+/** Daily fibre target: 14 g per 1,000 kcal (the usual guideline), rounded. */
+export const fibreTarget = (kcal: number) => Math.round((kcal / 1000) * 14);

@@ -319,7 +319,8 @@ button.list-row:hover { background: var(--row-alt); }
 .ai-steps { list-style: none; margin: 0; padding: 0; counter-reset: s; display: grid; gap: 14px; }
 .ai-steps li { display: grid; grid-template-columns: 28px minmax(0, 1fr); column-gap: 12px; counter-increment: s; }
 .ai-steps li::before { content: counter(s); grid-row: span 2; width: 28px; height: 28px; border-radius: 50%; display: grid; place-items: center; font-weight: 700; font-size: 13px; background: var(--field); color: var(--ink-2); }
-.badge.ai { height: 18px; margin-left: 6px; vertical-align: middle; background: transparent; border: 1px solid var(--line); color: var(--ink-2); font-weight: 600; }
+.badge.ai { display: inline-flex; align-items: center; gap: 3px; height: 20px; padding: 0 7px; margin-left: 6px; vertical-align: middle; background: var(--ai-soft); border: 0; color: var(--ai-text); font-weight: 700; flex: none; }
+.badge.ai svg { width: 10px; height: 10px; }
 
 .notice {
   display: flex; gap: 10px; padding: 10px 12px; border-radius: 10px; font-size: 13px; line-height: 1.45;
@@ -1502,10 +1503,10 @@ button.social-person { cursor: pointer; border-left: 0; border-right: 0; }
 .recap-tile.good .v { color: var(--success-text); }
 
 /* ── Progress, Lovable layout (8c) ── */
-.progress-tabs { display: flex; gap: 6px; }
-.progress-tabs::-webkit-scrollbar { display: none; }
-.progress-tabs .chip { flex: 1 1 auto; justify-content: center; min-width: 0; height: 36px; padding: 0 8px; font-size: 13px; font-weight: 700; }
-.progress-tabs .chip[aria-selected='true'] { background: var(--ink); border-color: var(--ink); color: var(--on-ink); }
+.tab-chips { display: flex; gap: 6px; }
+.tab-chips .chip { justify-content: center; min-width: 0; height: 36px; padding: 0 16px; font-size: 14px; font-weight: 700; }
+.tab-chips.fill .chip { flex: 1 1 auto; padding: 0 8px; font-size: 13px; }
+.tab-chips .chip[aria-selected='true'] { background: var(--ink); border-color: var(--ink); color: var(--on-ink); }
 .progress-cal-head .eyebrow { margin: 0; }
 .progress-cal { gap: 6px; }
 .progress-cal button { aspect-ratio: 1; max-height: none; border-radius: 50%; background: var(--surface-2); color: var(--ink-2); font-size: 12px; font-weight: 700; }
@@ -1570,3 +1571,51 @@ button.social-person { cursor: pointer; border-left: 0; border-right: 0; }
 .muscle-pick p { margin: 0; font-size: 14px; }
 .muscle-pick p b { font-size: 24px; }
 .muscle-top { display: flex; justify-content: space-between; gap: 8px; padding: 8px 0; border: 0; border-top: 1px solid var(--accent-line); background: none; color: var(--ink); font: inherit; font-weight: 600; text-align: left; cursor: pointer; }
+
+/* Page title with a line under it (Overview: "Hi, name") */
+.title-stack { display: flex; flex-direction: column; line-height: 1.15; }
+.title-stack small { font-size: 14px; font-weight: 600; color: var(--muted); letter-spacing: 0; margin-top: 2px; }
+.plates-chip { align-self: flex-start; margin: 8px 0 0; height: 34px; font-weight: 700; }
+.plates-chip svg { width: 15px; height: 15px; }
+.plate-sheet > .eyebrow { margin-bottom: -8px; }
+
+/* Exercise page tabs as chips (Lovable) */
+.exercise-tabs.tab-chips { display: flex; gap: 6px; padding: 10px 16px; border-bottom: 0; background: none; }
+.exercise-tabs.tab-chips button.chip { color: var(--ink-2); }
+.exercise-tabs.tab-chips button.chip[aria-selected='true'] { color: var(--on-ink); }
+@media (min-width: 800px) { .exercise-tabs.tab-chips { padding-left: max(20px, calc((100vw - 720px) / 2)); padding-right: max(20px, calc((100vw - 720px) / 2)); } }
+
+
+/* AI assistants (Lovable) */
+.ai-connector { display: flex; flex-direction: column; gap: 4px; padding: 20px; border-radius: var(--r-lg); background: var(--ink); color: var(--on-ink); }
+.ai-connector strong { font-size: 18px; font-weight: 800; margin-top: 8px; }
+.ai-connector .sub { font-size: 14px; opacity: .7; }
+.ai-connector .ai-private { font-size: 11px; opacity: .6; margin-top: 4px; }
+.ai-connector-icon { width: 44px; height: 44px; border-radius: 50%; display: grid; place-items: center; background: var(--ai); color: #fff; flex: none; }
+.ai-connector-icon.soft { width: 40px; height: 40px; background: var(--ai-soft); color: var(--ai-text); }
+.ai-connector-icon svg { width: 20px; height: 20px; }
+.ai-connector .ai-link { display: flex; align-items: center; gap: 8px; margin-top: 12px; padding: 6px 6px 6px 14px; border-radius: 999px; background: rgba(127,127,127,.25); }
+.ai-connector .ai-link-url { flex: 1; min-width: 0; border: 0; background: none; color: inherit; font: 600 14px var(--font); text-align: left; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; cursor: pointer; padding: 0; }
+.ai-connector .btn { border-radius: 999px; gap: 6px; }
+.ai-connector .btn svg { width: 14px; height: 14px; }
+.ai-assistants .ai-steps { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 12px; }
+.ai-assistants .ai-steps li { display: flex; align-items: center; gap: 12px; font-size: 15px; font-weight: 600; }
+.ai-assistants .ai-steps .num { width: 28px; height: 28px; border-radius: 50%; display: grid; place-items: center; flex: none; background: var(--ai-soft); color: var(--ai-text); font-size: 13px; font-weight: 800; }
+.ai-assistants .btn-dark svg { width: 16px; height: 16px; }
+.ai-manage { display: flex; align-items: center; gap: 12px; color: var(--ink); text-decoration: none; }
+.ai-manage .row-title, .ai-manage .row-sub { display: block; }
+.ai-manage > svg { width: 16px; height: 16px; color: var(--muted); }
+.ai-assistants .ai-steps li::before { content: none; display: none; }
+/* Training: room between the tabs and a slimmer Start empty workout banner */
+.training-home > .tab-chips { margin: 4px 0 16px; }
+.training-home .start-hero { padding: 9px 14px; gap: 10px; }
+.training-home .start-hero-icon { width: 32px; height: 32px; }
+.training-home .start-hero-icon svg { width: 14px; height: 14px; }
+.training-home .start-hero-label { font-size: 15px; }
+
+/* Password with show/hide */
+.password-field { position: relative; display: block; }
+.password-field .input { padding-right: 48px; width: 100%; }
+.password-toggle { position: absolute; right: 4px; top: 50%; transform: translateY(-50%); width: 40px; height: 40px; border: 0; border-radius: 10px; background: none; color: var(--muted); display: grid; place-items: center; cursor: pointer; }
+.password-toggle:hover { background: var(--hover); }
+.password-toggle svg { width: 18px; height: 18px; }

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { ChevronDown, ClipboardList, Dumbbell, Folder as FolderIcon, FolderInput, FolderPlus, Pencil, Play, Plus, SquarePen, Trash2, Type } from 'lucide-react';
 import type { Folder, Routine } from '../../domain/types';
-import { AiBadge, ConfirmSheet, Empty, OverflowMenu, Segmented, Sheet, TopBar, toast, Field } from '../../components/ui';
+import { AiBadge, ConfirmSheet, Empty, OverflowMenu, Segmented, Sheet, TabChips, TopBar, toast, Field } from '../../components/ui';
 import { useDB } from '../../data/store';
 import { exerciseName, exercises, training, workouts } from '../../data/repositories';
 import { countSets, workingVolume } from '../../domain/training';
@@ -31,7 +31,7 @@ export function TrainingHome({ tab = 'routines' }: { tab?: 'routines' | 'history
     <>
       <TopBar title="Training" />
       <div className="screen training-home">
-        <Segmented label="Training view" value={tab} onChange={(v) => navigate(v === 'history' ? '/training/history' : '/training', { replace: true })}
+        <TabChips label="Training view" value={tab} onChange={(v) => navigate(v === 'history' ? '/training/history' : '/training', { replace: true })}
           options={[{ value: 'routines', label: 'Routines' }, { value: 'history', label: 'History' }]} />
 
         {tab === 'history' ? <WorkoutHistory onStart={() => start(null)} /> : <>

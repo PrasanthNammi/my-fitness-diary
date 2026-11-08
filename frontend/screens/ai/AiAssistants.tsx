@@ -1,5 +1,6 @@
 import { useRef, useState } from 'react';
-import { Segmented, TopBar, toast } from '../../components/ui';
+import { Bot, Check, Copy, ExternalLink, Link2 } from 'lucide-react';
+import { InfoButton, Segmented, TopBar, toast } from '../../components/ui';
 import { appLinkProps, type AppLink } from '../../lib/appLinks';
 
 // Production AI connector (Cloudflare Worker); the staging build uses its own link.
@@ -44,43 +45,40 @@ export function AiAssistants() {
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
-  const guide = STEPS[app];
+  const guide = STEPS[app], name = app === 'chatgpt' ? 'ChatGPT' : 'Claude';
   return (
     <>
       <TopBar title="AI assistants" back="/today" bordered />
       <div className="screen stack ai-assistants">
-        <p className="small muted" style={{ margin: '12px 0 0' }}>
-          Use your diary in ChatGPT or Claude. Paste this link into the app once; signing in and choosing what it may see happen there.
-        </p>
-        {link ? (
-          <div className="card card-pad stack-sm">
-            <div className="eyebrow">Your connector link</div>
+        <section className="ai-connector" aria-label="Personal connector">
+          <span className="ai-connector-icon" aria-hidden="true"><Link2 /></span>
+          <strong>Personal connector</strong>
+          <span className="sub">Diary access</span>
+          {link ? (
             <div className="ai-link">
-              <button type="button" className="ai-link-field" onClick={copy} aria-label="Copy connector link">
-                <span className="row-title">My Fitness Diary link</span>
-                <span className="ai-link-url">{short}</span>
-              </button>
-              <button type="button" className="btn btn-primary btn-sm" onClick={copy}>{copied ? 'Copied' : 'Copy'}</button>
+              <button type="button" className="ai-link-url" onClick={copy} aria-label="Copy connector link">{short}</button>
+              <button type="button" className="btn btn-primary btn-sm" onClick={copy}>{copied ? <><Check aria-hidden="true" />Copied</> : <><Copy aria-hidden="true" />Copy</>}</button>
             </div>
-            <input ref={field} className="ai-link-hidden" readOnly value={link} aria-label="Connector link" tabIndex={-1} />
-          </div>
-        ) : (
-          <div className="card card-pad small muted">The connector link isn’t set up for this version of the app yet.</div>
-        )}
-        <Segmented<App> label="AI app" value={app} onChange={setApp} options={[{ value: 'chatgpt', label: 'ChatGPT' }, { value: 'claude', label: 'Claude' }]} />
-        <ol className="ai-steps">
-          {guide.steps.map(([title, text]) => (
-            <li key={title}><div className="row-title">{title}</div><div className="row-sub">{text}</div></li>
-          ))}
-        </ol>
-        <a className="btn btn-secondary btn-block" {...appLinkProps(guide.app, navigator.userAgent)}>{guide.open}</a>
-        {connector && (
-          <div className="card card-pad stack-sm">
-            <div className="row-title">Connected apps</div>
-            <div className="row-sub">See which assistants can use your diary, undo what one added in the last 24 hours, or remove it.</div>
-            <a className="btn btn-soft btn-block" href={connector + '/oauth/mcp/connections'} target="_blank" rel="noopener noreferrer">Manage connected apps</a>
-          </div>
-        )}
+          ) : <span className="sub">Not available in this version</span>}
+          <span className="ai-private">Private link</span>
+          <input ref={field} className="ai-link-hidden" readOnly value={link} aria-label="Connector link" tabIndex={-1} />
+        </section>
+        <section className="card card-pad stack-sm" aria-label="Setup">
+          <Segmented<App> label="AI app" value={app} onChange={setApp} options={[{ value: 'chatgpt', label: 'ChatGPT' }, { value: 'claude', label: 'Claude' }]} />
+          <div className="row-between"><span className="eyebrow">Setup</span><InfoButton title={`${name} setup`} lines={guide.steps.map(([t, x]) => `${t}: ${x}`)} /></div>
+          <ol className="ai-steps">
+            {guide.steps.map(([title], n) => <li key={title}><span className="num tnum">{n + 1}</span><span>{title}</span></li>)}
+          </ol>
+          <a className="btn btn-dark btn-block" {...appLinkProps(guide.app, navigator.userAgent)}><ExternalLink aria-hidden="true" />{guide.open}</a>
+        </section>
+        {connector && <>
+          <span className="eyebrow">Connected apps</span>
+          <a className="card card-pad ai-manage" href={connector + '/oauth/mcp/connections'} target="_blank" rel="noopener noreferrer">
+            <span className="ai-connector-icon soft" aria-hidden="true"><Bot /></span>
+            <span className="grow"><span className="row-title">Manage connected apps</span><span className="row-sub">Undo recent entries · remove access</span></span>
+            <ExternalLink aria-hidden="true" />
+          </a>
+        </>}
       </div>
     </>
   );

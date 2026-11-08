@@ -21,6 +21,7 @@ export function SettingsScreen({ section }: { section: string | null }) {
     case 'profile': return <ProfileSettings />;
     case 'targets': return <TargetDetails />;
     case 'units': return <UnitSettings />;
+    case 'workout': return <WorkoutSettings />;
     case 'account': return <AccountSettings />;
     case 'data': return <DataSettings />;
     case 'services': return <ServicesSettings />;
@@ -139,18 +140,33 @@ function TargetDetails() {
 
 function UnitSettings() {
   const s = useDB((d) => d.settings);
-  const [rest, setRest] = useState(mss(s.defaultRestSec));
-  const [err, setErr] = useState<string | null>(null);
   return (
     <>
-      <TopBar title="Units & workout" back="/settings" bordered />
+      <TopBar title="Units" back="/settings" bordered />
       <div className="screen stack" style={{ paddingTop: 12 }}>
         <div className="field"><span className="label">Weight</span>
           <Segmented label="Weight unit" value={s.weightUnit} onChange={(v) => profileRepo.updateSettings({ weightUnit: v })} options={[{ value: 'kg', label: 'Kilograms (kg)' }, { value: 'lb', label: 'Pounds (lb)' }]} />
         </div>
+        <div className="field"><span className="label">Length</span>
+          <Segmented label="Length unit" value={s.lengthUnit ?? 'cm'} onChange={(v) => profileRepo.updateSettings({ lengthUnit: v })} options={[{ value: 'cm', label: 'Centimetres (cm)' }, { value: 'in', label: 'Inches (in)' }]} />
+        </div>
         <div className="field"><span className="label">Energy</span>
           <Segmented label="Energy unit" value={s.energyUnit} onChange={(v) => profileRepo.updateSettings({ energyUnit: v })} options={[{ value: 'kcal', label: 'Calories (kcal)' }, { value: 'kJ', label: 'Kilojoules (kJ)' }]} />
         </div>
+      </div>
+    </>
+  );
+}
+
+
+function WorkoutSettings() {
+  const s = useDB((d) => d.settings);
+  const [rest, setRest] = useState(mss(s.defaultRestSec));
+  const [err, setErr] = useState<string | null>(null);
+  return (
+    <>
+      <TopBar title="Workout" back="/settings" bordered />
+      <div className="screen stack" style={{ paddingTop: 12 }}>
         <Field label="Default rest timer" htmlFor="u-rest" error={err} hint="Used when adding exercises. m:ss">
           <input id="u-rest" className="input" value={rest} onChange={(e) => setRest(e.target.value)} onBlur={() => {
             const v = parseMss(rest);
@@ -163,6 +179,10 @@ function UnitSettings() {
         <label className="list-row setting-switch">
           <span className="grow row-title">Keep screen on during workouts</span>
           <input type="checkbox" checked={s.keepAwake !== false} onChange={(e) => profileRepo.updateSettings({ keepAwake: e.target.checked })} />
+        </label>
+        <label className="list-row setting-switch">
+          <span className="grow row-title">Vibrate on set complete and rest end</span>
+          <input type="checkbox" checked={s.vibrate !== false} onChange={(e) => profileRepo.updateSettings({ vibrate: e.target.checked })} />
         </label>
         <PlateSettings />
       </div>

@@ -238,6 +238,10 @@ export interface Settings {
   coach: CoachConfig;
   /** Keep the screen on while the workout screen is open (default on). */
   keepAwake?: boolean;
+  /** Vibrate when a set is ticked and when rest ends (default on). */
+  vibrate?: boolean;
+  /** Body measurements shown in centimetres or inches (stored in cm). */
+  lengthUnit?: 'cm' | 'in';
   /** Plate calculator: the bar and plates at the user's gym, in `unit`. */
   plates?: { unit: 'kg' | 'lb'; bar: number; plates: number[] };
 }
