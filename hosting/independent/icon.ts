@@ -10,6 +10,6 @@ export function iconResponse(pathname: string, method: string): Response | null 
   if (!ICON_PATHS.includes(pathname)) return null;
   if (method !== 'GET' && method !== 'HEAD') return new Response(null, {status: 405, headers: {Allow: 'GET, HEAD'}});
   const svg = pathname === '/icon.svg';
-  return new Response(method === 'HEAD' ? null : svg ? SVG : bytes(), {headers: {'Content-Type': svg ? 'image/svg+xml' : 'image/png',
+  return new Response(method === 'HEAD' ? null : svg ? SVG : (bytes() as Uint8Array<ArrayBuffer>), {headers: {'Content-Type': svg ? 'image/svg+xml' : 'image/png',
     'Cache-Control': 'public, max-age=86400', 'X-Content-Type-Options': 'nosniff', 'Content-Security-Policy': "default-src 'none'"}});
 }
