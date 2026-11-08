@@ -42,13 +42,16 @@ function Review({ s }: { s: AiSuggestion }) {
   const fmt = (t: TargetSet) => t.kg != null ? `${fmtNum(kgTo(t.kg, unit), 2)} ${unit}${t.reps != null ? ` × ${t.reps}` : ''}`
     : t.reps != null ? `${t.reps} reps` : t.duration_seconds != null ? mss(t.duration_seconds) : t.distance_meters != null ? `${fmtNum(t.distance_meters / 1000, 2)} km` : '—';
   const close = () => openSuggestion(null);
+  const allUsed = s.status === 'used' && (!s.usedExercises || s.exercises.every((x) => s.usedExercises!.some((n) => n.toLowerCase() === x.exercise.toLowerCase())));
   const status = expired || !current ? 'Expired' : s.status === 'used' ? 'Accepted' : 'Review';
   return (
-    <Sheet open onClose={close} title="AI suggestions" size="full"
+    <Sheet open onClose={close} title="AI suggestions" size="full" hideClose
       headerActions={<InfoButton title="AI workout suggestions" lines={['Use only fills the faded values. A set is saved when you tick it.', 'Ticked sets and numbers you typed are never changed.', 'A newer suggestion replaces this one. Suggestions expire after the next workout of this routine or after 7 days.']} />}
       footer={!expired && current ? <>
-        <button className="btn btn-secondary" onClick={() => { const removed = suggestions.dismiss(s.id); close(); toast(removed ? 'AI targets removed' : 'Suggestion dismissed'); }}>Dismiss</button>
-        <button className="btn btn-primary" onClick={() => { suggestions.use(s.id); close(); toast(running ? 'Targets added as faded values' : 'Ready for your next workout'); }}>Use all</button>
+        {s.status === 'used' && <button className="btn btn-secondary" onClick={() => { const removed = suggestions.clear(s.id); close(); if (removed) toast('AI targets removed'); }}>Dismiss</button>}
+        {allUsed
+          ? <button className="btn btn-primary" onClick={close}>Done</button>
+          : <button className="btn btn-primary" onClick={() => { suggestions.use(s.id); close(); toast(running ? 'Targets added as faded values' : 'Ready for your next workout'); }}>Use all</button>}
       </> : undefined}>
       <p className="ai-suggest-meta"><Sparkles aria-hidden="true" />{suggestionSource(s)} · {ago(s.createdAt)} · {status}</p>
       <p className="ai-suggest-routine">{routine?.name ?? s.routineName ?? 'Routine'}</p>
@@ -59,6 +62,7 @@ function Review({ s }: { s: AiSuggestion }) {
           const ok = block ? fits(block.tracking, ex.sets) : known ? fits(known.tracking, ex.sets) : false;
           const extra = running && block && ok ? extraTargets(block, ex.sets).length : 0;
           const last = lastWorking(workouts, block?.exerciseId ?? known?.id);
+          const used = s.status === 'used' && (!s.usedExercises || s.usedExercises.some((n) => n.toLowerCase() === ex.exercise.toLowerCase()));
           return (
             <section key={ex.exercise} className="ai-suggest-ex">
               <div className="ai-suggest-ex-head"><strong className="ellipsis">{block ? exerciseName(block.exerciseId) : ex.exercise}</strong>{ex.reason && <InfoButton title={ex.exercise} lines={[ex.reason]} />}</div>
@@ -66,7 +70,9 @@ function Review({ s }: { s: AiSuggestion }) {
               <p className="target tnum">→ {ex.sets.map(fmt).join(' · ')}</p>
               {!ok ? <p className="cant">{block || known ? 'Can’t apply to how this exercise is tracked' : 'Not in this routine'}</p>
                 : !expired && current && <div className="ai-suggest-actions">
-                  {block && (<button className="btn btn-soft btn-sm" onClick={() => { suggestions.use(s.id, ex.exercise); toast(running ? `${ex.exercise}: targets added` : `${ex.exercise}: ready for your next workout`); }}>Use for this exercise</button>)}
+                  {block && (used
+                    ? <button className="btn btn-secondary btn-sm" aria-pressed="true" onClick={() => { suggestions.unuse(s.id, ex.exercise); toast(`${ex.exercise}: not used`); }}>Don’t use</button>
+                    : <button className="btn btn-soft btn-sm" onClick={() => { suggestions.use(s.id, ex.exercise); toast(running ? `${ex.exercise}: targets added` : `${ex.exercise}: ready for your next workout`); }}>Use for this exercise</button>)}
                   {extra > 0 && <button className="btn btn-secondary btn-sm" onClick={() => { suggestions.addSets(s.id, ex.exercise); toast(`${extra} set${extra === 1 ? '' : 's'} added`); }}><Plus aria-hidden="true" />Add {extra} set{extra === 1 ? '' : 's'}</button>}
                   {!block && running && known && <button className="btn btn-secondary btn-sm" onClick={() => { if (suggestions.addExercise(s.id, ex.exercise)) toast(`${known.name} added`); }}><Plus aria-hidden="true" />Add exercise</button>}
                 </div>}

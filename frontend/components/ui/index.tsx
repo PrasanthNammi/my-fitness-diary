@@ -49,7 +49,7 @@ export function TopBar({
 // ── Sheet: bottom sheet on phones, dialog on desktop ─────────────
 let openSheets = 0;
 export function Sheet({
-  open, onClose, title, children, footer, size = 'auto', headerActions, label,
+  open, onClose, title, children, footer, size = 'auto', headerActions, label, hideClose,
 }: {
   open: boolean;
   onClose: () => void;
@@ -58,6 +58,8 @@ export function Sheet({
   footer?: ReactNode;
   size?: 'auto' | 'full' | 'wide';
   headerActions?: ReactNode;
+  /** No ✕ in the header (closing still works by swipe, tapping outside or Escape). */
+  hideClose?: boolean;
   label?: string;
 }) {
   const ref = useRef<HTMLDivElement>(null);
@@ -106,9 +108,9 @@ export function Sheet({
           <div className="sheet-head">
             <h2 id={titleId} className="ellipsis">{title}</h2>
             {headerActions}
-            <button className="icon-btn" aria-label="Close" onClick={onClose}>
+            {!hideClose && <button className="icon-btn" aria-label="Close" onClick={onClose}>
               <X />
-            </button>
+            </button>}
           </div>
         )}
         <div className="sheet-body">{children}</div>

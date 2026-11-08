@@ -416,6 +416,28 @@ export const suggestions = {
       if (d.active?.routineId === s.routineId) d.active.exercises = withTargets(d.active.exercises, s, exercise ? [exercise] : undefined);
     });
   },
+  /**
+   * Don't use one exercise after all: it leaves the used list (back to "Review" when none are left) and, in this
+   * routine's running workout, its sets go back to the plan (ticked and typed sets kept).
+   */
+  unuse(id: string, exercise: string) {
+    update((d) => {
+      const s = findSuggestion(d, id);
+      if (!s || s.status !== 'used') return;
+      const same = (n: string) => n.toLowerCase() === exercise.toLowerCase();
+      const left = (s.usedExercises ?? s.exercises.map((x) => x.exercise)).filter((n) => !same(n));
+      if (left.length) Object.assign(s, { usedExercises: left });
+      else Object.assign(s, { status: 'pending', usedExercises: undefined, usedAt: undefined });
+      const ex = s.exercises.find((x) => same(x.exercise));
+      if (ex && d.active?.routineId === s.routineId) {
+        const b = matchBlock(d.active.exercises, ex, exerciseName, suggestedExerciseId);
+        if (b) {
+          const back = removeTargets(b);
+          d.active.exercises = back ? d.active.exercises.map((x) => (x === b ? back : x)) : d.active.exercises.filter((x) => x !== b);
+        }
+      }
+    });
+  },
   /** Running workout only: extra target sets beyond the exercise's current sets, as unticked sets. */
   addSets(id: string, exercise: string) {
     update((d) => {
@@ -441,7 +463,30 @@ export const suggestions = {
     });
     return true;
   },
-  /** Hide it; in this routine's running workout also take the AI targets back out (ticked sets stay). Returns whether targets were removed. */
+  /**
+   * The sheet's Dismiss: don't use any of it (for now). In this routine's running workout the AI targets come back
+   * out (ticked and typed sets kept); the suggestion stays available ("Review"). Returns whether targets were removed.
+   */
+  clear(id: string) {
+    let removed = false;
+    update((d) => {
+      const s = findSuggestion(d, id);
+      if (!s) return;
+      Object.assign(s, { status: 'pending', usedExercises: undefined, usedAt: undefined });
+      if (d.active?.routineId === s.routineId) {
+        const before = d.active.exercises;
+        const next = before.map(removeTargets).filter((b): b is ExerciseBlock => !!b);
+        removed = next.length !== before.length || next.some((b, i) => b !== before[i]);
+        if (removed) {
+          const kept = new Set(next.map((b) => b.id));
+          d.active.exercises = next;
+          d.active.timers = Object.fromEntries(Object.entries(d.active.timers).filter(([k]) => kept.has(k)));
+        }
+      }
+    });
+    return removed;
+  },
+  /** The banner's ✕: remove the suggestion for good; in this routine's running workout also take the AI targets out. */
   dismiss(id: string) {
     let removed = false;
     update((d) => {

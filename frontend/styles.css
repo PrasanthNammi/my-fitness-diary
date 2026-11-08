@@ -1624,7 +1624,12 @@ button.social-person { cursor: pointer; border-left: 0; border-right: 0; }
 .ai-suggest-chip { display: inline-flex; align-items: center; gap: 6px; align-self: flex-start; height: 30px; padding: 0 12px; border: 0; border-radius: 999px; background: var(--ai-soft); color: var(--ai-text); font: inherit; font-size: 13px; font-weight: 700; cursor: pointer; margin: 2px 0 0; }
 .ai-suggest-chip svg { width: 13px; height: 13px; }
 .routine-card .ai-suggest-chip { margin: 0 0 10px; }
-.ai-suggest-bar { width: 100%; display: flex; align-items: center; gap: 10px; padding: 10px 14px; margin-bottom: 10px; border: 0; border-radius: var(--r); background: var(--ai-soft); color: var(--ai-text); font: inherit; font-weight: 700; text-align: left; cursor: pointer; }
+.ai-suggest-bar { width: 100%; display: flex; align-items: center; gap: 2px; padding: 4px 4px 4px 0; margin-bottom: 10px; border-radius: var(--r); background: var(--ai-soft); color: var(--ai-text); }
+.ai-suggest-open { flex: 1; min-width: 0; display: flex; align-items: center; gap: 10px; padding: 6px 4px 6px 14px; border: 0; background: none; color: inherit; font: inherit; font-weight: 700; text-align: left; cursor: pointer; }
+.ai-suggest-open .grow { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ai-suggest-x { flex: none; width: 36px; height: 36px; display: grid; place-items: center; border: 0; border-radius: 50%; background: none; color: var(--ai-text); cursor: pointer; }
+.ai-suggest-x:hover { background: rgba(124, 92, 255, .12); }
+.ai-suggest-x svg { width: 16px; height: 16px; }
 .ai-suggest-bar svg { width: 16px; height: 16px; flex: none; }
 .ai-suggest-bar .go { padding: 4px 12px; border-radius: 999px; background: var(--ai); color: #fff; font-size: 13px; }
 .ai-suggest-meta { display: flex; align-items: center; gap: 6px; margin: 0; font-size: 13px; font-weight: 700; color: var(--ai-text); }

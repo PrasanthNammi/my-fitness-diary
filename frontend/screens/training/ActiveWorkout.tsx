@@ -1,12 +1,12 @@
 import {WorkoutClock} from './WorkoutClock';
 import { prepareActiveBlock, replaceExerciseBlock } from '../../domain/training';
 import { useEffect, useMemo, useState } from 'react';
-import { ChevronDown, Dumbbell, Pencil, Plus, Trash2, Sparkles } from 'lucide-react';
+import { ChevronDown, Dumbbell, Pencil, Plus, Trash2, Sparkles, X } from 'lucide-react';
 import type { ExerciseBlock, RestTimer, Workout } from '../../domain/types';
 import { countSets, pauseTimer, resetTimer, startTimer, workingVolume } from '../../domain/training';
 import { ConfirmSheet, Empty, Field, InfoButton, Notice, Sheet, toast } from '../../components/ui';
 import { useDB } from '../../data/store';
-import { routineFromWorkout, training, workouts } from '../../data/repositories';
+import { routineFromWorkout, training, workouts, suggestions } from '../../data/repositories';
 import { duration, fmtVolume } from '../../lib/format';
 import { useNow, useWakeLock } from '../../lib/hooks';
 import { activeSuggestion } from '../../domain/aiSuggestions';
@@ -92,7 +92,12 @@ export function ActiveWorkoutScreen() {
         <button className="btn btn-primary btn-sm wo-finish" onClick={() => setFinishOpen(true)}>Finish</button>
       </header>
       <div className="screen wo-screen">
-        {liveSuggestion && <button type="button" className="ai-suggest-bar" onClick={() => openSuggestion(liveSuggestion.id)}><Sparkles aria-hidden="true" /><span className="grow">{liveSuggestion.status === 'used' ? 'AI suggestions' : 'New AI suggestions'} · {suggestionSource(liveSuggestion)}</span><span className="go">{liveSuggestion.status === 'used' ? 'Accepted' : 'Review'}</span></button>}
+        {liveSuggestion && (
+          <div className="ai-suggest-bar">
+            <button type="button" className="ai-suggest-open" onClick={() => openSuggestion(liveSuggestion.id)}><Sparkles aria-hidden="true" /><span className="grow">{liveSuggestion.status === 'used' ? 'AI suggestions' : 'New AI suggestions'} · {suggestionSource(liveSuggestion)}</span><span className="go">{liveSuggestion.status === 'used' ? 'Accepted' : 'Review'}</span></button>
+            <button type="button" className="ai-suggest-x" aria-label="Dismiss AI suggestions" onClick={() => toast(suggestions.dismiss(liveSuggestion.id) ? 'AI targets removed' : 'Suggestion dismissed')}><X /></button>
+          </div>
+        )}
         <div className="wo-summary" aria-label="Workout summary">
           <div><div className="k">Duration</div><div className="v accent-text">{duration(elapsed)}</div></div>
           <div><div className="k">Volume</div><div className="v">{volumeParts(fmtVolume(workingVolume(a.exercises), weightUnit))}</div></div>
