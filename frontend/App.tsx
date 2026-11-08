@@ -114,7 +114,8 @@ export function App() {
   // Week start from Settings, applied before any screen below renders its weeks.
   setWeekStartDay(useDB((d) => d.settings.weekStart));
   useEffect(() => installSyncWake(), []);
-  useEffect(() => setHub(false), [routeKey]);// useRoute returns a new array each render: compare the text
+  useEffect(() => setHub(false), [routeKey]);
+  useEffect(() => { const open = () => setHub(true); window.addEventListener('mfd-ai-hub', open); return () => window.removeEventListener('mfd-ai-hub', open); }, []);// useRoute returns a new array each render: compare the text
 
   useEffect(() => {
     const titles: Record<string, string> = { today: 'Overview', training: 'Training', workout: 'Workout', food: 'Food', progress: 'Progress', coach: 'AI assistants', settings: 'Settings' };

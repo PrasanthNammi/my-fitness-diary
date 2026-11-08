@@ -1,11 +1,12 @@
 import { useMemo, useState, type ReactNode } from 'react';
-import { Bot, ChevronRight, Droplets, Minus, Play, Plus, Sparkles, TrendingDown, TrendingUp, Undo2 } from 'lucide-react';
+import { Bot, ChevronRight, Droplets, Minus, Play, Plus, Sparkles, TrendingDown, TrendingUp, X } from 'lucide-react';
 import { AiBadge, ConfirmSheet, Empty, InfoButton, TopBar, toast } from '../../components/ui';
 import { DateStrip } from '../../components/DateStrip';
 import { useDB } from '../../data/store';
 import { entryNutrients, useDay, useSelectedDate, useTargets } from '../../data/selectors';
 import { diary, workouts as workoutRepo } from '../../data/repositories';
-import { aiAdded, aiAddedRecently, aiAgo, type AiAdded } from '../../domain/aiActivity';
+import { aiAgo } from '../../domain/aiActivity';
+import { aiSummary, hideAiActivity, openAiHub, useAiActivity } from '../../lib/aiRecent';
 import { addDays, duration, energyValue, fmtEnergy, fmtInt, fmtNum, fmtVolume, kgTo, todayISO, toISODate } from '../../lib/format';
 import { workingVolume } from '../../domain/training';
 import { fibreTarget } from '../../domain/nutrition';
@@ -56,7 +57,6 @@ export function TodayScreen() {
   const weights = useDB((d) => d.weights);
   const profile = useDB((d) => d.profile);
   const s = useDB((d) => d.settings);
-  const [confirm, setConfirm] = useState<AiAdded | null>(null);
   const t = targets?.targets;
   const isToday = date === todayISO();
   const eU = s.energyUnit;
@@ -74,7 +74,9 @@ export function TodayScreen() {
     return { last: upto[upto.length - 1], avg: trend.avg, change: trend.change, recent: upto.slice(-10) };
   }, [weights, date]);
   // Food that ChatGPT or Claude added to this day in the last 24 hours, with Undo.
-  const aiFood = aiAddedRecently(aiAdded(entries.map((e) => ({ id: e.id, kind: 'food' as const, label: `${e.food.name} · ${fmtEnergy(entryNutrients(e).kcal, eU)}`, addedBy: e.addedBy }))), now);
+  // One banner for everything ChatGPT or Claude added in the last 24 hours (Review opens the AI sheet; ✕ hides, never undoes).
+  const ai = useAiActivity(now);
+  const aiHiddenNow = useDB((d) => d.settings.aiHidden);
 
   const goal = profile?.trainingDaysPerWeek ?? 3;
   const remaining = t ? t.kcal - total.kcal : 0;
@@ -94,13 +96,16 @@ export function TodayScreen() {
       <div className="screen overview">
         <DateStrip date={date} />
 
-        {aiFood.map((a) => (
-          <div key={a.id} className="ai-notice">
-            <span className="ai-notice-icon"><Sparkles aria-hidden="true" /></span>
-            <span className="grow"><span className="by">Added by {a.by} · {aiAgo(a.at, now)}</span><span className="what ellipsis">{a.label}</span></span>
-            <button className="btn btn-soft btn-sm" onClick={() => setConfirm(a)}><Undo2 aria-hidden="true" />Undo</button>
+        {ai.recent.length > 0 && (
+          <div className="ai-notice" role="status">
+            <button type="button" className="ai-notice-open" onClick={openAiHub} aria-label={`${aiSummary(ai.recent).text}. Review`}>
+              <span className="ai-notice-icon"><Sparkles aria-hidden="true" /></span>
+              <span className="grow"><span className="by ellipsis">{aiSummary(ai.recent).who}{new Set(ai.recent.map((a) => a.by)).size === 1 ? ` · ${aiAgo(Math.max(...ai.recent.map((a) => a.at)), now)}` : ''}</span><span className="what ellipsis">{aiSummary(ai.recent).what}</span></span>
+              <span className="ai-notice-review">Review</span>
+            </button>
+            <button type="button" className="icon-btn ai-notice-x" aria-label="Hide (keeps everything)" title="Hide (keeps everything)" onClick={() => hideAiActivity(ai.recent, ai.recentAll, aiHiddenNow)}><X aria-hidden="true" /></button>
           </div>
-        ))}
+        )}
 
         {isToday && <WeekRecap />}
 
@@ -212,8 +217,7 @@ export function TodayScreen() {
           <ChevronRight aria-hidden="true" />
         </button>
       </div>
-      <ConfirmSheet open={!!confirm} onClose={() => setConfirm(null)} danger title={confirm ? `Remove what ${confirm.by} added?` : ''} body={confirm?.label} confirmLabel="Remove"
-        onConfirm={() => { if (confirm) { diary.remove(confirm.id); toast(`Removed what ${confirm.by} added`); } setConfirm(null); }} />
+
     </>
   );
 }
