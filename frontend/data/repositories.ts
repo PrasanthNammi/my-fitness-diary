@@ -14,6 +14,7 @@ import type {
   Meal, PortionUnit, Profile, Routine, SetEntry, SetType, Settings, TrackingMode, Workout,
 } from '../domain/types';
 import { uid } from '../lib/format';
+import { resolveExercise } from '../catalogue/runtime';
 import { activeSuggestion, applyTargets, extraTargets, fits, matchBlock, targetSets, type AiSuggestion } from '../domain/aiSuggestions';
 import { getDB, update } from './store';
 
@@ -377,14 +378,29 @@ function withTargets(blocks: ExerciseBlock[], s: AiSuggestion, only?: string[]):
   let out = blocks;
   for (const ex of s.exercises) {
     if (only && !only.some((n) => n.toLowerCase() === ex.exercise.toLowerCase())) continue;
-    const b = matchBlock(out, ex.exercise, exerciseName);
+    const b = matchBlock(out, ex, exerciseName, suggestedExerciseId);
     if (b && fits(b.tracking, ex.sets)) out = out.map((x) => (x === b ? applyTargets(x, ex.sets) : x));
   }
   return out;
 }
 const findSuggestion = (d: { aiSuggestions: AiSuggestion[] }, id: string) => d.aiSuggestions.find((x) => x.id === id);
-/** Catalogue exercise for a suggested name (exact name, case and spaces ignored). */
-export const exerciseByName = (name: string) => { const n = name.trim().toLowerCase().replace(/\s+/g, ' '); return exercises.all().find((e) => e.name.trim().toLowerCase().replace(/\s+/g, ' ') === n); };
+/**
+ * App exercise id for a suggested exercise: the attached catalogue id, else the resolver that linked the routine's
+ * exercises (names as the diary stores them), else an exact display-name match, else the id the app gives
+ * unknown names in history.
+ */
+export function suggestedExerciseId(ex: { exercise: string; catalogId?: string }): string | null {
+  if (ex.catalogId && exercises.byId(ex.catalogId)) return ex.catalogId;
+  const links = (engine()?.peek()?.state as { mfdExerciseLinks?: Record<string, string> } | undefined)?.mfdExerciseLinks;
+  const resolved = resolveExercise({ exercise: ex.exercise, catalogId: ex.catalogId }, links);
+  if (resolved && exercises.byId(resolved)) return resolved;
+  const n = ex.exercise.trim().toLowerCase().replace(/\s+/g, ' ');
+  const byName = exercises.all().find((e) => e.name.trim().toLowerCase().replace(/\s+/g, ' ') === n);
+  if (byName) return byName.id;
+  const history = 'history:' + encodeURIComponent(ex.exercise.trim().toLowerCase());
+  return exercises.byId(history) ? history : null;
+}
+export const exerciseForSuggestion = (ex: { exercise: string; catalogId?: string }) => { const id = suggestedExerciseId(ex); return id ? exercises.byId(id) : undefined; };
 
 export const suggestions = {
   /**
@@ -405,7 +421,7 @@ export const suggestions = {
     update((d) => {
       const s = findSuggestion(d, id), ex = s?.exercises.find((x) => x.exercise === exercise);
       if (!s || !ex || d.active?.routineId !== s.routineId) return;
-      const b = matchBlock(d.active.exercises, ex.exercise, exerciseName);
+      const b = matchBlock(d.active.exercises, ex, exerciseName, suggestedExerciseId);
       if (!b || !fits(b.tracking, ex.sets)) return;
       const extra = extraTargets(b, ex.sets);
       d.active.exercises = d.active.exercises.map((x) => (x === b ? { ...x, sets: [...x.sets, ...targetSets(extra, uid)] } : x));
@@ -413,7 +429,8 @@ export const suggestions = {
   },
   /** Running workout only: a suggested exercise that isn't in it yet, with unticked target sets. */
   addExercise(id: string, exercise: string) {
-    const found = exerciseByName(exercise);
+    const ex = findSuggestion(getDB(), id)?.exercises.find((x) => x.exercise === exercise);
+    const found = ex ? exerciseForSuggestion(ex) : undefined;
     if (!found) return false;
     update((d) => {
       const s = findSuggestion(d, id), ex = s?.exercises.find((x) => x.exercise === exercise);

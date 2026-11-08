@@ -2,7 +2,7 @@ import { useSyncExternalStore } from 'react';
 import { Plus, Sparkles } from 'lucide-react';
 import { InfoButton, Sheet, toast } from '../../components/ui';
 import { useDB } from '../../data/store';
-import { exerciseByName, exerciseName, suggestions } from '../../data/repositories';
+import { exerciseForSuggestion, exerciseName, suggestedExerciseId, suggestions } from '../../data/repositories';
 import { activeSuggestion, extraTargets, fits, isExpired, matchBlock, type AiSuggestion, type TargetSet } from '../../domain/aiSuggestions';
 import { aiSource } from '../../domain/aiSource';
 import type { ExerciseBlock, Workout } from '../../domain/types';
@@ -55,7 +55,7 @@ function Review({ s }: { s: AiSuggestion }) {
       {s.note && <p className="ai-suggest-note">{s.note}</p>}
       <div className="ai-suggest-list">
         {s.exercises.map((ex) => {
-          const block = matchBlock(blocks, ex.exercise, exerciseName), known = block ? undefined : exerciseByName(ex.exercise);
+          const block = matchBlock(blocks, ex, exerciseName, suggestedExerciseId), known = block ? undefined : exerciseForSuggestion(ex);
           const ok = block ? fits(block.tracking, ex.sets) : known ? fits(known.tracking, ex.sets) : false;
           const extra = running && block && ok ? extraTargets(block, ex.sets).length : 0;
           const last = lastWorking(workouts, block?.exerciseId ?? known?.id);

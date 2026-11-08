@@ -7,7 +7,8 @@ import { trackingFields, type Field } from './training';
 export type SuggestionStatus = 'pending' | 'used' | 'dismissed';
 /** One target set as the connector stores it (kg, reps, seconds, metres). */
 export interface TargetSet { type?: SetType | 'dropset'; kg?: number; reps?: number; duration_seconds?: number; distance_meters?: number }
-export interface SuggestedExercise { exercise: string; reason?: string; sets: TargetSet[] }
+/** catalogId: the routine exercise's catalogue id, attached by the connector when the name matched the routine. */
+export interface SuggestedExercise { exercise: string; catalogId?: string; reason?: string; sets: TargetSet[] }
 export interface AiSuggestion {
   id: string;
   routineId: string;
@@ -63,9 +64,17 @@ export function fits(tracking: TrackingMode, targets: TargetSet[]): boolean {
 }
 
 const norm = (s: string) => s.trim().toLowerCase().replace(/\s+/g, ' ');
-/** The block for a suggested exercise, matched by name (as get_routines returns it). */
-export function matchBlock<B extends ExerciseBlock>(blocks: B[], exercise: string, nameOf: (exerciseId: string) => string): B | undefined {
-  const n = norm(exercise);
+/**
+ * The block for a suggested exercise: by the catalogue id the connector attached, then by the id the app's own
+ * name resolver gives (the same one that linked the routine's exercises), then by display name.
+ * Routine names (as get_routines returns them) can differ from catalogue display names.
+ */
+export function matchBlock<B extends ExerciseBlock>(blocks: B[], exercise: string | SuggestedExercise, nameOf: (exerciseId: string) => string, resolveId?: (ex: SuggestedExercise) => string | null | undefined): B | undefined {
+  const ex: SuggestedExercise = typeof exercise === 'string' ? { exercise, sets: [] } : exercise;
+  if (ex.catalogId) { const b = blocks.find((x) => x.exerciseId === ex.catalogId); if (b) return b; }
+  const id = resolveId?.(ex);
+  if (id) { const b = blocks.find((x) => x.exerciseId === id); if (b) return b; }
+  const n = norm(ex.exercise);
   return blocks.find((b) => norm(nameOf(b.exerciseId)) === n);
 }
 

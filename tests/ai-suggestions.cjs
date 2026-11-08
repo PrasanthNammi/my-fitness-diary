@@ -35,6 +35,16 @@ const names={x1:'Bench Press',x2:'Overhead  Press (Barbell)'};const nameOf=id=>n
 const blocks=[{id:'b1',exerciseId:'x1'},{id:'b2',exerciseId:'x2'}];
 assert.equal(S.matchBlock(blocks,' bench press ',nameOf).id,'b1');assert.equal(S.matchBlock(blocks,'overhead press (barbell)',nameOf).id,'b2');assert.equal(S.matchBlock(blocks,'Squat',nameOf),undefined);
 
+// Routine names can differ from display names ("Shoulder Press" is the routine's name for Overhead Press (Barbell)).
+const named={overhead_press_barbell:'Overhead Press (Barbell)',incline_bench_press_dumbbell:'Incline Bench Press (Dumbbell)',lateral_raise:'Lateral Raise (Dumbbell)'};
+const rb=[{id:'o',exerciseId:'overhead_press_barbell'},{id:'i',exerciseId:'incline_bench_press_dumbbell'},{id:'l',exerciseId:'lateral_raise'}];
+assert.equal(S.matchBlock(rb,{exercise:'Shoulder Press',catalogId:'overhead_press_barbell',sets:[]},id=>named[id]).id,'o','by attached catalogue id');
+const resolve=ex=>({'lateral raise':'lateral_raise','incline dumbbell press':'incline_bench_press_dumbbell'})[ex.exercise.toLowerCase()];
+assert.equal(S.matchBlock(rb,{exercise:'Lateral Raise',sets:[]},id=>named[id],resolve).id,'l','by the app resolver');
+assert.equal(S.matchBlock(rb,{exercise:'Incline Dumbbell Press',catalogId:'not-there',sets:[]},id=>named[id],resolve).id,'i','stale catalogue id falls back to the resolver');
+assert.equal(S.matchBlock(rb,{exercise:'overhead press (barbell)',sets:[]},id=>named[id],()=>null).id,'o','display name last');
+assert.equal(S.matchBlock(rb,{exercise:'Shoulder Press',sets:[]},id=>named[id],()=>null),undefined,'no id and a different name: not matched');
+
 // Applying: faded values only; ticked sets and typed values untouched; warm-ups matched separately.
 const set=(id,type,extra={})=>({id,type,weightKg:null,reps:null,timeSec:null,distanceKm:null,rpe:null,done:false,...extra});
 const block={id:'b1',exerciseId:'x1',tracking:'weight_reps',restSec:90,note:'',supersetId:null,sets:[
