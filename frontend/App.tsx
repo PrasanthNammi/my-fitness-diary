@@ -1,6 +1,7 @@
 import { useWorkoutLimit } from './lib/useWorkoutLimit';
 import { RoutineOverview } from './screens/training/RoutineOverview';
 import {SyncStatus} from './components/SyncStatus';
+import {installSyncWake} from './lib/sync';
 import { RestBar } from './components/RestBar';
 import { AiAddedNotice } from './components/AiAddedNotice';
 import { useEffect, useState, useSyncExternalStore } from 'react';
@@ -58,7 +59,7 @@ function ResumeBar() {
   );
 }
 
-function syncAttention() { const s = engine()?.peek(); return !!(s?.conflict || s?.error); }
+function syncAttention() { const s = engine()?.peek(); return !!s?.error; }
 function AvatarButton() {
   const profile = useDB((d) => d.profile);
   const attention = useSyncExternalStore((fn) => engine()?.subscribe(fn) || (() => {}), syncAttention);
@@ -109,6 +110,7 @@ export function App() {
   const route = useRoute();
   const [hub, setHub] = useState(false);
   const routeKey = route.join('/');
+  useEffect(() => installSyncWake(), []);
   useEffect(() => setHub(false), [routeKey]);// useRoute returns a new array each render: compare the text
 
   useEffect(() => {

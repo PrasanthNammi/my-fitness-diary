@@ -30,14 +30,14 @@ function phone(user,storage=new Map()){const traffic={up:0,down:0,calls:[]};let 
  const client=new PostgrestClient(REST,{headers:{Authorization:'Bearer '+jwt(user)},fetch:fetchCounting});
  const timers=new Map();let id=0;
  const c={window:{formaSupabase:client,addEventListener(){},requestIdleCallback(f){timers.set(++id,f)}},navigator:{onLine:true},document:{hidden:false,addEventListener(){}},
-  localStorage:{getItem:k=>storage.has(k)?storage.get(k):null,setItem:(k,v)=>storage.set(k,String(v)),removeItem:k=>storage.delete(k)},setTimeout(f){timers.set(++id,f);return id},clearTimeout(i){timers.delete(i)},
+  localStorage:{getItem:k=>storage.has(k)?storage.get(k):null,setItem:(k,v)=>storage.set(k,String(v)),removeItem:k=>storage.delete(k)},setTimeout(f){timers.set(++id,f);return id},clearTimeout(i){timers.delete(i)},setInterval(){return 0},
   structuredClone,state:{profile:{}},defaults:()=>({profile:{},sessions:[],routines:[],meals:[],weights:[],checkins:[],chat:[]}),render(){},validBackup:d=>!!d?.profile&&['meals','weights','sessions','routines','checkins','chat'].every(k=>Array.isArray(d[k])),
   canUseForma:()=>!!c.cloud?.user&&c.cloud.ready,updateCloudUI(){},toast(){},URLSearchParams,location:{search:''},KEY:'guest',console,AbortController,Response,TypeError,Error,Map,Set,Promise,JSON,Object,Array,Number,String,Date,Math};
  c.window.MFDWorkspaceMerge=undefined;vm.createContext(c);vm.runInContext(mergeSource,c);c.MFDWorkspaceMerge=c.window.MFDWorkspaceMerge;vm.runInContext(opsSource,c);c.MFDWorkspaceOps=c.window.MFDWorkspaceOps;
  c.$=()=>null;vm.runInContext(cloudSource+'\nthis.cloud=cloud;',c);c.updateCloudUI=()=>{};
- return {c,storage,traffic,offline(v){failNetwork=v;c.navigator.onLine=!v},reset(){traffic.up=0;traffic.down=0;traffic.calls.length=0},
+ return {c,storage,traffic,timers,offline(v){failNetwork=v;c.navigator.onLine=!v},flaky(v){failNetwork=v},async runTimers(){/* time passes: the scheduled wait is over */c.cloud.retryAt=0;const due=[...timers.values()];timers.clear();for(const f of due)await f()},reset(){traffic.up=0;traffic.down=0;traffic.calls.length=0},
   boot:()=>c.handleCloudSession({user:{id:user,email:user+'@test.invalid'}}),
-  edit(fn,keys){fn(c.state);c.cloud.patchKeys=keys;c.save()},sync:()=>c.syncCloud(),refresh:()=>c.refreshCloud()}}
+  edit(fn,keys){fn(c.state);c.cloud.patchKeys=keys;c.save()},sync:()=>c.syncCloud(true),refresh:()=>c.refreshCloud()}}
 const server=user=>JSON.parse(sql(`select json_build_object('payload',payload,'revision',revision) from public.forma_workspaces where user_id='${user}'`));
 const same=(a,b)=>O.equal(a,b);
 const KB=v=>Math.round(v/1024);
@@ -74,13 +74,20 @@ const KB=v=>Math.round(v/1024);
  A.reset();await A.refresh();assert.ok(same(A.c.state,s.payload),'A converged');assert.ok(A.traffic.down<5000,'A downloaded only B\'s change: '+A.traffic.down);
  report.push(`other phone's change arrives: ${A.traffic.down} bytes down`);
 
- // 5. Same field changed on both phones: kept as a conflict, nothing lost.
- A.edit(st=>{st.meals[0].kcal=111},['meals']);B.edit(st=>{st.meals[0].kcal=222},['meals']);
- assert.equal(await A.sync(),true);assert.equal(await B.sync(),false,'B holds a conflict');assert.ok(B.c.cloud.conflict,'conflict flagged');
- assert.equal(B.c.state.meals[0].kcal,222,'B keeps its own value');assert.equal(B.c.cloud.remote.payload.meals[0].kcal,111,'and the cloud value for review');
- // Resolve on B by choosing the cloud value, then B saves.
- const key=B.c.cloud.mergeConflicts[0].key;B.c.cloud.choices[key]={side:'cloud',local:222,remote:111};B.c.reconcileCloud(B.c.cloud.remote);assert.ok(!B.c.cloud.conflict);
- assert.equal(B.c.state.meals[0].kcal,111);assert.ok(!B.c.cloud.dirty,'B now matches the cloud: nothing to save');assert.equal(server(U).payload.meals[0].kcal,111);
+ // 5. Same value changed on both phones: resolved automatically, the more recent change wins, nothing blocks.
+ // 5a. A's change reached the cloud after B's edit: the cloud value wins on B, B has nothing left to save.
+ A.edit(st=>{st.meals[0].kcal=111},['meals']);B.edit(st=>{st.meals[0].kcal=222},['meals']);await new Promise(r=>setTimeout(r,1100));
+ assert.equal(await A.sync(),true);assert.equal(await B.sync(),true,'B resolves on its own and finishes');
+ assert.ok(!B.c.cloud.conflict&&!B.c.cloud.dirty,'no conflict, nothing pending');assert.equal(B.c.state.meals[0].kcal,111,'the later (cloud) change won');assert.equal(server(U).payload.meals[0].kcal,111);
+ const resolved=JSON.parse(B.storage.get('forma.account.'+U+'.resolved')||'[]');assert.equal(resolved[0]?.kept,'cloud');assert.equal(resolved[0]?.local,222,'the other value is kept on the phone');
+ // 5b. B edits after the cloud changed: B's value wins and is saved.
+ A.edit(st=>{st.meals[0].kcal=444},['meals']);assert.equal(await A.sync(),true);await new Promise(r=>setTimeout(r,1100));
+ B.edit(st=>{st.meals[0].kcal=333},['meals']);assert.equal(await B.sync(),true);
+ assert.equal(server(U).payload.meals[0].kcal,333,'the later (phone) change won');assert.ok(!B.c.cloud.dirty);
+ await A.refresh();assert.equal(A.c.state.meals[0].kcal,333,'A converged');
+ // 5c. The day each phone is looking at stays its own, whatever the timing.
+ B.edit(st=>{st.mfdDate='2026-11-05'},['mfdDate']);await new Promise(r=>setTimeout(r,1100));A.edit(st=>{st.mfdDate='2026-11-01'},['mfdDate']);assert.equal(await A.sync(),true);
+ assert.equal(await B.sync(),true);assert.equal(B.c.state.mfdDate,'2026-11-05','device-only value kept');
 
  // 6. ChatGPT adds a meal (connector-style SQL write) while A is mid-workout.
  await A.refresh();A.edit(st=>{st.active={id:'act',name:'Push',started:Date.now(),sets:[{...st.sessions[0].sets[0],id:'a1',rpe:null}]}},['active']);
@@ -122,6 +129,27 @@ const KB=v=>Math.round(v/1024);
  const final=server(U).payload;for(const w of original.sessions){const now=final.sessions.find(x=>x.id===w.id);assert.ok(now,'workout '+w.id+' kept');
   const strip=x=>{const {hevyRows,...rest}=x;return {...rest,sets:rest.sets.map(t=>Object.fromEntries(Object.entries(t).filter(([,v])=>v!==null)))}};
   if(w.id!=='w5')assert.ok(same(strip(now),strip(w)),'workout '+w.id+' unchanged');assert.ok(same(rows.get(w.id),w.hevyRows),'rows of '+w.id+' unchanged')}
- console.log('PASS delta sync end to end: patches, pulls, two phones, conflicts kept, connector mid-workout, offline, killed mid-save, restart, old app, history gap, Hevy import + backup rows, nothing lost\n  '+report.join('\n  '));
+ // 13. A bad network for a whole workout (no "offline" signal): it keeps retrying, never pauses, saves when back.
+ const F=phone(U);await F.boot();F.flaky(true);
+ for(let i=0;i<7;i++){F.edit(st=>{st.water['2026-11-07']=(st.water['2026-11-07']||0)+250},['water']);assert.equal(await F.sync(),false)}
+ assert.ok(F.c.cloud.offline&&F.c.cloud.dirty,'waiting with changes on the phone');assert.equal(F.c.cloud.syncPaused,false,'never paused');assert.equal(F.c.cloud.error,'','not shown as an error');
+ assert.ok(F.timers.size>0,'a retry is scheduled');assert.ok(F.c.cloud.retryAt-Date.now()<=15000,'waits at most 15 s');
+ F.flaky(false);F.c.wakeCloud();await (F.c.cloud.savePromise||F.c.cloud.refreshPromise);
+ assert.ok(!F.c.cloud.dirty&&!F.c.cloud.offline&&F.c.cloud.retryCount===0,'saved on wake');assert.equal(server(U).payload.water['2026-11-07'],1750);
+ // 14. Sync now while a save is running: waits for that save instead of skipping.
+ F.edit(st=>{st.water['2026-11-07']=2000},['water']);const p1=F.sync(),p2=F.sync();assert.equal(p1,p2,'same save');assert.equal(await p2,true);assert.equal(server(U).payload.water['2026-11-07'],2000);
+ // 15. App opened with unsaved changes while the network fails: a retry is scheduled, and it saves once back.
+ F.edit(st=>{st.water['2026-11-07']=2250},['water']);F.c.cacheWorkspace();const G=phone(U,F.storage);G.flaky(true);await G.boot();
+ assert.ok(G.c.cloud.ready&&G.c.cloud.dirty,'opens with the pending change');assert.ok(G.timers.size>0,'retry scheduled at start');
+ G.flaky(false);await G.runTimers();await (G.c.cloud.savePromise||G.c.cloud.refreshPromise);if(G.c.cloud.dirty){await G.runTimers();await (G.c.cloud.savePromise||G.c.cloud.refreshPromise)}
+ assert.ok(!G.c.cloud.dirty,'saved after the network came back');assert.equal(server(U).payload.water['2026-11-07'],2250);
+ // 16. A long back-off is cut short by a new edit (so logging a set retries within 2 s).
+ G.c.cloud.retryAt=Date.now()+30000;G.edit(st=>{st.water['2026-11-07']=2500},['water']);assert.ok(G.c.cloud.retryAt-Date.now()<=2000,'edit shortens the wait');assert.equal(await G.sync(),true);
+ // 17. An AI assistant changes the same value while the phone has unsaved edits: newer wins automatically.
+ await G.refresh();G.edit(st=>{st.profile.name='Phone name'},['profile']);await new Promise(r=>setTimeout(r,1100));
+ sql(`update public.forma_workspaces set payload=jsonb_set(payload,'{profile,name}','"AI name"'),revision=revision+1,updated_at=now() where user_id='${U}'`);
+ assert.equal(await G.sync(),true,'no conflict screen, saved');assert.equal(server(U).payload.profile.name,'AI name','the AI change was more recent');assert.ok(!G.c.cloud.conflict);
+
+ console.log('PASS delta sync end to end: patches, pulls, two phones, conflicts resolved automatically (latest wins, device-only kept), bad network without offline signal (never pauses, saves on wake), Sync now waits for a running save, start-up retry, edit cuts back-off, AI edit while pending, connector mid-workout, offline, killed mid-save, restart, old app, history gap, Hevy import + backup rows, nothing lost\n  '+report.join('\n  '));
  }finally{sql(`delete from public.forma_import_rows where user_id='${U}';delete from public.forma_workspace_changes where user_id='${U}';delete from public.mfd_social_workouts where owner_id='${U}';delete from public.forma_workspaces where user_id='${U}';delete from auth.users where id='${U}'`)}
 })().catch(e=>{console.error(e);process.exitCode=1});
