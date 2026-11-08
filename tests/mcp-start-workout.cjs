@@ -10,7 +10,7 @@ const alice='11111111-1111-4111-8111-111111111111',bob='22222222-2222-4222-8222-
 const as='aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',bs='bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',RES='https://mfd-connect.invalid/mcp';
 const diary=name=>({profile:{name,cal:2200,protein:130,carbs:260,fat:70,days:3},checkins:[],chat:[],weights:[],meals:[{id:name+'-m',date:'2026-10-01',cal:500,p:30,c:50,f:10}],active:null,
  routines:[{id:name+'-r1',name:'Upper 1',exercises:[{name:'Bench Press',catalogId:'bench_press',sets:2,reps:8,kg:60,rest:120,setDetails:[{exercise:'Bench Press',type:'warmup',kg:30,reps:10,tracking:'weight_reps'},{exercise:'Bench Press',type:'normal',kg:60,reps:8,tracking:'weight_reps'}]},{name:'Plank',sets:2,reps:0,kg:0,rest:60}]},{id:name+'-r2',name:'Empty',exercises:[]}],
- sessions:[{id:name+'-s',date:'2026-10-02',name:'Pull',started:1,finished:2,sets:[{exercise:'Lat Pulldown',catalogId:'lat_pulldown',kg:50,reps:10,done:true}]}]});
+ sessions:[{id:name+'-s',date:'2026-10-02',name:'Pull',started:1,finished:2,sets:[{exercise:'Lat Pulldown',catalogId:'lat_pulldown',tracking:'weight_reps',kg:50,reps:10,done:true}]}]});
 (async()=>{
  const db=new PGlite();
  await db.exec(`create role anon; create role authenticated; create role service_role; create role supabase_auth_admin; create schema auth;
@@ -52,9 +52,15 @@ const diary=name=>({profile:{name,cal:2200,protein:130,carbs:260,fat:70,days:3},
  const after=await doc(alice),act=after.payload.active;
  assert.equal(act.name,'Push (AI)');assert.equal(act.unplanned,true);assert.ok(!('routineId' in act));assert.ok(Math.abs(act.started-Date.now())<60000,'started now');
  assert.equal(act.sets.length,6);assert.ok(act.sets.every(s=>s.done===false),'nothing ticked');
- assert.deepEqual(act.sets.map(s=>[s.exercise,s.group,s.set,s.type,s.kg??null,s.reps??null,s.duration_seconds??null,s.tracking,s.catalogId??null]),[
+ assert.deepEqual(act.sets.map(s=>[s.exercise,s.group,s.set,s.type,s.kg??null,s.reps??null,s.duration_seconds??null,s.tracking??null,s.catalogId??null]),[
   ['Bench Press',0,1,'warmup',40,10,null,'weight_reps','bench_press'],['Bench Press',0,2,'normal',62.5,8,null,'weight_reps','bench_press'],['Bench Press',0,3,'normal',62.5,8,null,'weight_reps','bench_press'],
-  ['lat pulldown',1,1,'normal',55,10,null,'weight_reps','lat_pulldown'],['Plank',2,1,'normal',null,null,60,'duration',null],['Burpee',3,1,'normal',null,15,null,'reps',null]],'sets, groups, tracking and catalogue links');
+  ['lat pulldown',1,1,'normal',55,10,null,'weight_reps','lat_pulldown'],['Plank',2,1,'normal',null,null,60,'duration',null],['Burpee',3,1,'normal',null,15,null,null,null]],'sets, groups, tracking and catalogue links (reps only, unknown: type left to the app catalogue)');
+ // Reps-only plan for an exercise the user already tracks with weight: keeps weight × reps (from history).
+ await clear(alice);await as_(alice,true);
+ await rpc('start_workout',a({exercises:[{exercise:'Lat Pulldown',sets:[{reps:12}]},{exercise:'Goblet Squat',sets:[{reps:10}]}]}));
+ const rp=(await doc(alice)).payload.active.sets;
+ assert.deepEqual(rp.map(s=>[s.exercise,s.tracking??null,s.catalogId??null,s.kg??null,s.reps]),[['Lat Pulldown','weight_reps','lat_pulldown',null,12],['Goblet Squat',null,null,null,10]],'history type reused; unknown left to the app');
+ await sql(`update public.forma_workspaces set payload=jsonb_set(payload,'{active}','${JSON.stringify(act).replace(/'/g,"''")}'::jsonb) where user_id='${alice}'`);await as_(alice,true);
  assert.deepEqual(act.rest,{0:{duration:120,end:0},1:{duration:90,end:0},2:{duration:90,end:0},3:{duration:90,end:0}});
  assert.equal(act.addedBy.connection,'app-a');assert.equal(act.addedBy.request,'w-1');
  for(const k of ['routines','sessions','meals','profile','weights'])assert.deepEqual(after.payload[k],before.payload[k],k+' untouched');
