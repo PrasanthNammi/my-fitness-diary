@@ -27,9 +27,12 @@ export interface DB {
   checkins: CheckIn[];
   coachThread: CoachMessage[];
   selectedDate: ISODate | null;
+  /** Workout suggestions from ChatGPT or Claude (stored as the connector wrote them). */
+  aiSuggestions: AiSuggestion[];
 }
 
 
+import type {AiSuggestion} from '../domain/aiSuggestions';
 export {defaultSettings,emptyDB} from './defaults';
 import {emptyDB} from './defaults';
 import {engine} from '../adapters/engine';

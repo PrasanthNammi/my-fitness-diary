@@ -3,7 +3,7 @@ import {useDB} from '../../data/store';
 import {ExercisePage} from './ExercisePage';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
-  Crown, ArrowDown, Disc3, ArrowUp, Check, Info, Link2, Link2Off, NotebookPen, Plus, Repeat, Ruler, Timer, Trash2, X,
+  Crown, ArrowDown, Disc3, Sparkles, ArrowUp, Check, Info, Link2, Link2Off, NotebookPen, Plus, Repeat, Ruler, Timer, Trash2, X,
 } from 'lucide-react';
 import type { ExerciseBlock, RestTimer, SetEntry, Workout } from '../../domain/types';
 import {
@@ -266,15 +266,16 @@ export function ExerciseBlockView(p: BlockProps) {
           const prev = active && p.history ? findPrevious(p.history, block.exerciseId, s.type, ordinalWithinType(block.sets, i)) : null;
           const label = labels[i];
           return (
-            <div key={s.id} className={`set-row${active && s.done ? ' done' : ''}`} role="row">
+            <div key={s.id} className={`set-row${active && s.done ? ' done' : ''}${active && s.aiTarget && !s.done ? ' ai-target' : ''}`} role="row">
               <button
                 className={`set-label ${s.type}`}
-                aria-label={`Set ${label}, ${s.type === 'normal' ? 'working' : s.type}. Change set type`}
+                aria-label={`Set ${label}, ${s.type === 'normal' ? 'working' : s.type}${active && s.aiTarget && !s.done ? ', AI target' : ''}. Change set type`}
                 onClick={() => setTypeFor(s.id)}
               >
                 {active&&s.done&&records.has(s.id)&&<Crown className="record-crown" aria-label={records.get(s.id)!.map(r=>metricLabels[r.metric]).join(', ')}><title>Record</title></Crown>}
                 <span>
                   {label}
+                  {active && s.aiTarget && !s.done && <Sparkles className="set-ai" aria-hidden="true" />}
                   {s.rpe !== null && <span className="rpe-tag">@{s.rpe}</span>}
                 </span>
               </button>
