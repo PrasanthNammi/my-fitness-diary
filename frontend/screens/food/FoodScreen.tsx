@@ -41,7 +41,7 @@ export function FoodScreen() {
   const allEntries=useDB(d=>d.diary);
   useEffect(()=>setFeedback(null),[date]);
   function remove(entry:DiaryEntry){const at=allEntries.findIndex(e=>e.id===entry.id);diary.remove(entry.id);setFeedback({text:`Removed ${entry.food.name}`,entry,kind:'remove',at})}
-  function added(entry:DiaryEntry){setExpanded(old=>new Set([...old,entry.meal]));setFeedback({text:`Added ${entry.food.name} to ${MEALS.find(m=>m.id===entry.meal)?.label}`,entry,kind:'add'})}
+  function added(entry:DiaryEntry){setExpanded(old=>new Set([...old,entry.meal]));setFeedback(null)}
   const left=t?t.kcal-total.kcal:0;
   const macroTotals=([['Protein',total.protein,t?.protein,'var(--protein)'],['Carbs',total.carbs,t?.carbs,'var(--carbs)'],['Fat',total.fat,t?.fat,'var(--fat)'],['Fibre',fibre.grams,t?fibreTarget(t.kcal):null,'var(--fibre)']] as const);
   return <div className="food-log-page">
