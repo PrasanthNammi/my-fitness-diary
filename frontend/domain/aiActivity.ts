@@ -4,7 +4,7 @@ import { aiSource } from './aiSource';
 export type AiAddedKind = 'food' | 'workout' | 'weight' | 'routine';
 export type AiAdded = { id: string; kind: AiAddedKind; label: string; by: string; at: number };
 export type AiCandidate = { id: string; kind: AiAddedKind; label: string; addedBy?: AddedBy };
-const DAY = 86400000;
+const DAY = 43200000; // 12 hours
 
 /** Entries an assistant added (those with a valid "added by" time), newest first. */
 export function aiAdded(candidates: AiCandidate[]): AiAdded[] {
