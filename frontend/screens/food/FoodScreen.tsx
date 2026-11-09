@@ -46,7 +46,7 @@ export function FoodScreen() {
   const macroTotals=([['Protein',total.protein,t?.protein,'var(--protein)'],['Carbs',total.carbs,t?.carbs,'var(--carbs)'],['Fat',total.fat,t?.fat,'var(--fat)'],['Fibre',fibre.grams,t?fibreTarget(t.kcal):null,'var(--fibre)']] as const);
   return <div className="food-log-page">
     <TopBar title="Food" actions={<button className="btn btn-soft btn-sm food-summary-btn" onClick={()=>setSummary(true)}><ChartNoAxesColumnIncreasing aria-hidden="true"/>Summary</button>}/>
-    <div className="screen food-log-screen"><DateStrip date={date}/>
+    <div className="screen food-log-screen"><DateStrip date={date} mode="food"/>
     {feedback&&<div className="food-feedback" role="status"><span>{feedback.text}</span><button onClick={()=>{if(feedback.kind==='add')diary.remove(feedback.entry.id);else diary.restore(feedback.entry,feedback.at);setFeedback(null)}}>Undo</button><button className="icon-btn" aria-label="Dismiss confirmation" onClick={()=>setFeedback(null)}><X size={16}/></button></div>}
     <section className="card food-day" aria-label="Daily nutrition totals">
       <div className="food-day-top">
