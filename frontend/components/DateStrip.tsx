@@ -11,24 +11,34 @@ const mondayOf = (d: ISODate) => addDays(d, -daysIntoWeek(fromISODate(d)));
 const weeksBetween = (a: ISODate, b: ISODate) => Math.round((fromISODate(b).getTime() - fromISODate(a).getTime()) / (7 * 86_400_000));
 const CHUNK = 26; // weeks added each time you swipe back to the start
 
-/** Days with logged food or a workout (dots in the strip and the calendar). */
+type ActivityMode = 'overview' | 'food';
+type DayActivity = '' | 'food' | 'workout' | 'both';
+const activityLabel: Record<DayActivity, string> = { '': '', food: 'Food logged', workout: 'Workout logged', both: 'Food and workout logged' };
+
+/** Keep food and workout dates separate so each page can show the relevant activity. */
 function useLoggedDays() {
   const diary = useDB((d) => d.diary);
   const workouts = useDB((d) => d.workouts);
   return useMemo(() => {
-    const s = new Set(diary.map((e) => e.date));
-    workouts.forEach((w) => s.add(toISODate(new Date(w.startedAt))));
-    return s;
+    return {
+      food: new Set(diary.map((e) => e.date)),
+      workouts: new Set(workouts.map((w) => toISODate(new Date(w.startedAt)))),
+    };
   }, [diary, workouts]);
 }
 
 /**
  * Date heading + week strip. Tap the heading for a month calendar (with Today); swipe the strip for earlier weeks.
- * Dots mark days with logged food or workouts. Future days can't be picked.
+ * Overview dots distinguish food, workouts, or both; Food dots show food only. Future days can't be picked.
  */
-export function DateStrip({ date }: { date: ISODate }) {
+export function DateStrip({ date, mode = 'overview' }: { date: ISODate; mode?: ActivityMode }) {
   const today = todayISO();
   const logged = useLoggedDays();
+  const activityFor = (day: ISODate): DayActivity => {
+    const food = logged.food.has(day);
+    const workout = mode === 'overview' && logged.workouts.has(day);
+    return food ? (workout ? 'both' : 'food') : workout ? 'workout' : '';
+  };
   const [open, setOpen] = useState(false);
   const pick = (d: ISODate) => profileRepo.setSelectedDate(d > today ? today : d);
   const thisWeek = mondayOf(today);
@@ -61,6 +71,7 @@ export function DateStrip({ date }: { date: ISODate }) {
           <div key={monday} className="date-strip" role="group" aria-label={`Week of ${fromISODate(monday).toLocaleDateString(undefined, { day: 'numeric', month: 'long' })}`}>
             {Array.from({ length: 7 }, (_, i) => {
               const d = addDays(monday, i), dt = fromISODate(d);
+              const activity = activityFor(d);
               return (
                 <button
                   key={d}
@@ -68,12 +79,12 @@ export function DateStrip({ date }: { date: ISODate }) {
                   className={`date-cell${d === today ? ' today' : ''}`}
                   aria-pressed={d === date}
                   disabled={d > today}
-                  aria-label={dt.toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
+                  aria-label={[dt.toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }), activityLabel[activity]].filter(Boolean).join('. ')}
                   onClick={() => pick(d)}
                 >
                   <span className="dow">{dt.toLocaleDateString(undefined, { weekday: 'short' })}</span>
                   <span className="dom tnum">{dt.getDate()}</span>
-                  <span className={`dot${logged.has(d) ? ' on' : ''}`} />
+                  <span className={`dot${activity ? ` ${activity}` : ''}`} aria-hidden="true" />
                 </button>
               );
             })}
@@ -82,14 +93,14 @@ export function DateStrip({ date }: { date: ISODate }) {
       </div>
       <Sheet open={open} onClose={() => setOpen(false)} title="Choose a date" label="Choose a date"
         headerActions={<button type="button" className="btn btn-ghost btn-sm" onClick={() => { pick(today); setOpen(false); }}>Today</button>}>
-        <MonthCalendar selected={date} today={today} logged={logged} onPick={(d) => { pick(d); setOpen(false); }} />
+        <MonthCalendar selected={date} today={today} activityFor={activityFor} onPick={(d) => { pick(d); setOpen(false); }} />
       </Sheet>
     </div>
   );
 }
 
 /** Month grid (from the chosen week start) with dots on logged days; swipe or use the arrows to change month. */
-function MonthCalendar({ selected, today, logged, onPick }: { selected: ISODate; today: ISODate; logged: Set<string>; onPick: (d: ISODate) => void }) {
+function MonthCalendar({ selected, today, activityFor, onPick }: { selected: ISODate; today: ISODate; activityFor: (d: ISODate) => DayActivity; onPick: (d: ISODate) => void }) {
   const [month, setMonth] = useState(() => selected.slice(0, 7));
   const touch = useRef<number | null>(null);
   const first = fromISODate(month + '-01');
@@ -111,11 +122,12 @@ function MonthCalendar({ selected, today, logged, onPick }: { selected: ISODate;
         {Array.from({ length: cells }, (_, i) => {
           const d = addDays(start, i), inMonth = d.slice(0, 7) === month;
           if (!inMonth) return <span key={d} />;
+          const activity = activityFor(d);
           return (
             <button key={d} type="button" className={`month-cal-day${d === today ? ' today' : ''}`} aria-pressed={d === selected} disabled={d > today}
-              aria-label={fromISODate(d).toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })} onClick={() => onPick(d)}>
+              aria-label={[fromISODate(d).toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }), activityLabel[activity]].filter(Boolean).join('. ')} onClick={() => onPick(d)}>
               <span className="tnum">{fromISODate(d).getDate()}</span>
-              <span className={`dot${logged.has(d) ? ' on' : ''}`} />
+              <span className={`dot${activity ? ` ${activity}` : ''}`} aria-hidden="true" />
             </button>
           );
         })}

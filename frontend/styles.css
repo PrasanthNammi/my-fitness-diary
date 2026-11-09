@@ -461,7 +461,9 @@ button.list-row:hover { background: var(--row-alt); }
 .date-cell .dow { font-size: 11px; font-weight: 700; color: var(--ink-3); text-transform: uppercase; letter-spacing: 0.03em; }
 .date-cell .dom { font-size: 18px; font-weight: 800; line-height: 1; }
 .date-cell .dot, .month-cal-day .dot { width: 6px; height: 6px; border-radius: 3px; background: transparent; }
-.date-cell .dot.on, .month-cal-day .dot.on { background: var(--accent); }
+.date-picker .dot.food { background: var(--success); }
+.date-picker .dot.workout { background: var(--accent); }
+.date-picker .dot.both { background: linear-gradient(to right, var(--success) 50%, var(--accent) 50%); }
 .date-cell[aria-pressed='true'] { background: var(--ink); color: var(--on-ink); box-shadow: none; }
 .date-cell[aria-pressed='true'] .dow { color: color-mix(in srgb, var(--on-ink) 70%, transparent); }
 .date-cell.today:not([aria-pressed='true']) .dom { color: var(--accent); }
