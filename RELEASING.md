@@ -39,7 +39,9 @@ Attach the bundle zip. Paste this prompt and fill in the hashes:
 >    - Don't edit, merge or reformat any file content yourself.
 > 5. **Check before building.** Compare blob hashes for every tracked Sites file against the
 >    GitHub tree, excluding `node_modules/`. Expected: 0 different, 0 only in GitHub, and only
->    `public/react/**` and `public/sw.js` only in Sites. If that's not the result, stop.
+>    `public/react/**` and `public/sw.js` only in Sites. If that's not the result, stop, and first
+>    put the checkout back to the starting commit (`git checkout -- .` and delete the files the
+>    bundle added), so the next attempt starts clean.
 > 6. **Build and publish** as usual (`npm run build`).
 > 7. **Report:**
 >    - the new Sites commit and version;
