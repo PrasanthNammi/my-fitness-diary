@@ -1,6 +1,6 @@
 // Real disposable Postgres semantics; no hosted credentials or network.
 const fs=require('node:fs'),assert=require('node:assert/strict'),{PGlite}=require('@electric-sql/pglite');
-const forward=fs.readFileSync('database/staging/c1c-replay-session-guard.proposed.sql','utf8'),reverse=fs.readFileSync('database/staging/c1c-replay-session-guard.rollback.proposed.sql','utf8');
+const forward=fs.readFileSync('database/connector/replay-session-guard.sql','utf8'),reverse=fs.readFileSync('database/connector/replay-session-guard.rollback.sql','utf8');
 const extract=s=>s.match(/create or replace function mfd_mcp.dispatch\([\s\S]*?end \$\$;/)[0];
 const before=extract(reverse),schema=fs.readFileSync('database/mcp.sql','utf8').replace(/create function mfd_mcp.dispatch\([\s\S]*?end \$\$;/,()=>before);
 const a='11111111-1111-4111-8111-111111111111',b='22222222-2222-4222-8222-222222222222',sa='aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',sb='bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',other='cccccccc-cccc-4ccc-8ccc-cccccccccccc',client='33333333-3333-4333-8333-333333333333',resource='https://mfd-connect-staging.shanustylish777.workers.dev/mcp';
