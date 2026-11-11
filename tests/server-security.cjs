@@ -22,6 +22,17 @@ const jar='__Host-mfd-access='+token+'; __Host-mfd-refresh=refresh-private';
  r=await handle(req('/api/auth/oauth','POST',{}),deps);const oauth=await r.json(),verifier=decodeURIComponent(r.headers.getSetCookie()[0].split(';')[0].split('=')[1]);const authURL=new URL(oauth.url);assert.equal(authURL.origin,'https://djyozltkmbzhwuvemxuy.supabase.co');assert.equal(authURL.searchParams.get('redirect_to'),origin+'/');assert.equal(authURL.searchParams.get('code_challenge'),require('crypto').createHash('sha256').update(verifier).digest('base64url'));assert(!JSON.stringify(oauth).includes(verifier));
  r=await handle(req('/?code=code','GET',undefined,{Cookie:'__Host-mfd-pkce='+verifier}),deps);assert.equal(r.status,303);assert.equal(r.headers.get('Location'),origin+'/');assert.equal(r.headers.getSetCookie().length,3);
  r=await handle(req('/?code=code'),deps);assert.equal(r.status,400);
+ // Android app: Google finishes in a Chrome tab without the app's verifier, so the code is handed to the app
+ // (site.mfd.app://auth), which completes sign-in in its own WebView. Only for Android Chrome, never inside the app,
+ // never for other browsers, and only for a plain code; the browser's verifier cookie is still cleared.
+ const chrome='Mozilla/5.0 (Linux; Android 15; Pixel 9) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0 Mobile Safari/537.36';
+ calls=[];r=await handle(req('/?code=abc-123','GET',undefined,{'User-Agent':chrome}),deps);assert.equal(r.status,303);assert.equal(calls.length,0,'no token exchange in the browser');
+ assert.equal(r.headers.get('Location'),'intent://auth?code=abc-123#Intent;scheme=site.mfd.app;package=site.mfd.app;S.browser_fallback_url='+encodeURIComponent(origin+'/')+';end');
+ assert(r.headers.get('Content-Security-Policy')&&r.headers.get('Cache-Control').includes('no-store'));assert(r.headers.getSetCookie().some(v=>v.startsWith('__Host-mfd-pkce=;')));
+ r=await handle(req('/?code=abc-123','GET',undefined,{'User-Agent':chrome+' MFDAndroid/1.0'}),deps);assert.equal(r.status,400,'inside the app: normal error');
+ r=await handle(req('/?code=abc-123','GET',undefined,{'User-Agent':'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X)'}),deps);assert.equal(r.status,400,'iPhone: normal error');
+ r=await handle(req('/?code='+encodeURIComponent('a#Intent;end'),'GET',undefined,{'User-Agent':chrome}),deps);assert.equal(r.status,400,'odd code: no hand-off');
+ calls=[];r=await handle(req('/?code=abc-123','GET',undefined,{'User-Agent':chrome,Cookie:'__Host-mfd-pkce=v'}),deps);assert.equal(r.status,303);assert.equal(r.headers.get('Location'),origin+'/','with a verifier: normal sign-in');assert.equal(calls.length,1);
  r=await handle(req('/api/auth/migrate','POST',{refresh_token:'old'}),deps);assert.equal(r.status,200);assert(!(await r.text()).includes('refresh-private'));
  reply=()=>new Response(null,{status:204});r=await handle(req('/api/auth/logout','POST',{}, {Cookie:jar}),deps);assert.equal(r.status,200);assert(r.headers.getSetCookie().every(v=>v.includes('Max-Age=0')));
  reply=()=>{throw Error('network')};r=await handle(req('/api/auth/logout','POST',{}, {Cookie:jar}),deps);assert.equal(r.status,503);assert.equal(r.headers.getSetCookie().length,0);

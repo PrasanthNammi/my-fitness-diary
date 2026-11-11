@@ -40,11 +40,20 @@ export async function handleMfd(request:Request,deps:Deps){
   async function token(){let access=jar.get(ACCESS);if(!access||expiresSoon(access)){const refresh=jar.get(REFRESH);if(!refresh)throw new HttpError(401,'Sign in required');try{const data=await authCall('token?grant_type=refresh_token',{refresh_token:refresh});access=saveSession(data)}catch(e){if(e instanceof HttpError&&[400,401,403].includes(e.status))clearSession();throw e}}return access!}
   if(isCallback){
    const verifier=jar.get(PKCE);setCookies.push(cookie(PKCE,'',0));
-   if(!verifier)throw new HttpError(400,'Sign-in expired. Please start sign-in again.');
-   saveSession(await authCall('token?grant_type=pkce',{auth_code:url.searchParams.get('code'),code_verifier:verifier}));
-   // A password-reset link lands on the "Set a new password" screen.
-   const reset=jar.get(RESET)==='1';if(reset)setCookies.push(cookie(RESET,'',0));
-   result=new Response(null,{status:303,headers:{Location:origin+(reset?'/#/set-password':'/')}});
+   // The Android app signs in with Google in a Chrome tab (Google refuses its page inside apps), so the code comes
+   // back to Chrome, which lacks the app's PKCE verifier. Hand the code to the app, which finishes in its own WebView
+   // where the verifier lives. A code is useless without that verifier, so the hand-off exposes nothing. Without the
+   // app installed, Chrome follows the fallback to the home page.
+   const code=url.searchParams.get('code')||'',ua=request.headers.get('user-agent')||'';
+   if(!verifier&&/Android/.test(ua)&&!/MFDAndroid/.test(ua)&&/^[A-Za-z0-9._~-]{1,512}$/.test(code)){
+    result=new Response(null,{status:303,headers:{Location:`intent://auth?code=${code}#Intent;scheme=site.mfd.app;package=site.mfd.app;S.browser_fallback_url=${encodeURIComponent(origin+'/')};end`}});
+   }else{
+    if(!verifier)throw new HttpError(400,'Sign-in expired. Please start sign-in again.');
+    saveSession(await authCall('token?grant_type=pkce',{auth_code:url.searchParams.get('code'),code_verifier:verifier}));
+    // A password-reset link lands on the "Set a new password" screen.
+    const reset=jar.get(RESET)==='1';if(reset)setCookies.push(cookie(RESET,'',0));
+    result=new Response(null,{status:303,headers:{Location:origin+(reset?'/#/set-password':'/')}});
+   }
   }else if(url.pathname==='/api/auth/session'&&request.method==='GET'){
    if(!jar.has(ACCESS)&&!jar.has(REFRESH))result=json({session:null});
    else{const access=await token();try{const user=await authCall('user',undefined,access);result=json({session:{user:safeUser(user)}})}catch(e){if(e instanceof HttpError&&[401,403].includes(e.status))clearSession();throw e}}

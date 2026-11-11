@@ -14,6 +14,7 @@ import android.webkit.WebChromeClient
 import android.webkit.WebResourceRequest
 import android.webkit.WebView
 import android.webkit.WebViewClient
+import android.widget.FrameLayout
 import androidx.activity.ComponentActivity
 import androidx.activity.OnBackPressedCallback
 import androidx.activity.enableEdgeToEdge
@@ -52,10 +53,12 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         web = WebView(this)
         web.setBackgroundColor(ContextCompat.getColor(this, R.color.mfd_bg))
-        setContentView(web)
+        // The WebView ignores its own padding, so it sits in a container that is padded instead.
+        val root = FrameLayout(this).apply { setBackgroundColor(ContextCompat.getColor(this@MainActivity, R.color.mfd_bg)); addView(web) }
+        setContentView(root)
 
         // Android 15+ draws behind the system bars: keep the page clear of them and of the keyboard.
-        ViewCompat.setOnApplyWindowInsetsListener(web) { view, insets ->
+        ViewCompat.setOnApplyWindowInsetsListener(root) { view, insets ->
             val bars = insets.getInsets(WindowInsetsCompat.Type.systemBars() or WindowInsetsCompat.Type.displayCutout() or WindowInsetsCompat.Type.ime())
             view.setPadding(bars.left, bars.top, bars.right, bars.bottom)
             WindowInsetsCompat.CONSUMED
@@ -108,7 +111,27 @@ class MainActivity : ComponentActivity() {
             }
         })
 
-        if (savedInstanceState == null || web.restoreState(savedInstanceState) == null) web.loadUrl(SITE)
+        val signIn = signInUrl(intent)
+        when {
+            signIn != null -> web.loadUrl(signIn)
+            savedInstanceState == null || web.restoreState(savedInstanceState) == null -> web.loadUrl(SITE)
+        }
+    }
+
+    // The app is already open (singleTask): a sign-in hand-off from Chrome arrives here and closes the Chrome tab.
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        signInUrl(intent)?.let { web.loadUrl(it) }
+    }
+
+    /** site.mfd.app://auth?code=... → the site's own sign-in callback, finished in this WebView (it holds the
+     *  PKCE verifier cookie; the code alone is useless). Anything else is ignored. */
+    private fun signInUrl(intent: Intent?): String? {
+        val data = intent?.data ?: return null
+        if (intent.action != Intent.ACTION_VIEW || data.scheme != "site.mfd.app" || data.host != "auth") return null
+        val code = data.getQueryParameter("code") ?: return null
+        if (!Regex("^[A-Za-z0-9._~-]{1,512}$").matches(code)) return null
+        return SITE + "?code=" + code
     }
 
     override fun onSaveInstanceState(outState: Bundle) {

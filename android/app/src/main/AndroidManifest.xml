@@ -37,6 +37,14 @@
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
+            <!-- Google sign-in finishes in a Chrome tab, which hands the one-time code back here
+                 (site.mfd.app://auth?code=...); the WebView completes it with its own PKCE verifier. -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="site.mfd.app" android:host="auth" />
+            </intent-filter>
         </activity>
     </application>
 </manifest>
