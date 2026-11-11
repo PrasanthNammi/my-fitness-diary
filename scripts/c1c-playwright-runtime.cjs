@@ -1,4 +1,0 @@
-const fs=require('node:fs'),crypto=require('node:crypto');const {Diagnostic}=require('./c1c-safe-diagnostics.cjs');
-const ROOT='/Users/prasanthnammi/.npm/_npx/e41f203b7505f1fb/node_modules/playwright';
-function runtime(){try{const raw=fs.readFileSync(ROOT+'/package.json'),core=fs.readFileSync(ROOT+'/../playwright-core/package.json'),j=JSON.parse(raw),hash=b=>crypto.createHash('sha256').update(b).digest('hex');if(j.version!=='1.61.1'||JSON.parse(core).version!=='1.61.1'||hash(raw)!=='6b840268612656f0639fb7d68782e8353bdf11518589d30ddf66f283c2670ed5'||hash(core)!=='759e376f995bf39edd4810d699b99469bab1d7428b6fbc78d41912f367df7ba9')throw new Diagnostic('PLAYWRIGHT_RUNTIME_DRIFT');return {chromium:require(ROOT).chromium,version:j.version,package_sha256:crypto.createHash('sha256').update(raw).digest('hex')};}catch(e){if(e instanceof Diagnostic)throw e;throw new Diagnostic('PLAYWRIGHT_RUNTIME_UNAVAILABLE');}}
-module.exports={runtime};

@@ -1,9 +1,0 @@
-const assert=require('node:assert/strict'),crypto=require('node:crypto');const {runSafariBatch,safeFailure}=require('../scripts/c1c-google-h1-h3-safari.cjs');
-(async()=>{for(const change of [{disable_signup:false},{external:{google:false}},{external:{google:true,anonymous_users:true}},{external:{google:true}},{badDate:true},{status:403}]){
- let navigated=0,closed=0,requests=[];
- const bridge=async op=>{if(op==='ready')return 'READY_PRIVATE';if(op==='pair')return '101';if(op==='smoke')return 'SMOKE_STARTED';if(op==='smoke_status')return 'SMOKE_OK';if(op==='close'){closed++;return 'CLOSED';}if(op==='navigate')navigated++;throw Error('UNEXPECTED_AUTHENTICATION');};
- const key=crypto.generateKeyPairSync('ec',{namedCurve:'prime256v1'}).publicKey.export({format:'jwk'});
- let error;try{await runSafariBatch({baseline:{project:'gngnrmzeghjzqsmzuktl',session_policy_safe:true,reuse_interval_seconds:10,existing_session_hashes:['original']},mapping:{primary_uuid:'a',secondary_uuid:'b'},key:'sb_publishable_synthetic',bridge,fetcher:async url=>{requests.push(new URL(url).pathname);if(url.endsWith('jwks.json'))return Response.json({keys:[key]});if(url.endsWith('/settings'))return Response.json({disable_signup:true,external:{google:true,anonymous_users:false},...change},{status:change.status||200,headers:{Date:change.badDate?'invalid':new Date().toUTCString()}});throw Error('UNEXPECTED_AUTHENTICATION');}});}catch(e){error=e;}
- assert(error);assert.equal(safeFailure(error).code,'SAFARI_SETUP');assert.equal(navigated,0);assert.equal(closed,1);assert(requests.every(p=>p.endsWith('jwks.json')||p.endsWith('/settings')));
- }console.log('PASS fresh per-identity public Auth/clock drift stops before Google navigation or exchange; only owned local-smoke window closes');
-})().catch(e=>{console.error(e);process.exitCode=1});
