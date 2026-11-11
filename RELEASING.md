@@ -71,3 +71,19 @@ Cloudflare adds to HTML pages.
   forward on GitHub.
 - **Server code** (`hosting/worker/`) can't be checked by downloading files. Step 5's hash
   comparison covers it, and the script's sign-in and header checks exercise it.
+
+## Known step 5 difference: `hosting/pnpm-workspace.yaml`
+
+The Sites installer (`hosting/scripts/install-pnpm.sh`) rewrites `storeDir` and `cacheDir` in
+this file on every install. It writes the plain `.sites-runtime/pnpm-store` path, or a
+`${SITES_PNPM_SHARED_STORE:-…}` placeholder when the Sites session has a shared package store,
+and Sites saves the result with the release. The next release can then stop at step 5 with
+this one file differing.
+
+1. Ask ChatGPT (read-only) for the file's diff in the current Sites commit.
+2. If **only** the `storeDir` and `cacheDir` lines differ, copy the Sites version into GitHub
+   through a PR. Both values point to the same folder unless a shared store is set. Then
+   rebuild the bundle and release again.
+3. If anything else differs (for example the `overrides` security floors), stop and find out why.
+
+This happened after v67 (Sites `76d695ef`, plain path); fixed in GitHub before v68.
