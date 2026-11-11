@@ -1,7 +1,8 @@
 # My Fitness Diary
 
 A training and nutrition diary that works as an installable web app on phone and desktop. Log workouts and meals,
-follow routines, watch your progress and train alongside friends. It works offline and syncs across devices.
+follow routines, watch your progress and train alongside friends. It works offline, syncs across devices, and
+connects to ChatGPT and Claude so you can ask about your diary or add to it from a chat.
 
 ## Features
 
@@ -34,6 +35,16 @@ follow routines, watch your progress and train alongside friends. It works offli
 - Private chat with disappearing messages (gone 5 minutes after reading, or after 24 hours unread).
 - Push notifications for likes, comments and messages, each of which can be switched off.
 
+**ChatGPT and Claude**
+- Connect the diary to ChatGPT or Claude and ask about your training and nutrition in plain language.
+- The assistant can log meals, workouts and weight, create routines, suggest weights and reps for your next session,
+  and start a workout that opens in the app.
+- Log a food by sending photos of its label to the assistant.
+- You choose which sections each assistant may see or add to, and can revoke access at any time. Assistants can
+  add entries but never edit or delete them.
+- Anything an assistant adds shows up in one banner on the Overview, with a phone notification if you want one.
+  Suggested targets wait for your review before they change a routine.
+
 **Account and data**
 - Sign in with email or Google. Light and dark themes, kg or lb, and a chosen first day of the week.
 - Export everything, import a backup, or import workout history from a Hevy CSV export.
@@ -47,7 +58,7 @@ follow routines, watch your progress and train alongside friends. It works offli
 | Data | Supabase (Postgres) with row-level security on every table |
 | Sync | Each device keeps a local copy and sends only what changed. Edits made on two devices are merged field by field |
 | Notifications | Web Push from a separate Worker, using a Durable Object per user for devices and pending timers |
-| Integrations | A separate Worker (`hosting/independent/`) that lets connected apps read the diary and add to it over MCP, with OAuth sign-in and per-section consent |
+| ChatGPT / Claude connector | A separate Worker (`hosting/independent/`) serving the diary over the Model Context Protocol (MCP), with its own OAuth sign-in and per-section consent; the database re-checks every call. See its [README](hosting/independent/README.md) |
 | Monitoring | Prometheus and Grafana dashboards and alerts for sync and server health |
 
 Every response from the server carries a strict Content Security Policy, HSTS and related headers; see
@@ -59,7 +70,7 @@ Every response from the server carries a strict Content Security Policy, HSTS an
 ```
 frontend/          React app: screens, components, domain logic (pure, unit-tested), data store and sync
 public/            Static files, exercise catalogue and media, legacy compatibility pages
-hosting/           Server Worker (worker/), connector Worker (independent/) and build configuration
+hosting/           Server Worker (worker/), ChatGPT/Claude connector Worker (independent/) and build configuration
 database/          Schema, row-level security, sync functions and their tests
 supabase/          Metrics function used by monitoring
 monitoring/        Prometheus and Grafana configuration
