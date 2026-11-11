@@ -71,8 +71,11 @@ jobs:
         run: |
           npx tsc -p hosting/tsconfig.json --noEmit --incremental false
           cd hosting && npx eslint independent worker/mcp.ts worker/mcp-consent.ts worker/auth-types.ts
-      - name: Build connector artifacts
-        run: node scripts-build-independent.cjs
+      - name: Build the app and the connector artifacts
+        # Some tests in the shared suite check the built app (service worker), so build it first.
+        run: |
+          npm run build
+          node scripts-build-independent.cjs
       - name: Connector tests (network disabled)
         run: npm run test:local
 
