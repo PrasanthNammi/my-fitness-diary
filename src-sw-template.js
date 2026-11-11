@@ -32,16 +32,17 @@ self.addEventListener('push',event=>{
  event.waitUntil((async()=>{
  // The app already announced this rest's end itself: the server's backup replaces it quietly.
  const quiet=!!m.silent||(m.tag==='rest'&&(await self.registration.getNotifications({tag:'rest'})).some(n=>n.data?.over&&n.data?.id===m.id));
- await self.registration.showNotification(String(m.title||'My Fitness Diary').slice(0,120),{body:String(m.body||'').slice(0,200),tag:String(m.tag||'mfd'),renotify:!quiet,silent:quiet,icon:'/legacy/icon-256.png',vibrate:quiet?undefined:[120,60,120],actions,data:{id:typeof m.id==='string'?m.id:null,over:m.title==='Rest over',url:m.tag==='rest'?'/#/workout':typeof m.url==='string'&&/^\/#\/[\w\/.:%-]{1,200}$/.test(m.url)?m.url:'/'}})})());
+ await self.registration.showNotification(String(m.title||'My Fitness Diary').slice(0,120),{body:String(m.body||'').slice(0,200),tag:String(m.tag||'mfd'),renotify:!quiet,silent:quiet,icon:'/legacy/icon-256.png',vibrate:quiet?undefined:[120,60,120],actions,data:{id:typeof m.id==='string'?m.id:null,over:m.title==='Rest over',background:m.tag==='rest',url:m.tag==='rest'?'/#/workout':typeof m.url==='string'&&/^\/#\/[\w\/.:%-]{1,200}$/.test(m.url)?m.url:'/'}})})());
 });
 self.addEventListener('notificationclick',event=>{
- const n=event.notification,{id,url}=n.data||{};
+ const n=event.notification,{id,url,background}=n.data||{};
  // −15s / +15s keep the notification: it is updated in place, so the notification shade stays open.
  if((event.action==='plus15'||event.action==='minus15')&&id){
   const sec=event.action==='plus15'?15:-15;
-  // An open MFD window owns the timer (and its ticking notification); otherwise ask the push service.
+  // An MFD window on screen owns the timer (and its ticking notification). In the background the window may
+  // be paused, and the push service holds the rest: ask it (the window takes the new end time back on return).
   event.waitUntil((async()=>{const windows=(await self.clients.matchAll({type:'window',includeUncontrolled:true})).filter(w=>new URL(w.url).origin===self.location.origin);
-   if(windows.length){for(const w of windows)w.postMessage({type:'MFD_REST_ADJUST',id,sec});return}
+   if(windows.length&&!background){for(const w of windows)w.postMessage({type:'MFD_REST_ADJUST',id,sec});return}
    await fetch('/api/push/rests/adjust',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify({id,sec})}).catch(()=>{})})());
   return}
  n.close();

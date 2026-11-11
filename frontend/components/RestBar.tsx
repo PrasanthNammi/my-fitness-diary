@@ -3,8 +3,8 @@ import { X } from 'lucide-react';
 import type { ActiveWorkout } from '../domain/types';
 import { resetTimer, timerRemaining, timerState } from '../domain/training';
 import { getDB, useDB } from '../data/store';
-import { reclaimRests, scheduleRests, type PendingRest } from '../lib/push';
-import { closeRestNotification, closeRestingNotification, restNotificationsOn, showRestOver, showResting } from '../lib/restNotification';
+import { reclaimRests, restsHandedOff, scheduleRests, type PendingRest } from '../lib/push';
+import { closeRestNotification, closeRestingNotification, restNotificationsOn, restingText, showRestOver, showResting } from '../lib/restNotification';
 import { exerciseName, workouts } from '../data/repositories';
 import { chime, primeChime } from '../lib/chime';
 import { mss } from '../lib/format';
@@ -26,8 +26,10 @@ function useRestAlerts(a: ActiveWorkout | null, now: number) {
         chime();
         if (getDB().settings.vibrate !== false) navigator.vibrate?.([120, 60, 120]);
         toast(`Rest over · ${exerciseName(b.exerciseId)}`);
-        // In the background, "Rest over" goes to the notification bar; on screen the chime is enough.
-        if (restNotificationsOn()) void (document.visibilityState === 'hidden' ? showRestOver(b.id, exerciseName(b.exerciseId)) : closeRestNotification());
+        // In the background, "Rest over" goes to the notification bar; on screen the chime is enough. Once the
+        // rests are with the push service, it sends "Rest over" (its end time may have moved by ±15 s there).
+        const hidden = document.visibilityState === 'hidden';
+        if (restNotificationsOn() && !(hidden && restsHandedOff())) void (hidden ? showRestOver(b.id, exerciseName(b.exerciseId)) : closeRestNotification());
       }
     }
   }, [a, now]);
@@ -80,20 +82,24 @@ export function RestBar() {
     document.addEventListener('visibilitychange', onVisibility);
     return () => document.removeEventListener('visibilitychange', onVisibility);
   }, []);
-  // The ticking "Resting" notification, and −15s / +15s pressed on it (relayed by the service worker).
+  // The "Resting" notification: ticks every second on screen; in the background it shows the end time,
+  // because Android pauses MFD there and a countdown would freeze. −15s / +15s pressed on it are relayed
+  // by the service worker and move the end time.
   useEffect(() => {
     let shown = '', resting = false;
     const tick = () => {
       const next = runningRests(getDB().active, Date.now())[0];
       if (next && restNotificationsOn()) {
-        const left = Math.max(0, Math.ceil((next.ends - Date.now()) / 1000)), key = `${next.id}:${left}`;
-        if (key !== shown) { shown = key; resting = true; void showResting(next.id, next.label, left).catch(() => undefined); }
+        const hidden = document.visibilityState === 'hidden', body = restingText(next.ends, Date.now(), hidden), key = `${next.id}:${body}`;
+        if (key !== shown) { shown = key; resting = true; void showResting(next.id, next.label, body, hidden).catch(() => undefined); }
       } else if (resting) { resting = false; shown = ''; if (!next) void closeRestingNotification(); }
     };
     const timer = setInterval(tick, 1000);
+    // Switch to the end time the moment MFD is hidden (before Android pauses it), and back on return.
+    document.addEventListener('visibilitychange', tick);
     const onMessage = (e: MessageEvent) => { if (e.data?.type === 'MFD_REST_ADJUST' && typeof e.data.id === 'string' && [-15, 15].includes(e.data.sec)) { adjustRest(e.data.id, e.data.sec); tick(); } };
     navigator.serviceWorker?.addEventListener('message', onMessage);
-    return () => { clearInterval(timer); navigator.serviceWorker?.removeEventListener('message', onMessage); };
+    return () => { clearInterval(timer); document.removeEventListener('visibilitychange', tick); navigator.serviceWorker?.removeEventListener('message', onMessage); };
   }, []);
 
   const running = a?.exercises
