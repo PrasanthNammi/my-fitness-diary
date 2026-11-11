@@ -1,4 +1,4 @@
-import deployment from '../.openai/environment.json';
+import deployment from '../hosting/independent/environment.json';
 // This checkout has one explicit deployment configuration; no production fallback.
 const defaults = {...deployment};
 export function environment(overrides: Record<string, unknown> = {}) {

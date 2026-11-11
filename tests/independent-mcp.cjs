@@ -3,7 +3,7 @@ const {buildSync}=require('esbuild');
 const context={module:{exports:{}},Request,Response,Headers,URL,URLSearchParams,TextEncoder,TextDecoder,Uint8Array,AbortSignal,crypto:require('node:crypto').webcrypto,atob,Date};
 vm.createContext(context);vm.runInContext(buildSync({stdin:{contents:`export * from './hosting/independent/config'; export * from './hosting/independent/service'; export * from './hosting/independent/auth'; export * from './hosting/independent/limits';`,resolveDir:process.cwd()},bundle:true,format:'cjs',write:false}).outputFiles[0].text,context);
 const {integrationConfig,createMcpService,createAuthService,localRateGate,RESOURCE}=context.module.exports;
-const env={...JSON.parse(fs.readFileSync('.openai/environment.json')),MFD_MCP_RESOURCE_URL:RESOURCE,MFD_AUTH_ORIGIN:'https://mfd-auth-staging.invalid',MFD_ALLOWED_CLIENT_IDS:'["client-a"]',MFD_CLIENT_REDIRECTS:'{"client-a":["https://client.invalid/callback"]}'};
+const env={...JSON.parse(fs.readFileSync('hosting/independent/environment.json')),MFD_MCP_RESOURCE_URL:RESOURCE,MFD_AUTH_ORIGIN:'https://mfd-auth-staging.invalid',MFD_ALLOWED_CLIENT_IDS:'["client-a"]',MFD_CLIENT_REDIRECTS:'{"client-a":["https://client.invalid/callback"]}'};
 const config=integrationConfig(env),allow={allow:async()=>true};
 const claims={sub:'alice',iss:config.issuer,aud:config.resource,client_id:'client-a',session_id:'session-a',role:'authenticated',exp:Date.now()/1000+3600};
 const jwt=c=>'e30.'+Buffer.from(JSON.stringify(c)).toString('base64url')+'.synthetic';

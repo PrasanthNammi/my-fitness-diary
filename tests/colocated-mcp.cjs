@@ -1,7 +1,7 @@
 const {buildSync}=require('esbuild'),vm=require('node:vm'),assert=require('node:assert/strict'),fs=require('node:fs');
 const ctx={module:{exports:{}},Request,Response,Headers,URL,URLSearchParams,Uint8Array,TextEncoder,TextDecoder,AbortSignal,Date,atob,crypto:require('node:crypto').webcrypto,setTimeout,clearTimeout};
 vm.createContext(ctx);vm.runInContext(buildSync({stdin:{contents:`export * from './hosting/independent/colocated-config';export * from './hosting/independent/colocated-router';`,resolveDir:process.cwd()},bundle:true,format:'cjs',write:false}).outputFiles[0].text,ctx);
-const origin='https://mfd-colocated-staging.invalid',env={...JSON.parse(fs.readFileSync('.openai/environment.json')),MFD_AUTH_ORIGIN:origin,MFD_MCP_RESOURCE_URL:origin+'/mcp',MFD_ALLOWED_CLIENT_IDS:'["local-client"]',MFD_CLIENT_REDIRECTS:'{"local-client":["https://client.invalid/callback"]}'};
+const origin='https://mfd-colocated-staging.invalid',env={...JSON.parse(fs.readFileSync('hosting/independent/environment.json')),MFD_AUTH_ORIGIN:origin,MFD_MCP_RESOURCE_URL:origin+'/mcp',MFD_ALLOWED_CLIENT_IDS:'["local-client"]',MFD_CLIENT_REDIRECTS:'{"local-client":["https://client.invalid/callback"]}'};
 const {colocatedConfig,createColocatedService}=ctx.module.exports,config=colocatedConfig(env);
 let upstream=0,consumed=[];
 const fetcher=async()=>{upstream++;return Response.json({id:'alice'});};
