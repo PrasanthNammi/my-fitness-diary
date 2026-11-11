@@ -135,7 +135,17 @@ const diary=(name,n)=>({profile:{name,cal:2200,protein:130,carbs:260,fat:70,days
  await meal(day(20),'breakfast');await assert.rejects(meal(day(20),'breakfast'),/already have breakfast logged on 20 Oct 2026/);await meal(day(20),'lunch');
  await meal(K.y,'breakfast');await meal(K.y,'breakfast');await meal(K.t,'snack');await meal(K.t,'snack');
  // Label extras (toor dal from photos): fibre, sugars and salt as read; saturated fat not on the label stays unknown.
- await meal(K.t2,'dinner',{fibre:2.5,sugars:0,salt:0.4});
+ const pack={brand:'Tata Sampann',barcode:'8901234567893',ingredients:'Toor dal',serving_size:30,serving_label:'1 katori'};
+ const dal=await meal(K.t2,'dinner',{fibre:2.5,sugars:0,salt:0.4,...pack});assert.equal(dal.saved_to_my_foods,true);
+ // Pack details on the food; with a barcode it is saved once to My foods (private), linked to the entry, so the next scan finds it.
+ {const [r]=await sql(`select payload->'products' p from public.forma_workspaces where user_id='${alice}'`);const mine=r.p.filter(f=>f.barcode===pack.barcode);
+  assert.equal(mine.length,1);assert.deepEqual([mine[0].id,mine[0].brand,mine[0].notes,mine[0].servingSize,mine[0].servingLabel,Number(mine[0].fiber)],[dal.added.labelFood.id,'Tata Sampann','Toor dal',undefined,undefined,2.5],'serving size only for g/ml foods');
+  const again=await meal(K.t2,'lunch',{...pack,unit:'g',amount:150,serving_size:30});assert.equal(again.saved_to_my_foods,undefined,'not saved twice');
+  assert.deepEqual([again.added.labelFood.servingSize,again.added.labelFood.servingLabel],[30,'1 katori']);
+  const [r2]=await sql(`select payload->'products' p from public.forma_workspaces where user_id='${alice}'`);assert.equal(r2.p.filter(f=>f.barcode===pack.barcode).length,1);
+  // Remove that extra entry again so the undo counts below stay as they were.
+  await sql(`update public.forma_workspaces set payload=jsonb_set(payload,'{meals}',(select jsonb_agg(e) from jsonb_array_elements(payload->'meals') e where e->>'id'<>'${again.id}')) where user_id='${alice}'`);await as_(alice,true);}
+ await assert.rejects(meal(K.t2,'dinner',{barcode:'12345'}),/Invalid label details/);await assert.rejects(meal(K.t2,'dinner',{brand:'x'.repeat(81)}),/Invalid label details/);
  {const e=(await sql(`select e from public.forma_workspaces, jsonb_array_elements(payload->'meals') e where user_id='${alice}' and e->>'date'='${K.t2}'`))[0].e;
   assert.deepEqual([Number(e.fiber),Number(e.sugar),Number(e.salt),'saturates' in e,Number(e.labelFood.fiber),Number(e.labelFood.salt),'saturates' in e.labelFood],[2.5,0,0.4,false,2.5,0.4,false]);
   const s=(await rpc('summarize_nutrition',b({from:K.t2,to:K.t2}))).data.periods[0];assert.deepEqual([Number(s.fibre_g),Number(s.sugars_g),Number(s.salt_g),'saturated_fat_g' in s],[2.5,0,0.4,false]);}
@@ -148,7 +158,7 @@ const diary=(name,n)=>({profile:{name,cal:2200,protein:130,carbs:260,fat:70,days
  assert.ok((await rpc('list_saved_foods',b({}))).data.some(f=>f.name==='Egg'&&f.times_logged>=1));
  const oat=await rpc('log_meal',b({date:K.t,meal:'breakfast',food_id:'p-oats',amount:50,unit:'g'}));
  assert.deepEqual([oat.added.name,Number(oat.added.cal),Number(oat.added.p),Number(oat.added.c),Number(oat.added.f),oat.added.labelFood.id,oat.added.meal,Number(oat.added.fiber),Number(oat.added.sugar),Number(oat.added.salt),'saturates' in oat.added],['Rolled oats',190,6.5,30,3.5,'p-oats','Breakfast',5,0.5,0.01,false]);
- await assert.rejects(rpc('log_meal',b({date:K.t,meal:'breakfast',food_id:'p-oats',amount:50,unit:'g',fibre:1})),/Leave out kcal and nutrients/);
+ await assert.rejects(rpc('log_meal',b({date:K.t,meal:'breakfast',food_id:'p-oats',amount:50,unit:'g',fibre:1})),/Leave out kcal, nutrients/);await assert.rejects(rpc('log_meal',b({date:K.t,meal:'breakfast',food_id:'p-oats',amount:50,unit:'g',barcode:'8901234567893'})),/label details/);
  await assert.rejects(rpc('log_meal',b({date:K.t,meal:'breakfast',food_id:'p-oats',amount:1,unit:'serving'})),/food's unit \(g\)/);
  await assert.rejects(rpc('log_meal',b({date:K.t,meal:'breakfast',food_id:'p-oats',amount:50,unit:'g',kcal:1})),/Leave out kcal/);
  await assert.rejects(rpc('log_meal',b({date:K.t,meal:'breakfast',food_id:'nope',amount:50,unit:'g'})),/Saved food not found/);

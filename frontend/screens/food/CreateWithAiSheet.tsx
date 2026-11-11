@@ -6,8 +6,8 @@ import { todayISO } from '../../lib/format';
 
 /** Hands "log this food" to ChatGPT or Claude: the user attaches label photos there and the assistant logs it
  *  through the MFD connector. The logged food then shows up under recent foods and can be starred. */
-export function CreateWithAiSheet({ open, onClose, mealLabel, date }: { open: boolean; onClose: () => void; mealLabel: string; date: string }) {
-  const prompt = logFoodPrompt({ meal: mealLabel, date, today: todayISO() });
+export function CreateWithAiSheet({ open, onClose, mealLabel, date, barcode }: { open: boolean; onClose: () => void; mealLabel: string; date: string; barcode?: string | null }) {
+  const prompt = logFoodPrompt({ meal: mealLabel, date, today: todayISO(), barcode });
   const last = lastAiApp();
   const order: AiApp[] = last ? [last, ...AI_APPS.filter((a) => a !== last)] : AI_APPS;
   const ua = navigator.userAgent;
@@ -21,7 +21,7 @@ export function CreateWithAiSheet({ open, onClose, mealLabel, date }: { open: bo
   return (
     <Sheet open={open} onClose={onClose} title="Create with AI">
       <p className="muted" style={{ marginTop: 0 }}>
-        Attach the photos in the chat; your AI assistant reads them and logs the food to {mealLabel}. Next time you'll find it under recent foods.
+        Attach the photos in the chat; your AI assistant reads them and logs the food to {mealLabel}. {barcode ? "It's also saved to My foods, so scanning this pack finds it next time." : "Next time you'll find it under recent foods."}
       </p>
       <div className="ai-create-message" aria-label="Message for the assistant">{prompt}</div>
       <div className="stack" style={{ gap: 8, marginTop: 12 }}>
