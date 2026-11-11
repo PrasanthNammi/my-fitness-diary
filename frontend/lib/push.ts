@@ -51,6 +51,9 @@ export const setPushPrefs = async (p: Partial<PushPrefs>) => { const r = await a
 export const restAlertsOn = () => read(REST_KEY) !== 'off';
 export const setRestAlerts = (on: boolean) => write(REST_KEY, on ? 'on' : 'off');
 
+/** Running rests are with the push service (MFD in the background): it owns their end times and "Rest over". */
+export const restsHandedOff = () => !!read(SCHEDULED_KEY);
+
 export type PendingRest = { id: string; ends: number; label: string };
 /** App going to the background: hand running rests to the push service. */
 export function scheduleRests(rests: PendingRest[]) {

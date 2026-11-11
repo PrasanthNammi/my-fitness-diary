@@ -1,18 +1,27 @@
 // The rest timer in the phone's notification bar, shown by MFD itself (no server): a quiet
-// "Resting · <exercise> · 1:25 left" updated every second, then "Rest over" on the second.
+// "Resting · <exercise> · 1:25 left" updated every second while MFD is on screen, then "Rest over".
+// Android pauses web apps in the background (locked, another app), so a countdown would freeze on
+// a stale number: in the background the notification shows the end time instead ("ends at 10:42:15").
 // Not on iPhone, which pauses web apps in the background. The server push stays as a backup.
 import { ios, restAlertsOn } from './push';
 import { mss } from './format';
+
+/** "1:25 left" on screen; "ends at 10:42:15" in the background, which can't go stale. */
+export const restingText = (endsAt: number, now: number, background: boolean) => background
+  ? `ends at ${new Date(endsAt).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit', second: '2-digit' })}`
+  : `${mss(Math.max(0, Math.ceil((endsAt - now) / 1000)))} left`;
 
 const TAG = 'rest', ICON = '/legacy/icon-256.png';
 const ready = () => navigator.serviceWorker?.ready;
 
 export const restNotificationsOn = () => 'Notification' in window && Notification.permission === 'granted' && restAlertsOn() && !ios() && 'serviceWorker' in navigator;
 
-export async function showResting(id: string, label: string, leftSec: number) {
+/** `background`: MFD is hidden (and may be paused), so the notification's buttons go to the server, which
+ * holds the rest while MFD is away, instead of to the paused window. */
+export async function showResting(id: string, label: string, body: string, background = false) {
   await (await ready())?.showNotification(`Resting · ${label}`, {
-    body: `${mss(leftSec)} left`, tag: TAG, silent: true, renotify: false, icon: ICON,
-    actions: [{ action: 'minus15', title: '−15s' }, { action: 'plus15', title: '+15s' }], data: { id, local: true },
+    body, tag: TAG, silent: true, renotify: false, icon: ICON,
+    actions: [{ action: 'minus15', title: '−15s' }, { action: 'plus15', title: '+15s' }], data: { id, local: true, background },
   } as NotificationOptions);
 }
 export async function showRestOver(id: string, label: string) {
