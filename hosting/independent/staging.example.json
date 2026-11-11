@@ -1,0 +1,11 @@
+{
+  "MFD_ENV": "staging",
+  "MFD_SUPABASE_URL": "https://gngnrmzeghjzqsmzuktl.supabase.co",
+  "MFD_OAUTH_ISSUER": "https://gngnrmzeghjzqsmzuktl.supabase.co/auth/v1",
+  "MFD_MCP_RESOURCE_URL": "https://gngnrmzeghjzqsmzuktl.supabase.co/functions/v1/mfd-mcp/mcp",
+  "MFD_AUTH_ORIGIN": "https://mfd-auth-staging.invalid",
+  "MFD_SUPABASE_PUBLISHABLE_KEY": "REPLACE_WITH_EXISTING_STAGING_PUBLISHABLE_KEY",
+  "MFD_ALLOWED_CLIENT_IDS": "[]",
+  "MFD_CLIENT_REDIRECTS": "{}",
+  "MFD_MCP_WRITES": "false"
+}

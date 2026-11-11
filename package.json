@@ -8,7 +8,9 @@
     "build:barcode": "esbuild src/barcode-client.js --bundle --minify --format=iife --platform=browser --outfile=public/legacy/vendor/barcode.js",
     "build": "node scripts-build-react.cjs && node scripts-build-hosting.cjs",
     "test:performance": "node tests/run-performance.cjs",
-    "dev": "node scripts-build-react.cjs && node scripts-prepare-dev.cjs && npm --prefix hosting run dev"
+    "dev": "node scripts-build-react.cjs && node scripts-prepare-dev.cjs && npm --prefix hosting run dev",
+    "test:local": "node tests/run-local-checks.cjs",
+    "test:mcp": "node tests/mcp-server.cjs && node tests/mcp-database.cjs"
   },
   "keywords": [],
   "author": "",
@@ -27,7 +29,8 @@
     "zxing-wasm": "3.1.6"
   },
   "devDependencies": {
-    "esbuild": "0.28.2"
+    "esbuild": "0.28.2",
+    "@electric-sql/pglite": "0.3.14"
   },
   "private": true
 }

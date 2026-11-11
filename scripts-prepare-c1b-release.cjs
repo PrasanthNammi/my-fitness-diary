@@ -1,0 +1,10 @@
+// Local file preparation only. Assigned native client ID must already be verified.
+const fs=require('node:fs'),crypto=require('node:crypto'),path=require('node:path');
+const id=process.argv[2];if(!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(id||''))throw Error('Verified provider-assigned native public client UUID required');
+const root=process.cwd(),base=JSON.parse(fs.readFileSync('.openai/environment.json','utf8'));
+if(base.MFD_ENV!=='staging'||base.MFD_SUPABASE_URL!=='https://gngnrmzeghjzqsmzuktl.supabase.co'||base.MFD_MCP_WRITES!=='false'||!/^sb_publishable_[\w-]+$/.test(base.MFD_SUPABASE_PUBLISHABLE_KEY||''))throw Error('Staging public-key configuration mismatch');
+const config=JSON.parse(fs.readFileSync('hosting/independent/colocated-first-deployment.proposed.jsonc','utf8').split('\n').filter(x=>!x.startsWith('//')).join('\n'));
+if(config.account_id!=='fa8205077c4bc4d2bb38ee035e74a156'||config.name!=='mfd-connect-staging'||config.preview_urls!==false||config.vars.MFD_MCP_WRITES!=='false')throw Error('Release target drift');
+config.main='../independent/colocated-worker.js';config.vars.MFD_SUPABASE_PUBLISHABLE_KEY=base.MFD_SUPABASE_PUBLISHABLE_KEY;config.vars.MFD_ALLOWED_CLIENT_IDS=JSON.stringify([id]);config.vars.MFD_CLIENT_REDIRECTS=JSON.stringify({[id]:['https://chatgpt.com/connector/oauth/Xm83tVWz4VJh']});
+const dir=path.join(root,'.sites-runtime/c1b-release');fs.mkdirSync(dir,{recursive:true,mode:0o700});const file=path.join(dir,'wrangler.json');fs.writeFileSync(file,JSON.stringify(config,null,2)+'\n',{mode:0o600});
+const hash=x=>crypto.createHash('sha256').update(fs.readFileSync(x)).digest('hex');const evidence={config_sha256:hash(file),bundle_sha256:hash('.sites-runtime/independent/colocated-worker.js'),account_id:config.account_id,worker:config.name};fs.writeFileSync(path.join(dir,'release-hashes.json'),JSON.stringify(evidence,null,2)+'\n',{mode:0o600});console.log('Prepared ignored full staging release config and hashes; no deployment or credential output');

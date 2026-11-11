@@ -1,0 +1,120 @@
+const {PGlite}=require('@electric-sql/pglite');
+const {readFileSync}=require('node:fs');
+const assert=require('node:assert/strict');
+const alice='11111111-1111-4111-8111-111111111111',bob='22222222-2222-4222-8222-222222222222';
+const as='aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',bs='bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
+(async()=>{
+ const db=new PGlite();
+ await db.exec(`create role anon; create role authenticated; create role supabase_auth_admin; create schema auth;
+ create table auth.users(id uuid primary key); create table auth.sessions(id uuid primary key,user_id uuid);
+ create function auth.jwt() returns jsonb language sql stable as $$select current_setting('request.jwt.claims',true)::jsonb$$;
+ create function auth.uid() returns uuid language sql stable as $$select (auth.jwt()->>'sub')::uuid$$;
+ grant usage on schema auth to authenticated; grant execute on all functions in schema auth to authenticated;
+ insert into auth.users values('${alice}'),('${bob}'); insert into auth.sessions values('${as}','${alice}'),('${bs}','${bob}');
+ create table public.unrelated(secret text); alter table public.unrelated enable row level security;
+ grant all on public.unrelated to authenticated; create policy existing_access on public.unrelated to authenticated using(true) with check(true);
+ insert into public.unrelated values('private');`);
+ await db.exec(readFileSync('database/schema.sql','utf8'));
+ await db.exec(readFileSync('database/mcp.sql','utf8'));
+ // Regression checks for hosted Supabase performance advisor findings.
+ const indexes=(await db.query("select indexname from pg_indexes where schemaname='mfd_mcp' and tablename='proposals'")).rows.map(r=>r.indexname);
+ assert(indexes.includes('proposals_user_id_idx'));
+ const ownerPolicy=(await db.query("select qual from pg_policies where schemaname='public' and tablename='forma_workspaces' and policyname='mcp_no_direct_workspace'")).rows[0].qual;
+ assert(ownerPolicy.includes('SELECT auth.jwt()'), 'JWT lookup must be cached once per statement');
+ await db.exec(`insert into mfd_mcp.clients values('client-a'),('client-b');`);
+ await db.exec('set role supabase_auth_admin');
+ const hook=async event=>(await db.query('select mfd_mcp.access_token_hook($1::jsonb) as event',[JSON.stringify(event)])).rows[0].event;
+ assert.equal((await hook({client_id:'client-a',claims:{aud:'authenticated',sub:alice,client_id:'client-a'}})).claims.aud,'https://mfd-oauth-testing.paleriver512.chatgpt.site/mcp');
+ assert.equal((await hook({claims:{aud:'authenticated',sub:alice}})).claims.aud,'authenticated');
+ assert.equal((await hook({client_id:'unregistered',claims:{aud:'authenticated'}})).claims.aud,'authenticated');
+ async function identity(user=alice,client,session=user===alice?as:bs,aud='https://mfd-oauth-testing.paleriver512.chatgpt.site/mcp'){
+  await db.exec('reset role');
+  await db.query("select set_config('request.jwt.claims',$1,false)",[JSON.stringify({sub:user,session_id:session,...(client?{client_id:client,aud}:{})})]);
+  await db.exec('set role authenticated');
+ }
+ async function rpc(operation,args={}){return (await db.query('select public.mfd_mcp($1,$2::jsonb) as result',[operation,JSON.stringify(args)])).rows[0].result}
+ async function denied(fn,pattern=/./){await assert.rejects(fn,pattern)}
+ await identity();
+ await denied(()=>hook({claims:{aud:'authenticated'}}));
+ await db.query('select public.forma_save_workspace($1::jsonb,0)',[JSON.stringify({profile:{name:'Alice',waterGoalMl:2000,email:'secret'},sessions:[{id:'alice-workout'}],routines:[{id:'alice-routine'}],meals:[{id:'alice-meal'}],weights:[{kg:70}],unknown:{keep:true}})]);
+ await rpc('consent',{client_id:'client-a',permissions:['workouts','profile']});
+ await identity(bob);
+ await db.query('select public.forma_save_workspace($1::jsonb,0)',[JSON.stringify({profile:{name:'Bob'},sessions:[{id:'bob-workout'}]})]);
+ await rpc('consent',{client_id:'client-a',permissions:['workouts']});
+ await identity(alice,'client-a');
+ await denied(()=>db.query('select * from mfd_mcp.grants'));
+ await denied(()=>db.query('update mfd_mcp.proposals set approved=true'));
+ assert.deepEqual((await rpc('workouts')).data,[{id:'alice-workout'}]);
+ assert.equal((await rpc('profile')).data.email,undefined);
+ assert.equal((await db.query('select * from public.forma_workspaces')).rows.length,0);
+ assert.equal((await db.query('select * from public.unrelated')).rows.length,0);
+ await denied(()=>db.query(`select public.forma_save_workspace('{}',1)`));
+ assert.equal((await db.query(`update public.forma_workspaces set payload='{}' returning user_id`)).rows.length,0);
+ await denied(()=>rpc('nutrition')); await denied(()=>rpc('consent',{client_id:'client-a',permissions:['nutrition']}));
+ await denied(()=>rpc('workouts',{limit:101})); await denied(()=>rpc('workouts',{offset:-1}));
+ await denied(()=>rpc('propose_water_goal',{expected_revision:1,water_goal_ml:2500}));
+ await identity(bob,'client-a'); assert.deepEqual((await rpc('workouts')).data,[{id:'bob-workout'}]);
+ await identity(alice,'client-b');await denied(()=>rpc('workouts'));
+ await identity(alice,'client-a',bs);await denied(()=>rpc('workouts'));
+ await identity(alice,'client-a',as,'authenticated');await denied(()=>rpc('workouts'));
+ await identity(); await rpc('revoke',{client_id:'client-a'});
+ await identity(alice,'client-a');await denied(()=>rpc('workouts')); // same issued token
+ await identity(); await rpc('consent',{client_id:'client-a',permissions:['profile','workouts','routines','nutrition','progress']});
+ await denied(()=>rpc('consent',{client_id:'unknown',permissions:['profile']}));
+ await db.exec('reset role; update mfd_mcp.settings set writes_enabled=true');
+ await identity(alice,'client-a');
+ for(const section of ['routines','nutrition','progress'])assert((await rpc(section)).data.length===1);
+ let proposal=await rpc('propose_water_goal',{expected_revision:1,water_goal_ml:2500});
+ await denied(()=>rpc('propose_water_goal',{expected_revision:1,water_goal_ml:10001}));
+ await denied(()=>rpc('apply_water_goal',proposal));
+ await denied(()=>rpc('approve',proposal)); // MCP cannot approve itself
+ await identity(bob);await denied(()=>rpc('approve',proposal));
+ await identity();await rpc('approve',proposal);
+ await db.exec('reset role; update mfd_mcp.settings set writes_enabled=false');
+ await identity(alice,'client-a');await denied(()=>rpc('apply_water_goal',proposal));
+ await db.exec('reset role; update mfd_mcp.settings set writes_enabled=true');
+ await identity(alice,'client-b');await denied(()=>rpc('apply_water_goal',proposal));
+ await identity(alice,'client-a');assert.equal((await rpc('apply_water_goal',proposal)).revision,2);
+ await denied(()=>rpc('apply_water_goal',proposal));
+ await identity();
+ const row=(await db.query('select payload from public.forma_workspaces')).rows[0];
+ assert.equal(row.payload.profile.waterGoalMl,2500);assert.deepEqual(row.payload.unknown,{keep:true});assert.equal(row.payload.sessions[0].id,'alice-workout');
+ await identity(alice,'client-a');proposal=await rpc('propose_water_goal',{expected_revision:2,water_goal_ml:3000});
+ await identity();await rpc('approve',proposal);
+ await db.query('select public.forma_save_workspace($1::jsonb,2)',[JSON.stringify(row.payload)]);
+ await identity(alice,'client-a');await denied(()=>rpc('apply_water_goal',proposal),/Workspace changed/);
+ proposal=await rpc('propose_water_goal',{expected_revision:3,water_goal_ml:3000});
+ await db.exec(`reset role; update mfd_mcp.proposals set expires_at=now()-interval '1 second'`);
+ await identity();await denied(()=>rpc('approve',proposal));
+ await identity(alice,'client-a');proposal=await rpc('propose_water_goal',{expected_revision:3,water_goal_ml:3000});
+ await identity();await rpc('approve',proposal);await rpc('revoke',{client_id:'client-a'});
+ await identity(alice,'client-a');await denied(()=>rpc('apply_water_goal',proposal));
+ // Duplicate proposals are separate immutable requests; approval is never inherited.
+ await identity();await rpc('consent',{client_id:'client-a',permissions:['profile','workouts','routines','nutrition','progress']});
+ await identity(alice,'client-a');
+ const first=await rpc('propose_water_goal',{expected_revision:3,water_goal_ml:3500});
+ const duplicate=await rpc('propose_water_goal',{expected_revision:3,water_goal_ml:3500});
+ assert.notEqual(first.proposal_id,duplicate.proposal_id);
+ await identity();await rpc('approve',first);
+ await identity(alice,'client-a');await denied(()=>rpc('apply_water_goal',duplicate));
+ assert.equal((await rpc('apply_water_goal',first)).revision,4);
+ await identity();await denied(()=>rpc('approve',duplicate),/Workspace changed/);
+ // Owner IDs supplied directly to the database cannot redirect reads or writes.
+ for(const [user,other] of [[alice,bob],[bob,alice]]){
+  await identity(user);await rpc('consent',{client_id:'client-b',permissions:['profile','workouts','routines','nutrition','progress']});
+  await identity(user,'client-b');
+  for(const section of ['profile','workouts','routines','nutrition','progress']){
+   const clean=await rpc(section),forged=await rpc(section,{user_id:other});
+   assert.deepEqual(forged,clean);
+   assert(!JSON.stringify(forged).includes(user===alice?'bob-workout':'alice-workout'));
+  }
+  assert.equal((await db.query('update public.forma_workspaces set payload=$$ {} $$::jsonb where user_id=$1 returning user_id',[other])).rows.length,0);
+  assert.equal((await db.query('delete from public.forma_workspaces where user_id=$1 returning user_id',[other])).rows.length,0);
+  await denied(()=>rpc('apply_water_goal',{proposal_id:first.proposal_id}));
+ }
+ console.log('PASS duplicate proposals require independent approval, stale duplicates fail, and bidirectional cross-account reads/writes fail');
+ await db.exec(`reset role; delete from auth.sessions where id='${as}'`);
+ await identity();await denied(()=>rpc('connections'));
+ await db.exec('reset role; set role anon');await denied(()=>rpc('workouts'));
+ await db.close();console.log('PASS PostgreSQL: account isolation, RLS bypass attempts, granular consent, immediate revocation, live sessions, default-disabled writes, exact approval, replay, expiration, CAS and frontend preservation');
+})().catch(e=>{console.error(e);process.exit(1)});

@@ -1,0 +1,17 @@
+{
+  "observed_at": "2026-10-30T15:21:47.666Z",
+  "status": "RUNNING_NATURAL_EXPIRY_WAIT",
+  "H1": "PASS actual hosted",
+  "H2": "PASS actual hosted; protected RPC denied after non-parent replay",
+  "H3": "IN PROGRESS; natural expiry not yet reached",
+  "runner_requests": 18,
+  "flows": 2,
+  "preexisting_session_rows_preserved": 13,
+  "total_session_rows": 15,
+  "users": 2,
+  "profile_only_grants": 2,
+  "inventory_unchanged": true,
+  "writes": false,
+  "worker_deployment": false,
+  "automatic_retry": false
+}

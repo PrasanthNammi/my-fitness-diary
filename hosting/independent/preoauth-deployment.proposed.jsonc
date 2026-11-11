@@ -1,0 +1,41 @@
+// PROPOSAL ONLY. Separate exact-artifact hosted deployment approval required.
+{
+  "name": "mfd-connect-staging",
+  "main": "../../.sites-runtime/independent/preoauth-worker.js",
+  "compatibility_date": "2026-10-12",
+  "workers_dev": true,
+  "routes": [],
+  "upload_source_maps": false,
+  "observability": {
+    "enabled": false
+  },
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "MFD_ABUSE",
+        "class_name": "AbuseCoordinator"
+      }
+    ]
+  },
+  "migrations": [
+    {
+      "tag": "mfd-c1b-v1",
+      "new_sqlite_classes": [
+        "AbuseCoordinator"
+      ]
+    }
+  ],
+  "vars": {
+    "MFD_ENV": "staging",
+    "MFD_SUPABASE_URL": "https://gngnrmzeghjzqsmzuktl.supabase.co",
+    "MFD_OAUTH_ISSUER": "https://gngnrmzeghjzqsmzuktl.supabase.co/auth/v1",
+    "MFD_AUTH_ORIGIN": "https://mfd-connect-staging.shanustylish777.workers.dev",
+    "MFD_MCP_RESOURCE_URL": "https://mfd-connect-staging.shanustylish777.workers.dev/mcp",
+    "MFD_ALLOWED_CLIENT_IDS": "[]",
+    "MFD_CLIENT_REDIRECTS": "{}",
+    "MFD_MCP_WRITES": "false",
+    "MFD_RELEASE_MODE": "pre-oauth"
+  },
+  "account_id": "fa8205077c4bc4d2bb38ee035e74a156",
+  "preview_urls": false
+}

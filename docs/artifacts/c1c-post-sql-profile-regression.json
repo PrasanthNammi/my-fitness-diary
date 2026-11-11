@@ -1,0 +1,16 @@
+{
+  "checked_at": "2026-10-30T15:26:42.479Z",
+  "reason": "post-SQL existing-connection regression during H3 wait",
+  "primary": {
+    "marker": "MFD STAGING A",
+    "revision": 1
+  },
+  "secondary": {
+    "marker": "MFD STAGING B",
+    "revision": 1
+  },
+  "calls": 2,
+  "no_reconnect": true,
+  "no_grant_change": true,
+  "raw_tokens_exported": false
+}

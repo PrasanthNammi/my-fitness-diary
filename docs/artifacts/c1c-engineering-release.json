@@ -1,0 +1,22 @@
+{
+  "status": "PROPOSED_NOT_DEPLOYED",
+  "date": "2026-10-30",
+  "worker_sha256": "05b1811e2f09042faf36f405241439d78c9c0fefbe8dc2279d635dfe0d19f9f0",
+  "worker_bytes": 35660,
+  "config_sha256": "e0f45c65bcf45ad226e1811f42e27ef73afe8f7aa985f9077a7af79a52376cf5",
+  "preserved_bundle_sha256": "0fa8494be295161791191dd6c0738f16bdb80060d03ec773f78cd4f8656fc19e",
+  "files": {
+    "hosting/independent/service.ts": "2a157f6c25b9d0c65843e7d75036087d7a77ba703c508cbacd70ca599010079a",
+    "tests/mcp-response-performance.cjs": "fb8d9159a965a2f325cf6f7a7df6b8001028a51c7ba66ba26275927c25532b36",
+    "scripts-benchmark-c1c-service.cjs": "5dc902b4ff936738473b499ca3916ce70457df0b7f9fe6ceb4c7bc1da8b0c8be",
+    "scripts-prepare-c1c-cpu.cjs": "d57cd668ac317854ab83fe8d669ed4394d053f81b8a4c36076077a1063eb187f",
+    "scripts-profile-c1c-native.cjs": "c00d44972abade859c53e16af4dae26ab6211bba73a99dc4f03b4d571b4d080b",
+    "docs/artifacts/c1c-safari-manifest.json": "1491b31097581d3ca3452c8894d5eb7186d0f2ead32e5183148b89a2179453ba"
+  },
+  "local_tests": {
+    "total": 61,
+    "passed": 61
+  },
+  "hosted_cpu_headroom_proven": false,
+  "native_safari_executed": false
+}
