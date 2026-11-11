@@ -2,7 +2,7 @@ name: MFD code checks
 on:
   pull_request:
   push:
-    branches: [main, mfd-v53-code-only]
+    branches: [main]
 jobs:
   check:
     runs-on: ubuntu-latest
@@ -52,3 +52,30 @@ jobs:
         run: npm ci
       - name: Database and sync tests
         run: ./database/tests/run.sh
+  connector:
+    # The ChatGPT/Claude connector (hosting/independent, its SQL and Worker): typecheck, lint, the production and
+    # staging artifact scans, and every connector test with the network disabled (embedded Postgres).
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.13.1'
+          cache: npm
+      - name: Install dependencies
+        run: |
+          npm ci
+          npx --yes pnpm@11.25.0 --dir hosting install --frozen-lockfile
+      - name: Check TypeScript and lint
+        run: |
+          npx tsc -p hosting/tsconfig.json --noEmit --incremental false
+          cd hosting && npx eslint independent worker/mcp.ts worker/mcp-consent.ts worker/auth-types.ts
+      - name: Build the app and the connector artifacts
+        # Some tests in the shared suite check the built app (service worker), so build it first.
+        run: |
+          npm run build
+          node scripts-build-independent.cjs
+      - name: Connector tests (network disabled)
+        run: npm run test:local
+

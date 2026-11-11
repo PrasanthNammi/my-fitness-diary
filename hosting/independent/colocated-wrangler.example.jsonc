@@ -1,0 +1,25 @@
+// PROPOSAL ONLY — no hosted Worker, namespace, binding or deployment exists.
+// Verify the account ID, Free entitlement, hostname availability and clients
+// before preparing an active config. Do not deploy this example.
+{
+  "name": "mfd-connect-staging",
+  "main": "../../.sites-runtime/independent/colocated-worker.js",
+  "compatibility_date": "2026-10-12",
+  "workers_dev": true,
+  "routes": [],
+  "upload_source_maps": false,
+  "observability": {"enabled": false},
+  "durable_objects": {"bindings": [{"name": "MFD_ABUSE", "class_name": "AbuseCoordinator"}]},
+  "migrations": [{"tag": "mfd-c1b-v1", "new_sqlite_classes": ["AbuseCoordinator"]}],
+  "vars": {
+    "MFD_ENV": "staging",
+    "MFD_SUPABASE_URL": "https://gngnrmzeghjzqsmzuktl.supabase.co",
+    "MFD_OAUTH_ISSUER": "https://gngnrmzeghjzqsmzuktl.supabase.co/auth/v1",
+    "MFD_AUTH_ORIGIN": "https://mfd-connect-staging.shanustylish777.workers.dev",
+    "MFD_MCP_RESOURCE_URL": "https://mfd-connect-staging.shanustylish777.workers.dev/mcp",
+    "MFD_SUPABASE_PUBLISHABLE_KEY": "REPLACE_WITH_EXISTING_STAGING_PUBLISHABLE_KEY",
+    "MFD_ALLOWED_CLIENT_IDS": "[]",
+    "MFD_CLIENT_REDIRECTS": "{}",
+    "MFD_MCP_WRITES": "false"
+  }
+}

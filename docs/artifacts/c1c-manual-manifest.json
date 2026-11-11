@@ -1,0 +1,18 @@
+{
+  "scripts/c1c-manual-google-flow.cjs": "696f3331de50c70e458664a4c1cef9793592d65a272cda43f945b39b04dccd61",
+  "scripts/c1c-private-terminal.cjs": "eff57250c9739375c5acd9acfac995793d9c1bb6fd083117689637c3f758580a",
+  "scripts/c1c-google-h1-h3-manual.cjs": "e600595b885e5fdda08c7973bdfc2651cc32cc8f7e00164212401bae32670b00",
+  "scripts/c1c-manual-acceptance.command": "9d85b9153fe6d1687a07590628c8b9bff3a45a0a084a73a3756dd4dbb7a6f996",
+  "scripts/c1c-google-pkce-plan.cjs": "5d4a041cbb4f69b68da75dd99e150cee7ebd4fb9319918889bd3acff41e5f658",
+  "scripts/c1c-alternative-lifecycle-core.cjs": "8c647698c72f8e16899f3252963d5ede7740255c3e18caf22a0f0b20540522ba",
+  "scripts/c1c-safe-diagnostics.cjs": "406905af720cf094f013f1839e1624463ae898d9b0a8430700af7b2b94bc7b25",
+  "scripts-smoke-c1c-manual-e2e.cjs": "5ac14dacb61d455923809436a209aa6d2a8155f3823d06d43b7dfdef50dc173a",
+  "scripts-smoke-c1c-manual-tty.py": "443f4f6a7818afa896f65514977d15474d48d37ab1715419a9d64cf745083f6d",
+  "tests/c1c-manual-google.cjs": "9afbf6d942914ff1b6e31c308bbc8b3aaa2e92c3f27aa63b28d638f61b9801ae",
+  "tests/c1c-private-terminal.cjs": "3213cd4bc70b08e0935310dc96f55f2f85113fe6a2734eeeaa989ca947e37428",
+  "tests/c1c-manual-lifecycle.cjs": "34946dad9d22adc4b5c09cba1e7ed2da48b1c83339093adee48ce5f2c7e894fa",
+  "docs/artifacts/c1c-manual-plan.json": "03ce4f8121d0a38a8bdfb29611f4807676dbc07f3f68f0d462a0c77805bab558",
+  "package.json": "7233ee2613aed152d1eafa27c5fac3b3850682223ca358841289fba4222173df",
+  "package-lock.json": "a4742f5baadf995e7214b8e29e43c715d16dc0d3aa13285c092320fe65283d4e",
+  "node_modules/@supabase/supabase-js/package.json": "16ce1954171a17e803be9aa55f19a63d017517aa50d01d9ab44d72b3853d0e85"
+}

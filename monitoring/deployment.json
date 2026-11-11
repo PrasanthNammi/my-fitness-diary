@@ -15,5 +15,14 @@
     "connections": "cg1pksoqskcg0f",
     "exporter_missing": "ag1pkuqtx5bswd",
     "sync_series_missing": "ag1pkvyqaeneoa"
+  },
+  "connector_dashboard_url": "https://zealousprairie1239.grafana.net/d/mfd-connector-health/mfd-ai-connector-health",
+  "connector_datasource_uid": "eg36t5gvapybkf",
+  "connector_group": "mfd-connector",
+  "connector_rules": {
+    "exceeded_cpu": "mfdconnectorexceededcpu",
+    "crash": "mfdconnectorcrash",
+    "volume": "mfdconnectorvolume",
+    "cpu_p99": "mfdconnectorcpup99"
   }
 }

@@ -1,0 +1,23 @@
+{
+  "status": "LOCAL_DIAGNOSTIC_REVISION_AFTER_STOP_NO_NEW_LIVE_RUN",
+  "method": "Playwright 1.61.1 private contexts with per-hop CDP Fetch interception",
+  "project": "gngnrmzeghjzqsmzuktl",
+  "new_google_flows_max": 2,
+  "new_first_party_sessions_max": 2,
+  "callback": "https://mfd-connect-staging.shanustylish777.workers.dev/auth/google/callback",
+  "max_application_requests": 40,
+  "max_browser_auth_requests": 8,
+  "replay_wait_seconds": 12,
+  "max_expiry_wait_seconds": 4200,
+  "automatic_retries": 0,
+  "proxy_worker_access": "always denied before TLS",
+  "favicon_policy": "GET /favicon.ico image/other on Auth is aborted and reported, not fatal; navigation/fetch remains fatal",
+  "diagnostics": "fixed codes and allowlisted fields only",
+  "old_failure_cause": "UNPROVEN; local premature-favicon-stop pattern reproduced",
+  "hosted_mutations_performed_in_preparation": false,
+  "settings_changes": false,
+  "deployments": false,
+  "embedded_document_policy": "Unrelated child-frame GET documents remain aborted, fixed diagnostic nonfatal; main navigation, POST, Auth/Worker and callback violations remain fatal. No egress allowlist expansion.",
+  "last_live_manifest": "61d7ac6ee80d7407456d705676f7aaa9c0413d497f3b9ec7f2f8e065921d2cbb",
+  "network_diagnostics": "ERR_ABORTED receives its own fixed category; proxy errors retain only allowlisted errno categories; all failed requests still terminate the live flow"
+}

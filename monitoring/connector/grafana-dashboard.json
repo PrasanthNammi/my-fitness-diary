@@ -1,0 +1,331 @@
+{
+ "uid": "mfd-connector-health",
+ "title": "MFD AI Connector Health",
+ "schemaVersion": 39,
+ "version": 1,
+ "tags": [
+  "mfd",
+  "connector"
+ ],
+ "refresh": "5m",
+ "time": {
+  "from": "now-24h",
+  "to": "now"
+ },
+ "__inputs": [
+  {
+   "name": "DS_CLOUDFLARE",
+   "label": "Cloudflare analytics (Infinity)",
+   "type": "datasource",
+   "pluginId": "yesoreyeram-infinity-datasource",
+   "pluginName": "Infinity"
+  }
+ ],
+ "templating": {
+  "list": [
+   {
+    "name": "worker",
+    "label": "Connector",
+    "type": "custom",
+    "multi": true,
+    "includeAll": false,
+    "query": "mfd-connect-staging,mfd-connect",
+    "current": {
+     "text": [
+      "mfd-connect-staging",
+      "mfd-connect"
+     ],
+     "value": [
+      "mfd-connect-staging",
+      "mfd-connect"
+     ]
+    },
+    "options": [
+     {
+      "text": "mfd-connect-staging",
+      "value": "mfd-connect-staging",
+      "selected": true
+     },
+     {
+      "text": "mfd-connect",
+      "value": "mfd-connect",
+      "selected": true
+     }
+    ]
+   }
+  ]
+ },
+ "panels": [
+  {
+   "id": 1,
+   "title": "AI requests per hour, by outcome",
+   "type": "timeseries",
+   "gridPos": {
+    "x": 0,
+    "y": 0,
+    "w": 12,
+    "h": 8
+   },
+   "description": "success = normal. exceededResources = stopped for CPU/memory (free plan 10 ms CPU). scriptThrewException / internalError = crashes.",
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "yesoreyeram-infinity-datasource",
+      "uid": "${DS_CLOUDFLARE}"
+     },
+     "type": "graphql",
+     "source": "url",
+     "parser": "backend",
+     "format": "table",
+     "url": "https://api.cloudflare.com/client/v4/graphql",
+     "url_options": {
+      "method": "POST",
+      "body_type": "graphql",
+      "body_content_type": "application/json",
+      "body_graphql_query": "query($a:string!,$s:Time!,$e:Time!,$w:[string!]){viewer{accounts(filter:{accountTag:$a}){workersInvocationsAdaptive(limit:2000,filter:{scriptName_in:$w,datetime_geq:$s,datetime_leq:$e},orderBy:[datetimeHour_ASC]){sum{requests} dimensions{datetimeHour status}}}}}",
+      "body_graphql_variables": "{\"a\": \"fa8205077c4bc4d2bb38ee035e74a156\", \"s\": \"${__from:date:iso}\", \"e\": \"${__to:date:iso}\", \"w\": ${worker:json}}"
+     },
+     "root_selector": "data.viewer.accounts[0].workersInvocationsAdaptive",
+     "columns": [
+      {
+       "selector": "dimensions.datetimeHour",
+       "text": "time",
+       "type": "timestamp"
+      },
+      {
+       "selector": "dimensions.status",
+       "text": "outcome",
+       "type": "string"
+      },
+      {
+       "selector": "sum.requests",
+       "text": "requests",
+       "type": "number"
+      }
+     ]
+    }
+   ],
+   "transformations": [
+    {
+     "id": "prepareTimeSeries",
+     "options": {
+      "format": "multi"
+     }
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "unit": "short"
+    },
+    "overrides": []
+   }
+  },
+  {
+   "id": 2,
+   "title": "CPU time per request (free plan limit: 10 ms)",
+   "type": "timeseries",
+   "gridPos": {
+    "x": 12,
+    "y": 0,
+    "w": 12,
+    "h": 8
+   },
+   "description": "Typical (p50) and worst 1% (p99). Occasional spikes above 10 ms are tolerated by Cloudflare; regular ones are not.",
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "yesoreyeram-infinity-datasource",
+      "uid": "${DS_CLOUDFLARE}"
+     },
+     "type": "graphql",
+     "source": "url",
+     "parser": "backend",
+     "format": "table",
+     "url": "https://api.cloudflare.com/client/v4/graphql",
+     "url_options": {
+      "method": "POST",
+      "body_type": "graphql",
+      "body_content_type": "application/json",
+      "body_graphql_query": "query($a:string!,$s:Time!,$e:Time!,$w:[string!]){viewer{accounts(filter:{accountTag:$a}){workersInvocationsAdaptive(limit:2000,filter:{scriptName_in:$w,datetime_geq:$s,datetime_leq:$e},orderBy:[datetimeHour_ASC]){quantiles{cpuTimeP50 cpuTimeP99} dimensions{datetimeHour}}}}}",
+      "body_graphql_variables": "{\"a\": \"fa8205077c4bc4d2bb38ee035e74a156\", \"s\": \"${__from:date:iso}\", \"e\": \"${__to:date:iso}\", \"w\": ${worker:json}}"
+     },
+     "root_selector": "data.viewer.accounts[0].workersInvocationsAdaptive",
+     "columns": [
+      {
+       "selector": "dimensions.datetimeHour",
+       "text": "time",
+       "type": "timestamp"
+      },
+      {
+       "selector": "quantiles.cpuTimeP50",
+       "text": "typical (p50)",
+       "type": "number"
+      },
+      {
+       "selector": "quantiles.cpuTimeP99",
+       "text": "worst 1% (p99)",
+       "type": "number"
+      }
+     ]
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "unit": "\u00b5s",
+     "thresholds": {
+      "mode": "absolute",
+      "steps": [
+       {
+        "color": "green",
+        "value": null
+       },
+       {
+        "color": "red",
+        "value": 10000
+       }
+      ]
+     },
+     "custom": {
+      "thresholdsStyle": {
+       "mode": "line"
+      }
+     }
+    },
+    "overrides": []
+   }
+  },
+  {
+   "id": 3,
+   "title": "Failed requests in range, by reason",
+   "type": "table",
+   "gridPos": {
+    "x": 0,
+    "y": 8,
+    "w": 12,
+    "h": 7
+   },
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "yesoreyeram-infinity-datasource",
+      "uid": "${DS_CLOUDFLARE}"
+     },
+     "type": "graphql",
+     "source": "url",
+     "parser": "backend",
+     "format": "table",
+     "url": "https://api.cloudflare.com/client/v4/graphql",
+     "url_options": {
+      "method": "POST",
+      "body_type": "graphql",
+      "body_content_type": "application/json",
+      "body_graphql_query": "query($a:string!,$s:Time!,$e:Time!,$w:[string!]){viewer{accounts(filter:{accountTag:$a}){workersInvocationsAdaptive(limit:2000,filter:{scriptName_in:$w,datetime_geq:$s,datetime_leq:$e,status_neq:\"success\"}){sum{requests} dimensions{status scriptName}}}}}",
+      "body_graphql_variables": "{\"a\": \"fa8205077c4bc4d2bb38ee035e74a156\", \"s\": \"${__from:date:iso}\", \"e\": \"${__to:date:iso}\", \"w\": ${worker:json}}"
+     },
+     "root_selector": "data.viewer.accounts[0].workersInvocationsAdaptive",
+     "columns": [
+      {
+       "selector": "dimensions.scriptName",
+       "text": "worker",
+       "type": "string"
+      },
+      {
+       "selector": "dimensions.status",
+       "text": "reason",
+       "type": "string"
+      },
+      {
+       "selector": "sum.requests",
+       "text": "requests",
+       "type": "number"
+      }
+     ]
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {},
+    "overrides": []
+   }
+  },
+  {
+   "id": 4,
+   "title": "Requests in range vs free 100,000/day",
+   "type": "stat",
+   "gridPos": {
+    "x": 12,
+    "y": 8,
+    "w": 12,
+    "h": 7
+   },
+   "description": "Set the time range to 'Today' to compare with the daily free allowance.",
+   "targets": [
+    {
+     "refId": "A",
+     "datasource": {
+      "type": "yesoreyeram-infinity-datasource",
+      "uid": "${DS_CLOUDFLARE}"
+     },
+     "type": "graphql",
+     "source": "url",
+     "parser": "backend",
+     "format": "table",
+     "url": "https://api.cloudflare.com/client/v4/graphql",
+     "url_options": {
+      "method": "POST",
+      "body_type": "graphql",
+      "body_content_type": "application/json",
+      "body_graphql_query": "query($a:string!,$s:Time!,$e:Time!,$w:[string!]){viewer{accounts(filter:{accountTag:$a}){workersInvocationsAdaptive(limit:2000,filter:{scriptName_in:$w,datetime_geq:$s,datetime_leq:$e}){sum{requests} dimensions{scriptName}}}}}",
+      "body_graphql_variables": "{\"a\": \"fa8205077c4bc4d2bb38ee035e74a156\", \"s\": \"${__from:date:iso}\", \"e\": \"${__to:date:iso}\", \"w\": ${worker:json}}"
+     },
+     "root_selector": "data.viewer.accounts[0].workersInvocationsAdaptive",
+     "columns": [
+      {
+       "selector": "dimensions.scriptName",
+       "text": "worker",
+       "type": "string"
+      },
+      {
+       "selector": "sum.requests",
+       "text": "requests",
+       "type": "number"
+      }
+     ]
+    }
+   ],
+   "options": {
+    "reduceOptions": {
+     "calcs": [
+      "sum"
+     ],
+     "fields": "/^requests$/"
+    }
+   },
+   "fieldConfig": {
+    "defaults": {
+     "unit": "short",
+     "thresholds": {
+      "mode": "absolute",
+      "steps": [
+       {
+        "color": "green",
+        "value": null
+       },
+       {
+        "color": "orange",
+        "value": 50000
+       },
+       {
+        "color": "red",
+        "value": 90000
+       }
+      ]
+     }
+    },
+    "overrides": []
+   }
+  }
+ ]
+}

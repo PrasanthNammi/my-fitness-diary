@@ -1,0 +1,152 @@
+{
+  "date": "2026-10-30",
+  "timezone": "Europe/Berlin",
+  "scope": "Existing two staging app links; authenticated read-only end-to-end calls",
+  "preflight_at": "2026-10-30T12:10:33.793843+00:00",
+  "postcheck_at": "2026-10-30T12:15:49.035915+00:00",
+  "initial_profile_results": [
+    {
+      "account": "PRIMARY",
+      "name": "MFD STAGING A",
+      "revision": 1
+    },
+    {
+      "account": "SECONDARY",
+      "name": "MFD STAGING B",
+      "revision": 1
+    }
+  ],
+  "negative_section_results": [
+    {
+      "account": "PRIMARY",
+      "tool": "nutrition",
+      "result": "CHALLENGE_NO_DATA",
+      "error_code": "UNAUTHORIZED",
+      "reason": "www_authenticate_reauth"
+    },
+    {
+      "account": "PRIMARY",
+      "tool": "workouts",
+      "result": "CHALLENGE_NO_DATA",
+      "isError": true,
+      "error_code": "UNAUTHORIZED"
+    },
+    {
+      "account": "PRIMARY",
+      "tool": "routines",
+      "result": "CHALLENGE_NO_DATA",
+      "isError": true,
+      "error_code": "UNAUTHORIZED"
+    },
+    {
+      "account": "PRIMARY",
+      "tool": "progress",
+      "result": "CHALLENGE_NO_DATA",
+      "isError": true,
+      "error_code": "UNAUTHORIZED"
+    },
+    {
+      "account": "SECONDARY",
+      "tool": "nutrition",
+      "result": "CHALLENGE_NO_DATA",
+      "isError": true,
+      "error_code": "UNAUTHORIZED"
+    },
+    {
+      "account": "SECONDARY",
+      "tool": "workouts",
+      "result": "CHALLENGE_NO_DATA",
+      "isError": true,
+      "error_code": "UNAUTHORIZED"
+    },
+    {
+      "account": "SECONDARY",
+      "tool": "routines",
+      "result": "CHALLENGE_NO_DATA",
+      "isError": true,
+      "error_code": "UNAUTHORIZED"
+    },
+    {
+      "account": "SECONDARY",
+      "tool": "progress",
+      "result": "CHALLENGE_NO_DATA",
+      "isError": true,
+      "error_code": "UNAUTHORIZED"
+    }
+  ],
+  "profile_after_nutrition": {
+    "account": "PRIMARY",
+    "name": "MFD STAGING A",
+    "revision": 1,
+    "result": "PASS_WITHOUT_RECONNECT"
+  },
+  "profiles_after_all_negatives": [
+    {
+      "account": "PRIMARY",
+      "pass": true,
+      "marker": "MFD STAGING A",
+      "revision": 1
+    },
+    {
+      "account": "SECONDARY",
+      "pass": true,
+      "marker": "MFD STAGING B",
+      "revision": 1
+    }
+  ],
+  "denial_evidence_boundary": "Actual app-tool UNAUTHORIZED/reauthentication challenge, no data; raw MCP HTTP status/error payload not available. No proof of a specific HTTP403/insufficient_scope wire payload, token expiry or refresh is claimed.",
+  "preservation": {
+    "users": 2,
+    "identities": 4,
+    "all_original_sessions_preserved": true,
+    "session_count": 10,
+    "profile_only_grants": 2,
+    "active_consents": 2,
+    "fixtures": 2,
+    "clients": 1,
+    "local_clients": 1,
+    "proposals": 0,
+    "database_writes": false,
+    "inventory_digest": "befbb5ee8105a4d45b70e5c7734e03ad",
+    "security_digest": "ec1f27ff9b3d5f2f35c01e8b99c85d51"
+  },
+  "runtime": {
+    "worker": "mfd-connect-staging",
+    "active_version": "dcfcac5d-88d2-4432-a262-e288f05f31e4",
+    "worker_writes": false,
+    "namespace_preserved": true
+  },
+  "metrics": {
+    "units": "microseconds (fresh schema introspection)",
+    "window_start": "2026-10-30T12:10:33.793843+00:00",
+    "window_end": "2026-10-30T12:16:00Z",
+    "requests": 40,
+    "runtime_errors": 0,
+    "cpu_p50_us": 4180,
+    "cpu_p99_us": 16912,
+    "free_cpu_allowance_ms": 10,
+    "headroom_gate": "NOT_CLEARED",
+    "attribution": "Window includes other/provider-generated traffic; not a tool-call request ledger."
+  },
+  "hosted_H1_H2_H3": "BLOCKED; no isolated issued tokens acquired or inspected; no forced refresh/replay/logout/revocation",
+  "no_new_login_or_reconnect": true,
+  "no_existing_token_extraction": true,
+  "no_deployment_or_hosted_configuration_change": true,
+  "manual_handoff_status": "STOPPED; baseline retired; no further operator steps requested",
+  "explicit_mfd_tool_invocations": 13,
+  "local_regression_files": 56,
+  "native_terminal_tests": 5,
+  "runtime_bundle_configuration_hashes": "unchanged",
+  "public_auth_final": {
+    "signup_disabled": true,
+    "google_enabled": true,
+    "anonymous_disabled": true
+  },
+  "security_advisor": {
+    "fresh": true,
+    "info_rls_no_policy": 3,
+    "warn_leaked_password_protection_disabled": 1,
+    "new_authorization_bypass_demonstrated": false,
+    "remediation": "https://supabase.com/docs/guides/auth/password-security#password-strength-and-leaked-password-protection"
+  }
+}

@@ -1,0 +1,48 @@
+// PROPOSAL ONLY. NOT DEPLOYABLE: real approved clients/callbacks/key still required.
+// No hosted operation is authorized. Account and subdomain verified read-only.
+{
+  "name": "mfd-connect-staging",
+  "main": "../../.sites-runtime/independent/colocated-worker.js",
+  "compatibility_date": "2026-10-12",
+// Connector proxy: required for Client ID Metadata Document clients (ChatGPT) to be accepted safely.
+  "compatibility_flags": ["global_fetch_strictly_public"],
+// Connector proxy: AI-app grants/tokens (hashed) and encrypted Supabase sessions.
+  "kv_namespaces": [{"binding": "OAUTH_KV", "id": "REPLACE_WITH_NEW_STAGING_KV_NAMESPACE_ID"}],
+  "workers_dev": true,
+  "routes": [],
+  "upload_source_maps": false,
+  "observability": {
+    "enabled": false
+  },
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "MFD_ABUSE",
+        "class_name": "AbuseCoordinator"
+      }
+    ]
+  },
+  "migrations": [
+    {
+      "tag": "mfd-c1b-v1",
+      "new_sqlite_classes": [
+        "AbuseCoordinator"
+      ]
+    }
+  ],
+  "vars": {
+    "MFD_ENV": "staging",
+    "MFD_SUPABASE_URL": "https://gngnrmzeghjzqsmzuktl.supabase.co",
+    "MFD_OAUTH_ISSUER": "https://gngnrmzeghjzqsmzuktl.supabase.co/auth/v1",
+    "MFD_AUTH_ORIGIN": "https://mfd-connect-staging.shanustylish777.workers.dev",
+    "MFD_MCP_RESOURCE_URL": "https://mfd-connect-staging.shanustylish777.workers.dev/mcp",
+    "MFD_SUPABASE_PUBLISHABLE_KEY": "REPLACE_WITH_EXISTING_STAGING_PUBLISHABLE_KEY",
+// Connector proxy: exactly one Supabase OAuth client (the Worker itself, public + PKCE),
+// redirecting only to https://mfd-connect-staging.shanustylish777.workers.dev/oauth/upstream/callback
+    "MFD_ALLOWED_CLIENT_IDS": "[]",
+    "MFD_CLIENT_REDIRECTS": "{}",
+    "MFD_MCP_WRITES": "false"
+  },
+  "account_id": "fa8205077c4bc4d2bb38ee035e74a156",
+  "preview_urls": false
+}

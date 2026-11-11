@@ -7,6 +7,7 @@ const eslintConfig = defineConfig([
   ...nextTs,
   globalIgnores([
     "dist/**",
+    "public/**", // Generated copy of root browser assets, not hosting source.
     ".vinext/**",
     ".wrangler/**",
     ".sites-runtime/**",
