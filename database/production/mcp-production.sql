@@ -2389,10 +2389,13 @@ begin
  elsif operation='summarize_nutrition' then
   grp := coalesce(grp,'day'); if grp not in ('day','week','month') then raise exception 'Invalid group' using errcode='22023'; end if;
   with m as (select v->>'date' d, coalesce(mfd_mcp.safe_num(v->'cal'),0) kcal, coalesce(mfd_mcp.safe_num(v->'p'),0) p,
-     coalesce(mfd_mcp.safe_num(v->'c'),0) c, coalesce(mfd_mcp.safe_num(v->'f'),0) f
+     coalesce(mfd_mcp.safe_num(v->'c'),0) c, coalesce(mfd_mcp.safe_num(v->'f'),0) f,
+     -- Label extras: null when an entry has no value (not on the label), so totals count known values only.
+     mfd_mcp.safe_num(v->'fiber') fib, mfd_mcp.safe_num(v->'sugar') sug, mfd_mcp.safe_num(v->'saturates') sat, mfd_mcp.safe_num(v->'salt') salt
      from jsonb_array_elements(coalesce(doc->'meals','[]')) v where mfd_mcp.safe_date(v->>'date') is not null and mfd_mcp.in_range(v->>'date',args)),
-   days as (select d, sum(kcal) kcal, sum(p) p, sum(c) c, sum(f) f from m group by d),
-   per as (select to_char(date_trunc(grp,mfd_mcp.safe_date(d)),'YYYY-MM-DD') period, count(*) n, sum(kcal) kcal, sum(p) p, sum(c) c, sum(f) f
+   days as (select d, sum(kcal) kcal, sum(p) p, sum(c) c, sum(f) f, sum(fib) fib, sum(sug) sug, sum(sat) sat, sum(salt) salt from m group by d),
+   per as (select to_char(date_trunc(grp,mfd_mcp.safe_date(d)),'YYYY-MM-DD') period, count(*) n, sum(kcal) kcal, sum(p) p, sum(c) c, sum(f) f,
+     sum(fib) fib, sum(sug) sug, sum(sat) sat, sum(salt) salt
      from days group by 1 order by 1 desc limit 400),
    t as (select mfd_mcp.safe_num(doc->'profile'->'cal') tk, mfd_mcp.safe_num(doc->'profile'->'protein') tp,
      mfd_mcp.safe_num(doc->'profile'->'carbs') tc, mfd_mcp.safe_num(doc->'profile'->'fat') tf)
@@ -2400,7 +2403,8 @@ begin
     'daily_targets',(select jsonb_strip_nulls(jsonb_build_object('kcal',tk,'protein_g',tp,'carbs_g',tc,'fat_g',tf)) from t),
     'periods',coalesce(jsonb_agg(jsonb_strip_nulls(jsonb_build_object('period',period,'days_logged',n,
     'kcal',round(kcal),'protein_g',round(p,1),'carbs_g',round(c,1),'fat_g',round(f,1),
-    'avg_kcal_per_day',round(kcal/n),'avg_protein_g_per_day',round(p/n,1),
+    'fibre_g',round(fib,1),'sugars_g',round(sug,1),'saturated_fat_g',round(sat,1),'salt_g',round(salt,2),
+    'avg_kcal_per_day',round(kcal/n),'avg_protein_g_per_day',round(p/n,1),'avg_fibre_g_per_day',round(fib/n,1),
     'avg_kcal_vs_target_pct',round(100*kcal/n/nullif(tk,0)),'avg_protein_vs_target_pct',round(100*p/n/nullif(tp,0)))) order by period),'[]'))
    into result from per, t;
  elsif operation='list_saved_foods' then
@@ -2411,7 +2415,9 @@ begin
      where coalesce(id,'')<>'' and coalesce(btrim(v->>'name'),'')<>'' and mfd_mcp.safe_num(v->'basis')>0 and mfd_mcp.safe_num(v->'cal') is not null group by id)
   select coalesce(jsonb_agg(j order by times desc, last desc nulls last),'[]') into result from (
    select jsonb_strip_nulls(jsonb_build_object('food_id',id,'name',v->>'name','brand',nullif(v->>'brand',''),'per_amount',mfd_mcp.safe_num(v->'basis'),'unit',coalesce(v->>'unit','g'),
-     'kcal',mfd_mcp.safe_num(v->'cal'),'protein_g',mfd_mcp.safe_num(v->'p'),'carbs_g',mfd_mcp.safe_num(v->'c'),'fat_g',mfd_mcp.safe_num(v->'f'),'times_logged',times,'last_logged',last)) j, times, last
+     'kcal',mfd_mcp.safe_num(v->'cal'),'protein_g',mfd_mcp.safe_num(v->'p'),'carbs_g',mfd_mcp.safe_num(v->'c'),'fat_g',mfd_mcp.safe_num(v->'f'),
+     'fibre_g',mfd_mcp.safe_num(v->'fiber'),'sugars_g',mfd_mcp.safe_num(v->'sugar'),'saturated_fat_g',mfd_mcp.safe_num(v->'saturates'),'salt_g',mfd_mcp.safe_num(v->'salt'),
+     'times_logged',times,'last_logged',last)) j, times, last
    from u where args->>'search' is null or v->>'name' ilike '%'||replace(replace(args->>'search','%',''),'_','')||'%' or v->>'brand' ilike '%'||replace(replace(args->>'search','%',''),'_','')||'%'
    order by times desc, last desc nulls last limit 50) t;
  elsif operation='weight_trend' then
@@ -2437,6 +2443,8 @@ declare field text; doc jsonb; entry jsonb; eid text := gen_random_uuid()::text;
  rid text := args->>'request_id'; existing text; used integer; rev bigint; sets jsonb := '[]'; g integer := 0; i integer;
  ex jsonb; st jsonb; kg numeric; reps numeric; dur numeric; dist numeric; rpe numeric; started bigint; nm text;
  amount numeric; kcal numeric; pr numeric; cb numeric; ft numeric; routine_exercises jsonb := '[]'; food jsonb; factor numeric; slot text;
+ -- Label extras in the diary's own keys (sugar, saturates, fiber, salt); absent = not on the label, unlike a real 0.
+ extras jsonb := '{}'; xk text; xv numeric;
 begin
  field := case operation when 'log_workout' then 'sessions' when 'create_routine' then 'routines' when 'log_meal' then 'meals' when 'log_weight' then 'weights' end;
  if field is null then raise exception 'Unknown operation' using errcode='22023'; end if;
@@ -2531,16 +2539,26 @@ begin
     raise exception 'Saved food not found; use list_saved_foods' using errcode='22023'; end if;
    if coalesce(args->>'unit','') is distinct from coalesce(food->>'unit','g') then
     raise exception 'Use the food''s unit (%) for the amount', coalesce(food->>'unit','g') using errcode='22023'; end if;
-   if args ? 'kcal' or args ? 'protein' or args ? 'carbs' or args ? 'fat' then
-    raise exception 'Leave out kcal and macros when using food_id; they come from the saved food' using errcode='22023'; end if;
+   if args ? 'kcal' or args ? 'protein' or args ? 'carbs' or args ? 'fat' or args ? 'fibre' or args ? 'sugars' or args ? 'saturated_fat' or args ? 'salt' then
+    raise exception 'Leave out kcal and nutrients when using food_id; they come from the saved food' using errcode='22023'; end if;
    factor := amount/mfd_mcp.safe_num(food->'basis');
    nm := coalesce(nullif(btrim(args->>'name'),''),food->>'name');
    kcal := round(mfd_mcp.safe_num(food->'cal')*factor,1); pr := round(coalesce(mfd_mcp.safe_num(food->'p'),0)*factor,1);
    cb := round(coalesce(mfd_mcp.safe_num(food->'c'),0)*factor,1); ft := round(coalesce(mfd_mcp.safe_num(food->'f'),0)*factor,1);
+   -- The saved food's fibre, sugars, saturated fat and salt too, for the amount eaten.
+   foreach xk in array array['sugar','saturates','fiber','salt'] loop
+    xv := mfd_mcp.safe_num(food->xk);
+    if xv is not null and xv>=0 then extras := extras||jsonb_build_object(xk,round(xv*factor,2)); end if;
+   end loop;
   else
    nm := btrim(coalesce(args->>'name','')); kcal := mfd_mcp.safe_num(args->'kcal');
    pr := coalesce(mfd_mcp.safe_num(args->'protein'),0); cb := coalesce(mfd_mcp.safe_num(args->'carbs'),0); ft := coalesce(mfd_mcp.safe_num(args->'fat'),0);
    if kcal is null or nm='' then raise exception 'name and kcal are required unless you use a saved food (food_id)' using errcode='22023'; end if;
+   -- Optional label values for the amount eaten: fibre, sugars, saturated fat (g) and salt (g).
+   for xk, xv in select k, mfd_mcp.safe_num(args->a) from (values ('fibre','fiber'),('sugars','sugar'),('saturated_fat','saturates'),('salt','salt')) t(a,k) where args ? a loop
+    if xv is null or xv not between 0 and 1000 then raise exception 'Invalid % (grams for the amount eaten, 0-1000)', case xk when 'fiber' then 'fibre' when 'sugar' then 'sugars' when 'saturates' then 'saturated_fat' else xk end using errcode='22023'; end if;
+    extras := extras||jsonb_build_object(xk,xv);
+   end loop;
   end if;
   if nm='' or length(nm)>120 or coalesce(args->>'meal','') not in ('breakfast','lunch','dinner','snack') or coalesce(args->>'unit','') not in ('g','ml','serving')
      or coalesce(amount not between 0.01 and 10000 or kcal not between 0 and 10000, true)
@@ -2548,8 +2566,8 @@ begin
      or (args ? 'protein' and mfd_mcp.safe_num(args->'protein') is null) or (args ? 'carbs' and mfd_mcp.safe_num(args->'carbs') is null)
      or (args ? 'fat' and mfd_mcp.safe_num(args->'fat') is null) then
    raise exception 'Invalid meal' using errcode='22023'; end if;
-  entry := jsonb_build_object('id',eid,'date',d::text,'name',nm,'meal',slot,'amount',amount,'unit',args->>'unit','cal',kcal,'p',pr,'c',cb,'f',ft,
-   'labelFood',coalesce(food,jsonb_build_object('id','mcp-'||eid,'name',nm,'basis',amount,'unit',args->>'unit','cal',kcal,'p',pr,'c',cb,'f',ft)));
+  entry := jsonb_build_object('id',eid,'date',d::text,'name',nm,'meal',slot,'amount',amount,'unit',args->>'unit','cal',kcal,'p',pr,'c',cb,'f',ft)||extras||jsonb_build_object(
+   'labelFood',coalesce(food,jsonb_build_object('id','mcp-'||eid,'name',nm,'basis',amount,'unit',args->>'unit','cal',kcal,'p',pr,'c',cb,'f',ft)||extras));
  else
   kg := mfd_mcp.safe_num(args->'kg');
   if coalesce(kg not between 20 and 400, true) then raise exception 'Invalid weight (20-400 kg)' using errcode='22023'; end if;
