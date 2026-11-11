@@ -133,15 +133,22 @@ const diary=(name,n)=>({profile:{name,cal:2200,protein:130,carbs:260,fat:70,days
  await assert.rejects(rpc('log_workout',b({date:K.tm,exercises:[{exercise:'Squat',sets:[{reps:5}]}]})),/future/);
  const meal=(date,m,extra={})=>rpc('log_meal',b({date,meal:m,name:'Egg',amount:1,unit:'serving',kcal:78,protein:6,...extra}));
  await meal(day(20),'breakfast');await assert.rejects(meal(day(20),'breakfast'),/already have breakfast logged on 20 Oct 2026/);await meal(day(20),'lunch');
- await meal(K.y,'breakfast');await meal(K.y,'breakfast');await meal(K.t,'snack');await meal(K.t,'snack');await meal(K.t2,'dinner');
+ await meal(K.y,'breakfast');await meal(K.y,'breakfast');await meal(K.t,'snack');await meal(K.t,'snack');
+ // Label extras (toor dal from photos): fibre, sugars and salt as read; saturated fat not on the label stays unknown.
+ await meal(K.t2,'dinner',{fibre:2.5,sugars:0,salt:0.4});
+ {const e=(await sql(`select e from public.forma_workspaces, jsonb_array_elements(payload->'meals') e where user_id='${alice}' and e->>'date'='${K.t2}'`))[0].e;
+  assert.deepEqual([Number(e.fiber),Number(e.sugar),Number(e.salt),'saturates' in e,Number(e.labelFood.fiber),Number(e.labelFood.salt),'saturates' in e.labelFood],[2.5,0,0.4,false,2.5,0.4,false]);
+  const s=(await rpc('summarize_nutrition',b({from:K.t2,to:K.t2}))).data.periods[0];assert.deepEqual([Number(s.fibre_g),Number(s.sugars_g),Number(s.salt_g),'saturated_fat_g' in s],[2.5,0,0.4,false]);}
+ await assert.rejects(meal(K.t2,'dinner',{fibre:-1}),/Invalid fibre/);await assert.rejects(meal(K.t2,'dinner',{salt:'lots'}),/Invalid salt/);
  await assert.rejects(meal(K.t3,'dinner'),/up to 2 days ahead/);
  await assert.rejects(rpc('create_routine',b({name:'  upper a ',exercises:[{exercise:'Squat',sets:[{reps:5}]}]})),/routine named "upper a" already exists/);
  // Saved foods: values come from the diary's own food, scaled; no estimates mixed in.
- await sql(`update public.forma_workspaces set payload=payload||'{"products":[{"id":"p-oats","name":"Rolled oats","brand":"Mill","basis":100,"unit":"g","cal":380,"p":13,"c":60,"f":7}]}' where user_id='${alice}'`);await as_(alice,true);
- const foods=(await rpc('list_saved_foods',b({search:'oat'}))).data;assert.deepEqual(foods.map(f=>[f.food_id,f.per_amount,f.unit,f.kcal]),[['p-oats',100,'g',380]]);
+ await sql(`update public.forma_workspaces set payload=payload||'{"products":[{"id":"p-oats","name":"Rolled oats","brand":"Mill","basis":100,"unit":"g","cal":380,"p":13,"c":60,"f":7,"fiber":10,"sugar":1,"salt":0.02}]}' where user_id='${alice}'`);await as_(alice,true);
+ const foods=(await rpc('list_saved_foods',b({search:'oat'}))).data;assert.deepEqual(foods.map(f=>[f.food_id,f.per_amount,f.unit,f.kcal,Number(f.fibre_g),Number(f.sugars_g),f.saturated_fat_g]),[['p-oats',100,'g',380,10,1,undefined]]);
  assert.ok((await rpc('list_saved_foods',b({}))).data.some(f=>f.name==='Egg'&&f.times_logged>=1));
  const oat=await rpc('log_meal',b({date:K.t,meal:'breakfast',food_id:'p-oats',amount:50,unit:'g'}));
- assert.deepEqual([oat.added.name,Number(oat.added.cal),Number(oat.added.p),Number(oat.added.c),Number(oat.added.f),oat.added.labelFood.id,oat.added.meal],['Rolled oats',190,6.5,30,3.5,'p-oats','Breakfast']);
+ assert.deepEqual([oat.added.name,Number(oat.added.cal),Number(oat.added.p),Number(oat.added.c),Number(oat.added.f),oat.added.labelFood.id,oat.added.meal,Number(oat.added.fiber),Number(oat.added.sugar),Number(oat.added.salt),'saturates' in oat.added],['Rolled oats',190,6.5,30,3.5,'p-oats','Breakfast',5,0.5,0.01,false]);
+ await assert.rejects(rpc('log_meal',b({date:K.t,meal:'breakfast',food_id:'p-oats',amount:50,unit:'g',fibre:1})),/Leave out kcal and nutrients/);
  await assert.rejects(rpc('log_meal',b({date:K.t,meal:'breakfast',food_id:'p-oats',amount:1,unit:'serving'})),/food's unit \(g\)/);
  await assert.rejects(rpc('log_meal',b({date:K.t,meal:'breakfast',food_id:'p-oats',amount:50,unit:'g',kcal:1})),/Leave out kcal/);
  await assert.rejects(rpc('log_meal',b({date:K.t,meal:'breakfast',food_id:'nope',amount:50,unit:'g'})),/Saved food not found/);
