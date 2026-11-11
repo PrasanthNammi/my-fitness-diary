@@ -98,7 +98,7 @@ These are future setup steps, **not actions executed for this PR**:
    all callable SECURITY DEFINER functions before enabling OAuth. Apply the
    reviewed `database/mcp.sql` there only. Run Supabase security advisors and
    resolve findings; never run these tests against production.
-2. Use the staging configuration in `.openai/environment.json`, shared by
+2. Use the staging configuration in `hosting/independent/environment.json`, shared by
    browser and Worker through `src/environment.ts`. Runtime overrides that change
    the staging identity are rejected. Run the artifact inspection gate before
    serving or packaging the build. The existing frontend backend settings must match.
