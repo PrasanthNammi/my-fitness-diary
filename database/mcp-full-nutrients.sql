@@ -1,6 +1,8 @@
--- Full nutrition from ChatGPT and Claude: log_meal also stores fibre, sugars, saturated fat and salt (from the
--- label, for the amount eaten), and saved foods carry theirs over. summarize_nutrition and list_saved_foods report
--- them. A value the label doesn't show stays unknown ("–" in the app), unlike a real 0.
+-- Full foods from ChatGPT and Claude: log_meal also stores fibre, sugars, saturated fat and salt (from the label,
+-- for the amount eaten), and saved foods carry theirs over. summarize_nutrition and list_saved_foods report them.
+-- A value the label doesn't show stays unknown ("–" in the app), unlike a real 0. Packaged foods also keep brand,
+-- ingredients and serving size; with a barcode the food is saved once to the user's own My foods (private), so
+-- scanning that pack in the app finds it next time.
 --
 -- Replaces mfd_mcp.analyze and mfd_mcp.add_entry with their current versions from database/mcp-connector-v2.sql
 -- (tests/mcp-full-nutrients.cjs checks they are identical). Same arguments, same permissions; no diary data changes.
@@ -139,6 +141,9 @@ declare field text; doc jsonb; entry jsonb; eid text := gen_random_uuid()::text;
  amount numeric; kcal numeric; pr numeric; cb numeric; ft numeric; routine_exercises jsonb := '[]'; food jsonb; factor numeric; slot text;
  -- Label extras in the diary's own keys (sugar, saturates, fiber, salt); absent = not on the label, unlike a real 0.
  extras jsonb := '{}'; xk text; xv numeric;
+ -- Label details (brand, barcode, ingredients, serving) for a food read from a pack; with a barcode it is also saved to
+ -- My foods (doc->'products', private to the user) so the next scan of that pack finds it.
+ details jsonb := '{}'; product jsonb;
 begin
  field := case operation when 'log_workout' then 'sessions' when 'create_routine' then 'routines' when 'log_meal' then 'meals' when 'log_weight' then 'weights' end;
  if field is null then raise exception 'Unknown operation' using errcode='22023'; end if;
@@ -233,8 +238,9 @@ begin
     raise exception 'Saved food not found; use list_saved_foods' using errcode='22023'; end if;
    if coalesce(args->>'unit','') is distinct from coalesce(food->>'unit','g') then
     raise exception 'Use the food''s unit (%) for the amount', coalesce(food->>'unit','g') using errcode='22023'; end if;
-   if args ? 'kcal' or args ? 'protein' or args ? 'carbs' or args ? 'fat' or args ? 'fibre' or args ? 'sugars' or args ? 'saturated_fat' or args ? 'salt' then
-    raise exception 'Leave out kcal and nutrients when using food_id; they come from the saved food' using errcode='22023'; end if;
+   if args ? 'kcal' or args ? 'protein' or args ? 'carbs' or args ? 'fat' or args ? 'fibre' or args ? 'sugars' or args ? 'saturated_fat' or args ? 'salt'
+      or args ? 'brand' or args ? 'barcode' or args ? 'ingredients' or args ? 'serving_size' or args ? 'serving_label' then
+    raise exception 'Leave out kcal, nutrients and label details when using food_id; they come from the saved food' using errcode='22023'; end if;
    factor := amount/mfd_mcp.safe_num(food->'basis');
    nm := coalesce(nullif(btrim(args->>'name'),''),food->>'name');
    kcal := round(mfd_mcp.safe_num(food->'cal')*factor,1); pr := round(coalesce(mfd_mcp.safe_num(food->'p'),0)*factor,1);
@@ -253,6 +259,16 @@ begin
     if xv is null or xv not between 0 and 1000 then raise exception 'Invalid % (grams for the amount eaten, 0-1000)', case xk when 'fiber' then 'fibre' when 'sugar' then 'sugars' when 'saturates' then 'saturated_fat' else xk end using errcode='22023'; end if;
     extras := extras||jsonb_build_object(xk,xv);
    end loop;
+   if (args ? 'brand' and (jsonb_typeof(args->'brand') is distinct from 'string' or length(btrim(args->>'brand'))>80))
+      or (args ? 'barcode' and (jsonb_typeof(args->'barcode') is distinct from 'string' or args->>'barcode' !~ '^([0-9]{8}|[0-9]{12,14})$'))
+      or (args ? 'ingredients' and (jsonb_typeof(args->'ingredients') is distinct from 'string' or length(args->>'ingredients')>2000))
+      or (args ? 'serving_label' and (jsonb_typeof(args->'serving_label') is distinct from 'string' or length(btrim(args->>'serving_label'))>40))
+      or (args ? 'serving_size' and coalesce(mfd_mcp.safe_num(args->'serving_size') not between 0.1 and 5000, true)) then
+    raise exception 'Invalid label details (brand up to 80 characters, barcode of 8, 12, 13 or 14 digits, ingredients up to 2000, serving_size in g/ml)' using errcode='22023'; end if;
+   -- Same keys the app's own food form saves (servingSize is g/ml per serving; only for g/ml foods).
+   details := jsonb_strip_nulls(jsonb_build_object('brand',nullif(btrim(args->>'brand'),''),'barcode',args->>'barcode','notes',nullif(btrim(args->>'ingredients'),''),
+    'servingSize',case when args->>'unit' in ('g','ml') then mfd_mcp.safe_num(args->'serving_size') end,
+    'servingLabel',case when args->>'unit' in ('g','ml') and args ? 'serving_size' then nullif(btrim(args->>'serving_label'),'') end));
   end if;
   if nm='' or length(nm)>120 or coalesce(args->>'meal','') not in ('breakfast','lunch','dinner','snack') or coalesce(args->>'unit','') not in ('g','ml','serving')
      or coalesce(amount not between 0.01 and 10000 or kcal not between 0 and 10000, true)
@@ -260,8 +276,13 @@ begin
      or (args ? 'protein' and mfd_mcp.safe_num(args->'protein') is null) or (args ? 'carbs' and mfd_mcp.safe_num(args->'carbs') is null)
      or (args ? 'fat' and mfd_mcp.safe_num(args->'fat') is null) then
    raise exception 'Invalid meal' using errcode='22023'; end if;
-  entry := jsonb_build_object('id',eid,'date',d::text,'name',nm,'meal',slot,'amount',amount,'unit',args->>'unit','cal',kcal,'p',pr,'c',cb,'f',ft)||extras||jsonb_build_object(
-   'labelFood',coalesce(food,jsonb_build_object('id','mcp-'||eid,'name',nm,'basis',amount,'unit',args->>'unit','cal',kcal,'p',pr,'c',cb,'f',ft)||extras));
+  if food is null then
+   food := jsonb_build_object('id','mcp-'||eid,'name',nm,'basis',amount,'unit',args->>'unit','cal',kcal,'p',pr,'c',cb,'f',ft)||extras||details;
+   -- With a barcode: also into My foods, once per barcode (an existing food with that barcode is left as it is).
+   if details ? 'barcode' and not exists(select 1 from jsonb_array_elements(coalesce(doc->'products','[]')) v where v->>'barcode'=details->>'barcode') then
+    product := food; end if;
+  end if;
+  entry := jsonb_build_object('id',eid,'date',d::text,'name',nm,'meal',slot,'amount',amount,'unit',args->>'unit','cal',kcal,'p',pr,'c',cb,'f',ft)||extras||jsonb_build_object('labelFood',food);
  else
   kg := mfd_mcp.safe_num(args->'kg');
   if coalesce(kg not between 20 and 400, true) then raise exception 'Invalid weight (20-400 kg)' using errcode='22023'; end if;
@@ -269,9 +290,10 @@ begin
  end if;
  entry := entry || jsonb_build_object('addedBy',jsonb_strip_nulls(jsonb_build_object('connection',conn,'at',to_char(now() at time zone 'utc','YYYY-MM-DD"T"HH24:MI:SS"Z"'),
   'request',rid,'fp',mfd_mcp.fingerprint(field,entry))));
- update public.forma_workspaces set payload=jsonb_set(payload,array[field],coalesce(payload->field,'[]'::jsonb)||jsonb_build_array(entry)),
+ update public.forma_workspaces set payload=jsonb_set(payload,array[field],coalesce(payload->field,'[]'::jsonb)||jsonb_build_array(entry))
+   ||case when product is not null then jsonb_build_object('products',coalesce(payload->'products','[]'::jsonb)||jsonb_build_array(product)) else '{}'::jsonb end,
   revision=revision+1, updated_at=now() where user_id=u returning revision into rev;
- return jsonb_build_object('id',eid,'revision',rev,'added',entry-'addedBy');
+ return jsonb_build_object('id',eid,'revision',rev,'added',entry-'addedBy')||case when product is not null then jsonb_build_object('saved_to_my_foods',true) else '{}'::jsonb end;
 end $$;
 
 revoke all on function mfd_mcp.analyze(text,jsonb,jsonb), mfd_mcp.add_entry(uuid,text,text,jsonb,date) from public,anon,authenticated;

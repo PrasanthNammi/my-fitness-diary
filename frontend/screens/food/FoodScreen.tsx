@@ -102,6 +102,7 @@ function FoodPicker({ meal, date, onClose, onAdded }: { meal: Meal | null; date:
   const [formOpen, setFormOpen] = useState<{ editing?: Food; barcode?: string } | null>(null);
   const [scanOpen, setScanOpen] = useState(false);
   const [aiOpen, setAiOpen] = useState(false);
+  const [aiBarcode, setAiBarcode] = useState<string | null>(null); // Create with AI after an unknown scan
   const [deleting, setDeleting] = useState<Food | null>(null);
   const open = meal !== null;
   const mealLabel = MEALS.find((m) => m.id === meal)?.label ?? '';
@@ -196,7 +197,7 @@ function FoodPicker({ meal, date, onClose, onAdded }: { meal: Meal | null; date:
         {list.length === 0 ? (
           lookingUp ? null : <div style={{ marginTop: 10 }}>
             {barcodeQuery && lookup?.code === barcodeQuery && tab === 'all' ? (
-              <Empty icon={SearchX} title="No food found for this barcode" action={<div className="empty-actions"><button className="btn btn-secondary btn-sm" onClick={() => setFormOpen({ barcode: barcodeQuery })}>Create food</button><button className="btn btn-secondary btn-sm" onClick={() => setAiOpen(true)}>Create with AI</button></div>}>
+              <Empty icon={SearchX} title="No food found for this barcode" action={<div className="empty-actions"><button className="btn btn-secondary btn-sm" onClick={() => setFormOpen({ barcode: barcodeQuery })}>Create food</button><button className="btn btn-secondary btn-sm" onClick={() => { setAiBarcode(barcodeQuery); setAiOpen(true); }}>Create with AI</button></div>}>
                 Enter it yourself, or let your AI assistant read the label.
               </Empty>
             ) : tab === 'favourites' && !q ? (
@@ -204,7 +205,7 @@ function FoodPicker({ meal, date, onClose, onAdded }: { meal: Meal | null; date:
             ) : tab === 'mine' && !q ? (
               <Empty icon={UtensilsCrossed} title="No custom foods">Create foods from their nutrition labels.</Empty>
             ) : (
-              <Empty icon={SearchX} title="No foods found" action={<div className="empty-actions"><button className="btn btn-secondary btn-sm" onClick={() => setFormOpen({})}>Create food</button><button className="btn btn-secondary btn-sm" onClick={() => setAiOpen(true)}>Create with AI</button></div>}>
+              <Empty icon={SearchX} title="No foods found" action={<div className="empty-actions"><button className="btn btn-secondary btn-sm" onClick={() => setFormOpen({})}>Create food</button><button className="btn btn-secondary btn-sm" onClick={() => { setAiBarcode(null); setAiOpen(true); }}>Create with AI</button></div>}>
                 Try another search or add it yourself.
               </Empty>
             )}
@@ -250,7 +251,7 @@ function FoodPicker({ meal, date, onClose, onAdded }: { meal: Meal | null; date:
           lookupBarcode(code);
         }}
       />
-      <CreateWithAiSheet open={aiOpen} onClose={() => setAiOpen(false)} mealLabel={mealLabel} date={date} />
+      <CreateWithAiSheet open={aiOpen} onClose={() => setAiOpen(false)} mealLabel={mealLabel} date={date} barcode={aiBarcode} />
       <ConfirmSheet open={!!deleting} onClose={() => setDeleting(null)} title={`Delete “${deleting?.name ?? ''}”?`} body="Diary entries already logged keep their values." confirmLabel="Delete" danger onConfirm={() => deleting && (foods.deleteCustom(deleting.id), toast('Food deleted'))} />
     </>
   );

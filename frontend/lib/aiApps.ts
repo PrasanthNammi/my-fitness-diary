@@ -23,9 +23,11 @@ export function aiChatLink(app: AiApp, prompt: string): AppLink {
 /** Message asking the assistant to log a food from photos the user attaches in the chat (a link can carry text
  *  only). It lists the photos needed and has the assistant ask for any that are missing. No barcode: the
  *  connector's log_meal can't store one, and assistants misread barcode digits. */
-export function logFoodPrompt({ meal, date, today }: { meal: string; date: string; today: string }): string {
+/** `barcode`: the pack was scanned in the app but not found; logging it with the barcode saves it to My foods for next time. */
+export function logFoodPrompt({ meal, date, today, barcode }: { meal: string; date: string; today: string; barcode?: string | null }): string {
   const when = date === today ? 'today' : `on ${date}`;
-  return `Using My Fitness Diary, log a food to ${meal} ${when}. I'm attaching photos of: 1) the front of the pack (name and brand), 2) the nutrition table, 3) the ingredients, if there are any. If a photo is missing or hard to read, ask me for it before going on. Read the values per 100 g, ask me how much I ate, and confirm before logging.`;
+  const code = barcode ? ` The pack's barcode is ${barcode}: include it when logging, so the app finds this food when I scan it next time.` : '';
+  return `Using My Fitness Diary, log a food to ${meal} ${when}. I'm attaching photos of: 1) the front of the pack (name and brand), 2) the nutrition table, 3) the ingredients, if there are any. If a photo is missing or hard to read, ask me for it before going on. Read the values per 100 g, including fibre, sugars, saturated fat and salt, ask me how much I ate, and confirm before logging.${code}`;
 }
 
 const CHOICE_KEY = 'mfd.aiApp';
