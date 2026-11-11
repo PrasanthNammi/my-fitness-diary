@@ -78,4 +78,16 @@ jobs:
           node scripts-build-independent.cjs
       - name: Connector tests (network disabled)
         run: npm run test:local
+  android:
+    # The Android app compiles (debug build; release signing keys never leave the owner's machine).
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Build the debug APK
+        run: cd android && ./gradlew --no-daemon assembleDebug
 

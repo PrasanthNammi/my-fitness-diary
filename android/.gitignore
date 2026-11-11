@@ -1,0 +1,12 @@
+.gradle/
+build/
+app/build/
+local.properties
+*.iml
+.idea/
+# Firebase project config: kept out of Git (place a copy in app/ to build).
+app/google-services.json
+# Signing keys and their passwords never go in Git.
+*.jks
+*.keystore
+keystore.properties
