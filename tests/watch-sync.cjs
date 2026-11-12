@@ -24,6 +24,7 @@ const stubs={'../adapters/engine':'export const engine=()=>null','../data/store'
  assert.equal(w.blocks[1].sets[0].p,null,'warm-up has no previous warm-up');
  assert.deepEqual(w.timers.b1,{endsAt:1700000090000,durationSec:90});
  assert.deepEqual(s.library.recent.map(e=>e.id),['bench'],'recently used first');
+ assert.deepEqual(s.library.recent[0].last,{weightKg:77.5,reps:8,timeSec:null,distanceKm:null},'last working set, to pre-fill');
  assert.deepEqual(Object.keys(s.library.muscles).sort(),['Chest','Legs','Shoulders'],'muscles grouped; unknown left out');
  assert.equal(W.snapshot({...db,active:null},lib).workout,null);
  // A huge library stays under the data-item limit.

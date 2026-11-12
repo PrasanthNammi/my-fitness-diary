@@ -49,6 +49,20 @@ class EngineTest {
         w = Engine.apply(w, c("unlogSet", "block" to "b1", "set" to "s2")); assertEquals(false, w.blocks[0].sets[1].done)
     }
 
+    @Test fun exercisesAndSupersets() {
+        var w = Engine.apply(workout(), c("addExercise", "exercise" to "curl", "name" to "Curl", "tracking" to "weight_reps", "newBlock" to "nb1",
+            "newSets" to org.json.JSONArray(listOf("ns1", "ns2")), "sets" to 2, "restSec" to 120))
+        assertEquals(listOf("b1", "b2", "nb1"), w.blocks.map { it.id }); assertEquals(listOf("ns1", "ns2"), w.blocks[2].sets.map { it.id }); assertEquals(120, w.blocks[2].restSec)
+        w = Engine.apply(w, c("addExercise", "exercise" to "curl", "name" to "Curl", "tracking" to "weight_reps", "newBlock" to "nb2", "supersetWith" to "b1", "sets" to 1))
+        assertEquals("nb2", w.blocks[1].id); assertEquals(w.blocks[0].supersetId, w.blocks[1].supersetId)
+        w = Engine.apply(w, c("unsuperset", "block" to "nb2")); assertNull(w.blocks[0].supersetId)
+        w = Engine.apply(w, c("moveExercise", "block" to "b1", "dir" to 1)); assertEquals("b1", w.blocks[1].id)
+        assertSame(w, Engine.apply(w, c("moveExercise", "block" to w.blocks[0].id, "dir" to -1)))
+        w = Engine.apply(w, c("superset", "block" to "b1")); assertEquals(w.blocks[1].supersetId, w.blocks[2].supersetId)
+        w = Engine.apply(w, c("removeExercise", "block" to "b1")); assertEquals(false, w.blocks.any { it.id == "b1" }); assertNull(w.timers["b1"])
+        assertNull(w.blocks.first { it.id == "b2" }.supersetId)
+    }
+
     @Test fun foreignOrMissingChangesNothing() {
         val w = workout()
         assertSame(w, Engine.apply(w, c("logSet", "block" to "b1", "set" to "s1").put("workoutId", "other")))

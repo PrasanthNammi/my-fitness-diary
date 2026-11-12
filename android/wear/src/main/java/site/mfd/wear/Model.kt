@@ -15,7 +15,7 @@ data class Snapshot(
 )
 
 data class Routine(val id: String, val name: String, val folder: String?, val exercises: List<Pair<String, Int>>)
-data class LibExercise(val id: String, val name: String, val muscle: String, val tracking: String)
+data class LibExercise(val id: String, val name: String, val muscle: String, val tracking: String, val last: Values? = null)
 data class Values(val weightKg: Double?, val reps: Int?, val timeSec: Int?, val distanceKm: Double?) {
     companion object { val EMPTY = Values(null, null, null, null) }
 }
@@ -35,7 +35,7 @@ object Parse {
         if (this == null) emptyList() else (0 until length()).mapNotNull { i -> optJSONObject(i)?.let(f) }
 
     private fun values(o: JSONObject?) = if (o == null) Values.EMPTY else Values(o.dbl("weightKg"), o.int("reps"), o.int("timeSec"), o.dbl("distanceKm"))
-    private fun lib(o: JSONObject) = LibExercise(o.optString("id"), o.optString("name"), o.optString("muscle"), o.optString("tracking"))
+    private fun lib(o: JSONObject) = LibExercise(o.optString("id"), o.optString("name"), o.optString("muscle"), o.optString("tracking"), o.optJSONObject("last")?.let { values(it) })
 
     fun snapshot(o: JSONObject): Snapshot {
         val units = o.optJSONObject("units")

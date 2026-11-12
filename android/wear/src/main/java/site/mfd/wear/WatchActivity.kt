@@ -40,6 +40,17 @@ fun afterLog(nav: androidx.navigation.NavHostController, w: Workout, b: Block) {
     if (b.restSec > 0) nav.navigate("rest/${b.id}")
 }
 
+/** Adds a picked exercise (3 sets; into a superset when chosen from one) and opens it. */
+fun addExercise(nav: androidx.navigation.NavHostController, e: LibExercise, into: String?, send: (String, Map<String, Any?>) -> Unit) {
+    val w = Optimistic.view(WatchStore.snapshot.value, WatchStore.outbox).workout ?: return
+    val id = newId()
+    send("addExercise", mapOf("workoutId" to w.id, "exercise" to e.id, "name" to e.name, "tracking" to e.tracking, "newBlock" to id,
+        "newSets" to org.json.JSONArray(List(3) { newId() }), "sets" to 3, "restSec" to (WatchStore.snapshot.value?.defaultRestSec ?: 90),
+        "step" to if (Regex("barbell|smith|machine|cable|ez", RegexOption.IGNORE_CASE).containsMatchIn(e.name)) 2.5 else 1.0, "supersetWith" to into,
+        "last" to e.last?.let { v -> org.json.JSONObject().put("weightKg", v.weightKg).put("reps", v.reps).put("timeSec", v.timeSec).put("distanceKm", v.distanceKm) }))
+    nav.navigate("exercise/$id") { popUpTo("overview") }
+}
+
 /** MFD on the Galaxy Watch. Screens follow the Lovable /watch design; data comes from the phone (WatchStore). */
 class WatchActivity : ComponentActivity() {
     private val listener = DataClient.OnDataChangedListener { events ->
@@ -100,7 +111,27 @@ class WatchActivity : ComponentActivity() {
                         val r = snapshot?.routines?.firstOrNull { it.id == entry.arguments?.getString("id") }
                         if (r != null) RoutineScreen(r, startDisabled = view.workout != null || view.starting != null) { send("startRoutine", mapOf("routine" to r.id)) }
                     }
-                    composable("overview") { view.workout?.let { w -> OverviewScreen(w) { b -> nav.navigate("exercise/${b.id}") } } }
+                    composable("overview") { view.workout?.let { w -> OverviewScreen(w, onExercise = { b -> nav.navigate("exercise/${b.id}") }, onAdd = { nav.navigate("add/-") }, onFinish = { nav.navigate("finish") }) } }
+                    composable("add/{into}") { entry ->
+                        val into = entry.arguments?.getString("into")?.takeIf { it != "-" }
+                        snapshot?.let { s -> AddExerciseScreen(s, onMuscle = { m -> nav.navigate("muscle/${into ?: "-"}/$m") }, onPick = { e -> addExercise(nav, e, into) { t, f -> send(t, f) } }) }
+                    }
+                    composable("muscle/{into}/{name}") { entry ->
+                        val into = entry.arguments?.getString("into")?.takeIf { it != "-" }
+                        val name = entry.arguments?.getString("name") ?: ""
+                        MuscleScreen(name, snapshot?.muscles?.get(name).orEmpty()) { e -> addExercise(nav, e, into) { t, f -> send(t, f) } }
+                    }
+                    composable("finish") {
+                        view.workout?.let { w -> FinishScreen(w, units, null to null, onSave = { send("finish", mapOf("workoutId" to w.id)); nav.popBackStack("home", false) }, onDiscard = { nav.navigate("discard") }) }
+                    }
+                    composable("discard") {
+                        view.workout?.let { w -> ConfirmScreen("Discard workout?", "Nothing from it is saved.", "Discard", onYes = { send("discard", mapOf("workoutId" to w.id)); nav.popBackStack("home", false) }, onNo = { nav.popBackStack() }) }
+                    }
+                    composable("remove/{block}") { entry ->
+                        val w = view.workout; val b = w?.blocks?.firstOrNull { it.id == entry.arguments?.getString("block") }
+                        if (w != null && b != null) ConfirmScreen("Remove ${b.name}?", "Its logged sets are removed too.", "Remove",
+                            onYes = { send("removeExercise", mapOf("workoutId" to w.id, "block" to b.id)); nav.popBackStack("overview", false) }, onNo = { nav.popBackStack() })
+                    }
                     composable("exercise/{id}") { entry ->
                         val w = view.workout
                         val b = w?.blocks?.firstOrNull { it.id == entry.arguments?.getString("id") }
@@ -114,7 +145,13 @@ class WatchActivity : ComponentActivity() {
                             onLogged = { logged -> afterLog(nav, w, logged) },
                         )
                     }
-                    composable("actions/{block}") { ComingNext("Exercise actions") }
+                    composable("actions/{block}") { entry ->
+                        val w = view.workout; val b = w?.blocks?.firstOrNull { it.id == entry.arguments?.getString("block") }
+                        if (w != null && b != null) ActionsScreen(w, b,
+                            onCommand = { type, fields -> send(type, fields + ("workoutId" to w.id)); if (type == "moveExercise" || type.contains("superset")) nav.popBackStack("overview", false) },
+                            onAddExercise = { nav.navigate("add/${if (b.supersetId != null) b.id else "-"}") },
+                            onRemove = { nav.navigate("remove/${b.id}") })
+                    }
                     composable("settype/{block}/{set}") { entry ->
                         val w = view.workout
                         val b = w?.blocks?.firstOrNull { it.id == entry.arguments?.getString("block") }

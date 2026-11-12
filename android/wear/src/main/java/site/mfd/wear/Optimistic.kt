@@ -3,7 +3,7 @@ package site.mfd.wear
 import org.json.JSONObject
 
 /** What the screens show: the phone's snapshot plus watch actions the phone hasn't applied yet. */
-data class View(val workout: Workout?, val starting: String?)
+data class View(val workout: Workout?, val starting: String?, val ended: String? = null)
 
 object Optimistic {
     fun view(s: Snapshot?, outbox: List<JSONObject>): View {
@@ -13,6 +13,10 @@ object Optimistic {
         val start = outbox.lastOrNull { it.optString("type").startsWith("start") }
         val starting = if (workout == null && start != null)
             s?.routines?.firstOrNull { it.id == start.optString("routine") }?.name ?: "workout" else null
-        return View(workout, starting)
+        // Finished or discarded here and not applied yet: the workout is over on the watch already.
+        val end = workout?.let { w -> outbox.lastOrNull { (it.optString("type") == "finish" || it.optString("type") == "discard") && it.optString("workoutId") == w.id && it.optString("id") !in s.applied } }
+        if (end != null) return View(null, null, if (end.optString("type") == "finish") "Workout saved" else "Workout discarded")
+        val ended = outbox.lastOrNull { it.optString("type") == "finish" && it.optString("id") !in (s?.applied ?: emptySet()) }?.let { "Workout saved" }
+        return View(workout, starting, ended)
     }
 }
