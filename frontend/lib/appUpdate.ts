@@ -1,9 +1,8 @@
 // New versions of the MFD Android app. The app is shared as an APK (no Play Store), so it can't update itself:
 // the website lists the newest version in /android/latest.json, and the app (its user agent says
-// "MFDAndroid/<version>") shows where to download it. Everything else in the app comes from the website and is
+// "MFDAndroid/<version>") offers it in a banner (components/AppUpdateBanner.tsx). Everything else in the app comes from the website and is
 // always current; only the shell (notifications, sign-in hand-off) needs a new APK.
-import { useEffect, useState } from 'react';
-import { toast } from '../components/ui';
+import { ask } from './native';
 
 export type AppUpdate = { version: string; url: string };
 
@@ -29,6 +28,7 @@ export function parseLatest(v: unknown, installed: string): AppUpdate | null {
 }
 
 let checked: Promise<AppUpdate | null> | null = null;
+/** Apps before 1.3: the website's /android/latest.json names the newest APK, downloaded in a browser tab. */
 export function checkAppUpdate(): Promise<AppUpdate | null> {
   const installed = appVersion();
   if (!installed) return Promise.resolve(null);
@@ -37,17 +37,21 @@ export function checkAppUpdate(): Promise<AppUpdate | null> {
   return checked;
 }
 
-const SEEN_KEY = 'mfd-app-update-seen';
-/** Once per new version: a short message on opening MFD. The download itself is in Settings. */
-export async function announceAppUpdate() {
-  const update = await checkAppUpdate();
-  if (!update) return;
-  try { if (localStorage.getItem(SEEN_KEY) === update.version) return; localStorage.setItem(SEEN_KEY, update.version); } catch { /* shown again next time */ }
-  toast(`MFD app ${update.version} is available: see Settings`);
-}
+/** From this version the app updates itself (download, checks and Android's installer: Updater.kt). */
+export const SELF_UPDATING = '1.3';
+export const selfUpdating = (installed: string) => !newer(SELF_UPDATING, installed);
 
-export function useAppUpdate() {
-  const [update, setUpdate] = useState<AppUpdate | null>(null);
-  useEffect(() => { let live = true; void checkAppUpdate().then((u) => { if (live) setUpdate(u); }); return () => { live = false; }; }, []);
-  return update;
+export type FoundUpdate = { version: string; native: boolean; url?: string };
+/** A newer version of the installed app, or null (also outside the app). */
+export async function findAppUpdate(): Promise<FoundUpdate | null> {
+  const installed = appVersion();
+  if (!installed) return null;
+  if (selfUpdating(installed)) {
+    try {
+      const r = await ask<{ available?: boolean; version?: string | null }>('appUpdateCheck', {}, 30_000);
+      return r.available && typeof r.version === 'string' ? { version: r.version, native: true } : null;
+    } catch { return null; }
+  }
+  const u = await checkAppUpdate();
+  return u ? { version: u.version, native: false, url: u.url } : null;
 }

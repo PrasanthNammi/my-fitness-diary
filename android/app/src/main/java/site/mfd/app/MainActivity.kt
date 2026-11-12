@@ -99,7 +99,8 @@ class MainActivity : ComponentActivity() {
             isAppearanceLightNavigationBars = !dark
         }
 
-        WebView.setWebContentsDebuggingEnabled(BuildConfig.DEBUG)
+        WebView.setWebContentsDebuggingEnabled(BuildConfig.DEBUG || BuildConfig.WEB_DEBUG)
+        java.io.File(cacheDir, "update.apk").delete() // left by an update that was interrupted
         web.settings.apply {
             javaScriptEnabled = true
             domStorageEnabled = true
@@ -183,6 +184,23 @@ class MainActivity : ComponentActivity() {
             }
             "restOver" -> Notify.restOver(this, m.optString("id").takeIf { REST_ID.matches(it) } ?: return, m.optString("label").take(80))
             "restClear" -> Notify.clearRest(this, m.optBoolean("all"))
+            "appUpdateCheck" -> Thread {
+                val info = try { Updater.check() } catch (e: Exception) { null }
+                runOnUiThread { answer(JSONObject().put("available", info != null).put("version", info?.version ?: JSONObject.NULL)) }
+            }.start()
+            "appUpdateInstall" -> {
+                val info = Updater.latest ?: return answer(JSONObject().put("started", false))
+                answer(JSONObject().put("started", true))
+                Updater.install(applicationContext, info) { e ->
+                    runOnUiThread {
+                        if (e.optString("state") == "needsPermission") {
+                            // Android's "Allow from this source" switch for MFD; then the person taps Update again.
+                            try { startActivity(Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES, Uri.parse("package:$packageName"))) } catch (x: ActivityNotFoundException) {}
+                        }
+                        try { reply.postMessage(e.put("event", "appUpdate").toString()) } catch (x: Exception) {}
+                    }
+                }
+            }
             "save" -> {
                 val name = m.optString("name").takeIf { SAVE_NAME.matches(it) } ?: return
                 pendingSave = Triple(m.optString("text"), id, reply)

@@ -17,5 +17,6 @@ assert.equal(U.parseLatest({version:'1.2',url:'https://x.example/a'},'1.2'),null
 assert.equal(U.parseLatest({version:'1.1',url:'https://x.example/a'},'1.2'),null,'older');
 for(const bad of [null,'1.3',{version:'1.3'},{version:'v1.3',url:'https://x.example'},{version:'1.3',url:'http://x.example/a'},{version:'1.3',url:'javascript:alert(1)'},{version:'1.3',url:42}])
  assert.equal(U.parseLatest(bad,'1.2'),null,JSON.stringify(bad));
-console.log('PASS app updates: version from the app, numeric comparison, only newer https downloads offered');
+assert.ok(U.selfUpdating('1.3'));assert.ok(U.selfUpdating('1.10'));assert.ok(U.selfUpdating('2'));assert.ok(!U.selfUpdating('1.2'));assert.ok(!U.selfUpdating('1.0'));
+console.log('PASS app updates: version from the app, numeric comparison, only newer https downloads offered; apps from 1.3 update themselves');
 })().catch(e=>{console.error(e);process.exit(1)});

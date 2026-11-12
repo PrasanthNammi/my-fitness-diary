@@ -20,6 +20,7 @@ object Notify {
     private const val CH_REST_OVER = "rest_over"
     private const val CH_FRIENDS = "friends"
     private const val CH_AI = "ai"
+    private const val CH_APP = "app"
 
     /** The rest on the notification, so its buttons work even when MFD isn't running. */
     data class Rest(val id: String, val label: String, val ends: Long, val over: Boolean)
@@ -51,6 +52,9 @@ object Notify {
             },
             NotificationChannel(CH_AI, "AI assistants", NotificationManager.IMPORTANCE_DEFAULT).apply {
                 description = "When ChatGPT or Claude adds something to your diary"
+            },
+            NotificationChannel(CH_APP, "App updates", NotificationManager.IMPORTANCE_DEFAULT).apply {
+                description = "When the app has been updated"
             },
         ))
     }
@@ -120,6 +124,17 @@ object Notify {
     fun cancel(ctx: Context) {
         remember(ctx, null)
         NotificationManagerCompat.from(ctx).cancel(REST_TAG, 1)
+    }
+
+    /** Android closes the app while updating it: one tap opens the new version. */
+    fun updated(ctx: Context, version: String) {
+        post(ctx, "updated", NotificationCompat.Builder(ctx, CH_APP)
+            .setSmallIcon(R.drawable.ic_notification)
+            .setContentTitle("My Fitness Diary updated")
+            .setContentText("Version $version is ready. Tap to open.")
+            .setAutoCancel(true)
+            .setTimeoutAfter(10 * 60_000L)
+            .setContentIntent(open(ctx, null)))
     }
 
     /** A message from the push service (the same fields the website's service worker gets). */

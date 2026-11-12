@@ -50,8 +50,32 @@ The WebView has no Web Push, so the app uses Firebase Cloud Messaging:
 - Messages are data-only; the app builds every notification (`Notify.kt`). The rest countdown is the app's own
   (Android keeps it ticking on the lock screen); the server sends "Rest over" while MFD is in the background.
 
-## New versions
+## New versions (the app updates itself)
 
-`/android/latest.json` on the website (`public/android/latest.json`) names the newest APK:
-`{"version": "1.3", "url": "https://…"}`. The app's user agent carries its version (`MFDAndroid/1.2`), and an older app
-shows "Update the MFD app" at the top of Settings, plus a one-time message on opening.
+From 1.3 the app updates itself from MFD's download site, `https://mfd-downloads.shanustylish777.workers.dev` (a
+static-files Worker). A banner ("New version of the MFD app · Update") appears when
+`/android/latest.json` there names a newer version; Update downloads it in the app, which installs it only if:
+
+- it came from that fixed HTTPS address (no redirects; the file path must be `/android/<name>.apk`);
+- its size and SHA-256 match `latest.json`;
+- it is `site.mfd.app` with exactly the announced, higher `versionCode`;
+- it is signed with the app's own key (and Android itself refuses any other key).
+
+Android then asks "Update this app?" (and the first time, to allow installs from MFD). The banner waits until no
+workout is running and nothing is half-edited, as the web update does. After the update, a notification opens the
+new version. Tested against tampered downloads, another key, a wrong version, other hosts and downgrades.
+
+To publish a version:
+
+```sh
+cd android && ./gradlew assembleRelease            # versionCode raised first
+cd .. && node scripts-publish-android.cjs android/app/build/outputs/apk/release/app-release.apk
+cd hosting && npx wrangler deploy --config ../.sites-runtime/downloads/wrangler.json
+```
+
+The script refuses an APK that isn't MFD, isn't signed with the release key, or isn't newer than the published one.
+Add `--staging` (and build with `-PmfdDownloads=https://mfd-downloads-staging.shanustylish777.workers.dev
+-PmfdWebDebug=true`) to try it first.
+
+Apps before 1.3 can't update themselves: the website's `public/android/latest.json` names the newest APK, and their
+banner opens it in a browser tab to download and install once.
