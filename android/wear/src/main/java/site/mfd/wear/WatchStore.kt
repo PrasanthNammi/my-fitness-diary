@@ -29,6 +29,10 @@ object WatchStore {
     fun load(ctx: Context) {
         if (loaded) return
         loaded = true
+        // The last snapshot, so tiles, complications and a cold start show data before the phone answers.
+        ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getString("snapshot", null)?.let { json ->
+            Sync.state(json)?.let { snapshot.value = Parse.snapshot(it) }
+        }
         val saved = ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getString("outbox", "[]")
         try { val a = JSONArray(saved); for (i in 0 until a.length()) a.optJSONObject(i)?.let(outbox::add) } catch (e: Exception) {}
     }
@@ -40,7 +44,9 @@ object WatchStore {
         val o = Sync.state(json) ?: return
         val s = Parse.snapshot(o)
         snapshot.value = s
+        ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit { putString("snapshot", json) }
         if (outbox.removeAll { it.optString("id") in s.applied }) save(ctx)
+        Glance.refresh(ctx)
     }
 
     suspend fun refresh(ctx: Context) {

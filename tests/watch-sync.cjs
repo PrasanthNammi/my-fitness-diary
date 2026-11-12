@@ -33,6 +33,10 @@ const stubs={'../adapters/engine':'export const engine=()=>null','../data/store'
  assert.equal(W.snapshot({...db,active:null},lib).workout,null);
  assert.deepEqual([s.today.date,s.today.kcalEaten,s.today.protein,s.today.waterMl,s.today.waterGoalMl,s.today.lastWeight.kg],[today,1200,60,750,2500,79.5]);
  assert.deepEqual(s.today.checkin,{energy:4,soreness:2,sleep:7,steps:null});
+ assert.deepEqual(s.today.nextRoutine,{id:'r2',name:'Legs'},'the routine after the last one done');
+ const R=[{id:'a',name:'A'},{id:'b',name:'B'},{id:'c',name:'C'}],done=(id,t)=>({routineId:id,endedAt:t});
+ assert.deepEqual(W.nextRoutine({routines:R,workouts:[]}),{id:'a',name:'A'});assert.deepEqual(W.nextRoutine({routines:R,workouts:[done('c',9),done('a',5)]}),{id:'a',name:'A'},'wraps round');
+ assert.deepEqual(W.nextRoutine({routines:R,workouts:[done('gone',9)]}),{id:'a',name:'A'},'a deleted routine starts from the first');assert.equal(W.nextRoutine({routines:[],workouts:[]}),null);
  assert.deepEqual(s.foods.map(f=>[f.ref,f.from,f.amount,f.kcalPerUnit]),[['e2','entry',2,400]],'latest entry per food; a favourite already listed is not repeated');
  // A huge library stays under the data-item limit.
  const many={...db,active:null,routines:Array.from({length:150},(_,i)=>({id:'r'+i,name:'Routine '+i,folderId:null,exercises:Array.from({length:12},()=>({exerciseId:'some-long-exercise-id-'+i,sets:[set(),set(),set(),set()]}))}))};
