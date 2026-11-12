@@ -77,11 +77,22 @@ class WatchActivity : ComponentActivity() {
             DataMapItem.fromDataItem(e.dataItem).dataMap.getString(Sync.KEY_JSON)?.let { WatchStore.receive(this, it) }
     }
 
+    /** From the Quick start tile: the routine to open. */
+    private val openRoutine = androidx.compose.runtime.mutableStateOf<String?>(null)
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         WatchStore.load(this)
+        openRoutine.value = intent?.getStringExtra(EXTRA_ROUTINE)
         setContent { App() }
     }
+
+    override fun onNewIntent(intent: android.content.Intent) {
+        super.onNewIntent(intent)
+        intent.getStringExtra(EXTRA_ROUTINE)?.let { openRoutine.value = it }
+    }
+
+    companion object { const val EXTRA_ROUTINE = "routine" }
 
     override fun onResume() {
         super.onResume()
@@ -119,6 +130,9 @@ class WatchActivity : ComponentActivity() {
             if (workoutId != null && route != "overview" && route?.startsWith("exercise") != true) nav.navigate("overview") { popUpTo("home") }
             if (workoutId == null && (route == "overview" || route?.startsWith("exercise") == true)) nav.popBackStack("home", false)
         }
+
+        val routineToOpen = openRoutine.value
+        LaunchedEffect(routineToOpen) { if (routineToOpen != null && view.workout == null) { nav.navigate("routine/$routineToOpen"); openRoutine.value = null } }
 
         MaterialTheme {
             AppScaffold(timeText = { TimeText() }) {

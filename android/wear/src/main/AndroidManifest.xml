@@ -35,6 +35,57 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+        <!-- Phone snapshots while MFD isn't open (tiles and complications stay current). -->
+        <service
+            android:name=".SnapshotListener"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="com.google.android.gms.wearable.DATA_CHANGED" />
+                <data android:scheme="wear" android:host="*" android:path="/mfd/state" />
+            </intent-filter>
+        </service>
+        <service
+            android:name=".TodayTile"
+            android:exported="true"
+            android:label="MFD Today"
+            android:permission="com.google.android.wearable.permission.BIND_TILE_PROVIDER">
+            <intent-filter>
+                <action android:name="androidx.wear.tiles.action.BIND_TILE_PROVIDER" />
+            </intent-filter>
+        </service>
+        <service
+            android:name=".QuickStartTile"
+            android:exported="true"
+            android:label="MFD Quick start"
+            android:permission="com.google.android.wearable.permission.BIND_TILE_PROVIDER">
+            <intent-filter>
+                <action android:name="androidx.wear.tiles.action.BIND_TILE_PROVIDER" />
+            </intent-filter>
+        </service>
+        <service
+            android:name=".KcalComplication"
+            android:exported="true"
+            android:icon="@mipmap/ic_launcher"
+            android:label="MFD calories left"
+            android:permission="com.google.android.wearable.permission.BIND_COMPLICATION_PROVIDER">
+            <intent-filter>
+                <action android:name="android.support.wearable.complications.ACTION_COMPLICATION_UPDATE_REQUEST" />
+            </intent-filter>
+            <meta-data android:name="android.support.wearable.complications.SUPPORTED_TYPES" android:value="SHORT_TEXT,RANGED_VALUE" />
+            <meta-data android:name="android.support.wearable.complications.UPDATE_PERIOD_SECONDS" android:value="1800" />
+        </service>
+        <service
+            android:name=".WorkoutsComplication"
+            android:exported="true"
+            android:icon="@mipmap/ic_launcher"
+            android:label="MFD workouts this week"
+            android:permission="com.google.android.wearable.permission.BIND_COMPLICATION_PROVIDER">
+            <intent-filter>
+                <action android:name="android.support.wearable.complications.ACTION_COMPLICATION_UPDATE_REQUEST" />
+            </intent-filter>
+            <meta-data android:name="android.support.wearable.complications.SUPPORTED_TYPES" android:value="SHORT_TEXT" />
+            <meta-data android:name="android.support.wearable.complications.UPDATE_PERIOD_SECONDS" android:value="1800" />
+        </service>
         <service
             android:name=".WorkoutService"
             android:exported="false"

@@ -50,6 +50,8 @@ export type Snapshot = {
     waterMl: number; waterGoalMl: number; lastWeight: { kg: number; date: string } | null;
     checkin: { energy: number | null; soreness: number | null; sleep: number | null; steps: number | null } | null;
     workoutsThisWeek: number;
+    /** For the Quick start tile: the routine after the last one done (in list order), else the first. */
+    nextRoutine: { id: string; name: string } | null;
   };
   /** Foods to log again without typing: recent entries and favourites, with energy and protein per unit. */
   foods: WatchFood[];
@@ -66,6 +68,15 @@ export const muscleGroup = (m: string) => MUSCLES.find(([, r]) => r.test(m))?.[0
 export const weightStep = (ex: Exercise | undefined) => (ex && /barbell|smith|ez|trap bar|machine|cable|leverage|sled/i.test(ex.equipment + ' ' + ex.name) ? 2.5 : 1);
 const fields = (s: Partial<SetEntry> | undefined | null): Values => ({ weightKg: s?.weightKg ?? null, reps: s?.reps ?? null, timeSec: s?.timeSec ?? null, distanceKm: s?.distanceKm ?? null });
 
+
+/** The routine after the last one done (list order, wrapping round); the first when none was done yet. */
+export function nextRoutine(d: Pick<DB, 'routines' | 'workouts'>): { id: string; name: string } | null {
+  if (!d.routines.length) return null;
+  const last = [...d.workouts].filter((w) => w.routineId).sort((x, y) => y.endedAt - x.endedAt)[0];
+  const i = last ? d.routines.findIndex((r) => r.id === last.routineId) : -1;
+  const r = d.routines[(i + 1) % d.routines.length]!;
+  return { id: r.id, name: r.name };
+}
 
 /** What the watch needs, kept small (a data item is limited to 100 KB). */
 export function snapshot(d: DB, lib: Library, applied: string[] = []): Snapshot {
@@ -108,7 +119,7 @@ export function snapshot(d: DB, lib: Library, applied: string[] = []): Snapshot 
       timers: Object.fromEntries(Object.entries(a.timers).map(([k, t]) => [k, { endsAt: t.endsAt, durationSec: t.durationSec }])),
     } : null,
     library: { recent, muscles },
-    today: { date: '', kcalTarget: null, kcalEaten: 0, protein: 0, proteinTarget: null, waterMl: 0, waterGoalMl: 2500, lastWeight: null, checkin: null, workoutsThisWeek: 0 },
+    today: { date: '', kcalTarget: null, kcalEaten: 0, protein: 0, proteinTarget: null, waterMl: 0, waterGoalMl: 2500, lastWeight: null, checkin: null, workoutsThisWeek: 0, nextRoutine: null },
     foods: [],
   };
   const today = toISODate(new Date());
@@ -122,6 +133,7 @@ export function snapshot(d: DB, lib: Library, applied: string[] = []): Snapshot 
     waterMl: d.water[today] ?? 0, waterGoalMl: d.profile?.waterGoalMl ?? 2500, lastWeight: lastWeight ? { kg: lastWeight.kg, date: lastWeight.date } : null,
     checkin: check ? { energy: checkinNumber(check.energy), soreness: checkinNumber(check.soreness), sleep: checkinNumber(check.sleep), steps: checkinNumber(check.steps) } : null,
     workoutsThisWeek: d.workouts.filter((w) => toISODate(new Date(w.startedAt)) >= weekStart).length,
+    nextRoutine: nextRoutine(d),
   };
   const food = (f: Food, ref: string, from: WatchFood['from'], amount: number, unit: PortionUnit): WatchFood => {
     const one = nutrientsFor(f, 1, unit);
