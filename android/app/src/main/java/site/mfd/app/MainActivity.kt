@@ -186,7 +186,7 @@ class MainActivity : ComponentActivity() {
         val id = m.optInt("id", 0)
         fun answer(o: JSONObject) { if (id != 0) reply.postMessage(o.put("id", id).toString()) }
         when (m.optString("op")) {
-            "hello" -> page = reply
+            "hello" -> { page = reply; alive = this }
             "notifications" -> answer(JSONObject().put("granted", notificationsOn()).put("blocked", notificationsBlocked()).put("push", pushAvailable()))
             "enable" -> enable(id, reply)
             "token" -> token { answer(JSONObject().put("token", it ?: JSONObject.NULL)) }
@@ -340,7 +340,7 @@ class MainActivity : ComponentActivity() {
         CookieManager.getInstance().flush() // the rest buttons use the session cookie even if MFD is closed
         super.onPause()
     }
-    override fun onDestroy() { if (onScreen === this) onScreen = null; page = null; super.onDestroy() }
+    override fun onDestroy() { if (onScreen === this) onScreen = null; if (alive === this) alive = null; page = null; super.onDestroy() }
     private var page: JavaScriptReplyProxy? = null
 
     private fun isOwnSite(uri: Uri?): Boolean = uri?.scheme == "https" && uri.host == SITE_HOST
@@ -380,6 +380,14 @@ class MainActivity : ComponentActivity() {
         fun isAppPath(path: String) = APP_PATH.matches(path)
 
         private var onScreen: MainActivity? = null
+        /** The open MFD window, on screen or in the background (its page still runs). */
+        private var alive: MainActivity? = null
+
+        /** To the page while MFD is open at all (also in the background); false when it isn't running. */
+        fun sendToOpenPage(event: JSONObject): Boolean {
+            val page = alive?.page ?: return false
+            return try { page.postMessage(event.toString()); true } catch (e: Exception) { false }
+        }
 
         /** To the page, only while MFD is on screen; false otherwise (the caller then acts without it). */
         fun sendToPage(event: JSONObject): Boolean {

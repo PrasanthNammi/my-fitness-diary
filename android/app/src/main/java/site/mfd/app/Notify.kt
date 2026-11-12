@@ -126,6 +126,16 @@ object Notify {
         NotificationManagerCompat.from(ctx).cancel(REST_TAG, 1)
     }
 
+    /** A workout started on the watch while MFD wasn't running: one tap opens it on the phone too. */
+    fun watchWorkout(ctx: Context) {
+        post(ctx, "watch", NotificationCompat.Builder(ctx, CH_APP)
+            .setSmallIcon(R.drawable.ic_notification)
+            .setContentTitle("Workout started on your watch")
+            .setContentText("Tap to open it in MFD")
+            .setAutoCancel(true)
+            .setContentIntent(open(ctx, "/#/workout")))
+    }
+
     /** Android closes the app while updating it: one tap opens the new version. */
     fun updated(ctx: Context, version: String) {
         post(ctx, "updated", NotificationCompat.Builder(ctx, CH_APP)

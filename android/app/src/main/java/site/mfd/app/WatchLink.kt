@@ -62,6 +62,9 @@ class WatchListener : WearableListenerService() {
         if (event.path != Sync.COMMAND) return
         val command = Sync.command(event.data) ?: return
         WatchLink.enqueue(this, command)
-        MainActivity.sendToPage(JSONObject().put("event", "watchPending"))
+        // MFD open (even in the background): its page takes the command now. Not running: it waits in the queue;
+        // a workout started on the watch also gets a notification that opens MFD.
+        if (!MainActivity.sendToOpenPage(JSONObject().put("event", "watchPending")) && command.optString("type").startsWith("start"))
+            Notify.watchWorkout(this)
     }
 }
