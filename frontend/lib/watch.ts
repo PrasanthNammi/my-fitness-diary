@@ -6,6 +6,7 @@ import { exercises, workouts } from '../data/repositories';
 import type { Exercise, SetEntry, SetType, TrackingMode } from '../domain/types';
 import { findPrevious, ordinalWithinType } from '../domain/training';
 import { applyWorkoutCommand, WORKOUT_COMMANDS } from '../domain/watchCommands';
+import { heartSeries } from '../domain/heartRate';
 import { uid } from './format';
 import { toast } from '../components/ui';
 import { appVersion, newer } from './appUpdate';
@@ -138,6 +139,12 @@ function handle(c: WatchCommand) {
   } else if (c.type === 'finish' && d.active?.id === c.workoutId) {
     if (workouts.finish()) toast('Workout saved from your watch');
   } else if (c.type === 'discard' && d.active?.id === c.workoutId) workouts.discard();
+  else if (c.type === 'heartRate') {
+    // Sent right after "finish": attaches to that saved workout (never replaces readings already there).
+    const hr = heartSeries(c.series, 'watch');
+    const w = d.workouts.find((x) => x.id === c.workoutId);
+    if (hr && w && !w.heartRate) workouts.updateWorkout({ ...w, heartRate: hr });
+  }
   else if ((WORKOUT_COMMANDS as readonly string[]).includes(c.type)) {
     workouts.mutate((a) => void applyWorkoutCommand(a, c, { history: d.workouts, now: Date.now(), newId: uid, exercise: (id) => exercises.byId(id) ?? null, defaultRestSec: d.settings.defaultRestSec }));
   }

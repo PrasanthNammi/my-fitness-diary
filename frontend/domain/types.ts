@@ -142,6 +142,17 @@ export interface Workout {
   endedAt: number;
   exercises: ExerciseBlock[];
   addedBy?: AddedBy;
+  /** Heart rate during the workout (from the MFD watch app or Health Connect). */
+  heartRate?: HeartRateSeries;
+}
+
+/** Heart rate as evenly spaced averages: `bpm[i]` covers seconds i×interval to (i+1)×interval from the start (0 = no reading). */
+export interface HeartRateSeries {
+  interval: number;
+  bpm: number[];
+  avg: number;
+  max: number;
+  source: 'watch' | 'health';
 }
 
 // ── Nutrition ─────────────────────────────────────────────────────

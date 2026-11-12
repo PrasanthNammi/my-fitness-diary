@@ -4,6 +4,15 @@
     <uses-feature android:name="android.hardware.type.watch" />
     <!-- Rest over: the watch buzzes. -->
     <uses-permission android:name="android.permission.VIBRATE" />
+    <!-- The workout session (WorkoutService): heart rate during workouts (Android 16+ asks for the health permission,
+         older watches for body sensors), kept running with the screen off and shown as an ongoing activity. -->
+    <uses-permission android:name="android.permission.health.READ_HEART_RATE" />
+    <uses-permission android:name="android.permission.BODY_SENSORS" android:maxSdkVersion="35" />
+    <uses-permission android:name="android.permission.ACTIVITY_RECOGNITION" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_HEALTH" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
 
     <application
         android:allowBackup="false"
@@ -26,5 +35,9 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+        <service
+            android:name=".WorkoutService"
+            android:exported="false"
+            android:foregroundServiceType="health" />
     </application>
 </manifest>
