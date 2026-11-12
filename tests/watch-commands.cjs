@@ -35,6 +35,9 @@ assert.ok(!ok(a,C('setType',{block:'b1',set:'s3',setType:'mega'})));
 // addSet copies the last set's values as faded targets; removeSet keeps at least one.
 assert.ok(ok(a,C('addSet',{block:'b1'})));const added=a.exercises[0].sets.at(-1);assert.deepEqual([added.type,added.done,added.weightKg,added.suggested.weightKg,added.suggested.reps],['normal',false,null,80,8]);
 assert.ok(ok(a,C('removeSet',{block:'b1',set:added.id})));assert.equal(a.exercises[0].sets.length,3);
+assert.ok(ok(a,C('addSet',{block:'b1',newSet:'watch-abc12345'})));assert.equal(a.exercises[0].sets.at(-1).id,'watch-abc12345','the watch names the new set');
+assert.ok(ok(a,C('addSet',{block:'b1',newSet:'watch-abc12345'})));assert.notEqual(a.exercises[0].sets.at(-1).id,'watch-abc12345','an id already used gets a fresh one');
+a.exercises[0].sets.splice(3);
 assert.ok(!ok(a,C('removeSet',{block:'b2',set:'t1'})),'last set stays');
 // Rest ±15 s and skip.
 a.timers.b1={durationSec:90,endsAt:ctx.now+30000,pausedRemainingSec:null};
