@@ -7,6 +7,9 @@
     <uses-feature android:name="android.hardware.camera" android:required="false" />
     <!-- Rest timer, friends and AI notifications (Android 13+ asks when they are turned on in Settings). -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- Updating itself from MFD's download site (Android asks the person to allow it once, and to confirm each
+         update). -->
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
 
     <!-- ChatGPT and Claude links open in their apps when installed (Android 11+ package visibility). -->
     <queries>
@@ -61,6 +64,17 @@
         <receiver
             android:name=".RestActionReceiver"
             android:exported="false" />
+        <!-- App updates: Android's answers about the install session, and "updated" afterwards. -->
+        <receiver
+            android:name=".InstallStatusReceiver"
+            android:exported="false" />
+        <receiver
+            android:name=".UpdatedReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+            </intent-filter>
+        </receiver>
         <meta-data
             android:name="com.google.firebase.messaging.default_notification_icon"
             android:resource="@drawable/ic_notification" />

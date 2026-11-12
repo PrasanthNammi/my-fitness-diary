@@ -22,8 +22,15 @@ android {
         applicationId = "site.mfd.app"
         minSdk = 26
         targetSdk = 36
-        versionCode = 3
-        versionName = "1.2"
+        versionCode = 4
+        versionName = "1.3"
+        // MFD's download site: where the app finds and downloads its own updates. Test builds can point
+        // elsewhere with -PmfdDownloads=https://...
+        val downloads = (project.findProperty("mfdDownloads") as String?) ?: "https://mfd-downloads.shanustylish777.workers.dev"
+        require(Regex("^https://[a-z0-9.-]+$").matches(downloads)) { "mfdDownloads must be an https origin" }
+        buildConfigField("String", "DOWNLOADS", "\"$downloads\"")
+        // Test builds only (-PmfdWebDebug=true): lets a computer inspect the WebView.
+        buildConfigField("boolean", "WEB_DEBUG", ((project.findProperty("mfdWebDebug") as String?) == "true").toString())
     }
 
     signingConfigs {
