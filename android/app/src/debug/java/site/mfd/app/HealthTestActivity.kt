@@ -16,7 +16,9 @@ import java.time.ZoneId
  * Debug builds only (never in the release app): writes sample data for testing the Health Connect reader.
  * `adb shell am start -n site.mfd.app/.HealthTestActivity`
  * Last night: 23:00–06:30 with 30 min awake at 02:00, plus an overlapping copy 23:30–06:00 (a second source);
- * expected 7.0 h. The night before: 22:30–05:42 (7.2 h). Steps: 4,321 today, 9,876 yesterday.
+ * expected 7.0 h. The night before: 22:30–05:42 (7.2 h). Steps: 4,321 today, 9,876 yesterday. Today: resting
+ * heart rate 54, HRV 52.0 (48 and 56), weight 81.35 kg, body fat 18.4 %. Yesterday 18:00–19:00: a workout's heart rate
+ * (95 rising to a 168 peak at 18:40).
  */
 class HealthTestActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -38,6 +40,15 @@ class HealthTestActivity : ComponentActivity() {
                     SleepSessionRecord(at(yy, 22, 30), offset, at(y, 5, 42), offset, Metadata.manualEntry()),
                     StepsRecord(at(today, 8, 0), offset, at(today, 9, 0), offset, 4321, Metadata.manualEntry()),
                     StepsRecord(at(y, 10, 0), offset, at(y, 18, 0), offset, 9876, Metadata.manualEntry()),
+                    // A workout yesterday 18:00–19:00: a sample every 2 s rising from 95 to a 168 peak at 18:40.
+                    androidx.health.connect.client.records.HeartRateRecord(at(y, 18, 0), offset, at(y, 19, 0), offset,
+                        (0 until 1800).map { i -> androidx.health.connect.client.records.HeartRateRecord.Sample(at(y, 18, 0).plusSeconds(i * 2L), (95 + (i * 73 / 1200).coerceAtMost(73) - if (i > 1200) (i - 1200) / 20 else 0).toLong()) },
+                        Metadata.manualEntry()),
+                    androidx.health.connect.client.records.RestingHeartRateRecord(at(today, 7, 0), offset, 54, Metadata.manualEntry()),
+                    androidx.health.connect.client.records.HeartRateVariabilityRmssdRecord(at(today, 3, 0), offset, 48.0, Metadata.manualEntry()),
+                    androidx.health.connect.client.records.HeartRateVariabilityRmssdRecord(at(today, 5, 0), offset, 56.0, Metadata.manualEntry()),
+                    androidx.health.connect.client.records.WeightRecord(at(today, 7, 5), offset, androidx.health.connect.client.units.Mass.kilograms(81.35), Metadata.manualEntry()),
+                    androidx.health.connect.client.records.BodyFatRecord(at(today, 7, 5), offset, androidx.health.connect.client.units.Percentage(18.4), Metadata.manualEntry()),
                 )
                 val client = HealthConnectClient.getOrCreate(this@HealthTestActivity)
                 if (intent.getBooleanExtra("insert", true)) { client.insertRecords(records); Log.i("MFDHealthTest", "inserted ${records.size}") }

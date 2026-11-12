@@ -50,11 +50,13 @@ The WebView has no Web Push, so the app uses Firebase Cloud Messaging:
 - Messages are data-only; the app builds every notification (`Notify.kt`). The rest countdown is the app's own
   (Android keeps it ticking on the lock screen); the server sends "Rest over" while MFD is in the background.
 
-## Sleep and steps (Health Connect, from 1.4)
+## Health Connect (from 1.4)
 
 Recovery check-ins (Progress → Recovery) can fill themselves from Android Health Connect, where Samsung Health and
 other apps share data. "Get sleep & steps from Samsung Health" on the Recovery card opens Health Connect's own
-permission screen (read sleep, read steps; either can be allowed alone). After that, each time MFD opens (at most every
+permission screen (read sleep, steps, heart rate, resting heart rate, heart-rate variability, weight and body fat;
+each can be allowed alone). Workout heart rate is read for a finished workout's time window (`Health.heart`, 5-second steps;
+op `healthHeart`); resting heart rate, HRV, weight and body fat come with the daily read (shown from MFD 2.0). After that, each time MFD opens (at most every
 10 minutes) the last 7 days are read (`Health.kt`) and merged (`mergeHealthDays`):
 
 - steps follow Health Connect's daily total (or, when that is empty, the busiest single source, so a phone and a watch

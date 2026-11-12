@@ -18,7 +18,9 @@ const write = (v: string | null) => { try { if (v === null) localStorage.removeI
 export const healthSupported = () => { const v = appVersion(); return inApp() && !!v && !newer(HEALTH_FROM, v); };
 
 type Status = { availability?: string; granted?: boolean };
-type Day = { date: string; sleep: number | null; steps: number | null };
+/** One day from Health Connect. The heart-rate, HRV, weight and body-fat values are read now and shown in MFD 2.0. */
+export type HealthDayRead = { date: string; sleep: number | null; steps: number | null; restingHr?: number | null; hrv?: number | null; weightKg?: number | null; bodyFat?: number | null };
+type Day = HealthDayRead;
 export type HealthState = 'off' | 'on' | 'reconnect';
 
 let last = 0, running: Promise<number> | null = null;
@@ -37,6 +39,16 @@ export function syncHealth(force = false): Promise<number> {
     .catch(() => 0)
     .finally(() => { running = null; });
   return running;
+}
+
+export type HeartSeries = { samples: [number, number][]; avg: number | null; max: number | null };
+/** A finished workout's heart rate (5-second steps: seconds from the start, bpm), or null when unavailable. */
+export async function readWorkoutHeart(startMs: number, endMs: number): Promise<HeartSeries | null> {
+  if (!healthSupported() || read() !== 'on') return null;
+  try {
+    const r = await ask<{ samples?: [number, number][]; avg?: number | null; max?: number | null; error?: string }>('healthHeart', { from: startMs, to: endMs }, 30_000);
+    return Array.isArray(r.samples) ? { samples: r.samples, avg: r.avg ?? null, max: r.max ?? null } : null;
+  } catch { return null; }
 }
 
 /** From a tap: Health Connect's permission screen, then a first read. */
