@@ -80,10 +80,37 @@ export function bodySeries(weights: WeightEntry[], checkins: CheckIn[], field: B
   return rows.filter((r): r is { id: string; date: ISODate; value: number } => r.value !== null && inRange(r.date, from)).sort((a, b) => a.date.localeCompare(b.date));
 }
 
+/** A check-in row with recovery data (sleep, energy, soreness, steps or a note), not only measurements. */
+export const isRecoveryRow = (c: CheckIn) => num(c.sleep) !== null || num(c.energy) !== null || num(c.soreness) !== null || num(c.steps) !== null || !!c.note?.trim();
+
+export type HealthDay = { date: ISODate; sleep: number | null; steps: number | null };
+/**
+ * Applies Health Connect days to check-ins (mutating `rows`): steps follow Health Connect; sleep only fills a day
+ * that has none, so hours typed or adjusted by hand are never replaced. Invalid values are ignored. Returns the
+ * dates that changed (none: nothing was touched).
+ */
+export function mergeHealthDays(rows: CheckIn[], days: HealthDay[], newId: () => string): ISODate[] {
+  const changed: ISODate[] = [];
+  for (const x of days) {
+    if (typeof x?.date !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(x.date)) continue;
+    const sleep = typeof x.sleep === 'number' && x.sleep >= 0.5 && x.sleep <= 18 ? Math.round(x.sleep * 10) / 10 : null;
+    const steps = typeof x.steps === 'number' && Number.isInteger(x.steps) && x.steps > 0 && x.steps <= 200_000 ? x.steps : null;
+    let row = rows.find((c) => c.date === x.date && isRecoveryRow(c));
+    const setSteps = steps !== null && num(row?.steps) !== steps, setSleep = sleep !== null && num(row?.sleep) === null;
+    if (!setSteps && !setSleep) continue;
+    if (!row) { row = { id: newId(), date: x.date, note: '' }; rows.push(row); }
+    if (setSteps) row.steps = steps;
+    if (setSleep) row.sleep = sleep;
+    changed.push(x.date);
+  }
+  if (changed.length) rows.sort((a, b) => a.date.localeCompare(b.date));
+  return changed;
+}
+
 /** Recovery check-ins (sleep, energy, soreness, steps or a note), newest first. Measurement-only rows are left out. */
 export function recoveryCheckins(checkins: CheckIn[], from: ISODate | null) {
   return checkins
-    .filter((c) => inRange(c.date, from) && (num(c.sleep) !== null || num(c.energy) !== null || num(c.soreness) !== null || num(c.steps) !== null || !!c.note?.trim()))
+    .filter((c) => inRange(c.date, from) && isRecoveryRow(c))
     .sort((a, b) => b.date.localeCompare(a.date));
 }
 export { num as checkinNumber };

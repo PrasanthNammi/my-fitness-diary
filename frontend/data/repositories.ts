@@ -17,6 +17,7 @@ import { uid } from '../lib/format';
 import { resolveExercise } from '../catalogue/runtime';
 import { activeSuggestion, applyTargets, extraTargets, fits, matchBlock, removeTargets, targetSets, type AiSuggestion } from '../domain/aiSuggestions';
 import { getDB, update } from './store';
+import { isRecoveryRow, mergeHealthDays, type HealthDay } from '../domain/progressStats';
 
 
 import { startTimer, prepareActiveBlock, logSetValues, findPrevious, ordinalWithinType } from '../domain/training';
@@ -313,11 +314,23 @@ export const body = {
   /** Recovery check-in (sleep hours, energy, soreness, note). One per day: a second one updates it. */
   saveCheckIn(c: { date: ISODate; sleep: number | null; energy: number | null; soreness: number | null; note: string }) {
     update((d) => {
-      const existing = d.checkins.find((x) => x.date === c.date && (x.sleep != null || x.energy != null || x.soreness != null || x.note));
+      const existing = d.checkins.find((x) => x.date === c.date && isRecoveryRow(x));
       if (existing) Object.assign(existing, c);
       else d.checkins.push({ id: uid(), ...c });
       d.checkins.sort((a, b) => a.date.localeCompare(b.date));
     });
+  },
+  /**
+   * Sleep and steps from Health Connect (the Android app) for recent days. Steps follow Health Connect; sleep only
+   * fills a day that has none, so hours typed or adjusted by hand are never replaced. Writes only when something
+   * changes. Returns how many days changed.
+   */
+  mergeHealth(days: HealthDay[]) {
+    // Dry run on a copy first: only write (and sync) when something changes.
+    if (!mergeHealthDays(getDB().checkins.map((c) => ({ ...c })), days, uid).length) return 0;
+    let changed = 0;
+    update((d) => { changed = mergeHealthDays(d.checkins, days, uid).length; });
+    return changed;
   },
   /** Removes the recovery part of a check-in; measurements on the same row stay. */
   deleteCheckIn(id: ID) {

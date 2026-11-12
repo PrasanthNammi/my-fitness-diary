@@ -4,6 +4,7 @@ import {SyncStatus} from './components/SyncStatus';
 import {installSyncWake} from './lib/sync';
 import {setWeekStartDay} from './domain/week';
 import { RestBar } from './components/RestBar';
+import { syncHealth } from './lib/health';
 import { AiAddedNotice } from './components/AiAddedNotice';
 import { useEffect, useState, useSyncExternalStore } from 'react';
 import { Dumbbell, Sparkles, Sun, TrendingUp, Utensils, ChevronUp } from 'lucide-react';
@@ -114,6 +115,8 @@ export function App() {
   // Week start from Settings, applied before any screen below renders its weeks.
   setWeekStartDay(useDB((d) => d.settings.weekStart));
   useEffect(() => installSyncWake(), []);
+  // Android app: refresh sleep and steps from Health Connect on opening MFD (at most every 10 minutes).
+  useEffect(() => { const run = () => { if (!document.hidden) void syncHealth(); }; run(); document.addEventListener('visibilitychange', run); return () => document.removeEventListener('visibilitychange', run); }, []);
   useEffect(() => setHub(false), [routeKey]);
   useEffect(() => { const open = () => setHub(true); window.addEventListener('mfd-ai-hub', open); return () => window.removeEventListener('mfd-ai-hub', open); }, []);// useRoute returns a new array each render: compare the text
 
