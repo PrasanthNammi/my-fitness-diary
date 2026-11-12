@@ -32,10 +32,10 @@ if (fromList) {
 const name = `mfd-release-${commit.slice(0, 7)}`, zip = path.join(outDir, name + '.zip');
 const work = fs.mkdtempSync(path.join(os.tmpdir(), 'mfd-bundle-'));
 const manifest = [
-  `# MFD release bundle`, ``, `Commit: ${commit}`, base ? `Base (last released commit): ${git('rev-parse', base)}` : `Base: explicit path list`, ``,
+  `# MFD release bundle`, ``, `Commit: ${commit}`, base ? `Base (last released commit): ${git('rev-parse', base)}` : `Base: explicit path list`,
+  `Never in Sites: ${[...tree.keys()].filter((p) => !forSites(p)).length} file(s) under android/ (the Android app project) stay only in GitHub.`, ``,
   `## Write these files (path, git blob hash)`, ``, ...changed.map((p) => `${p}\t${tree.get(p)}`), ``,
   `## Delete these files`, ``, ...(deleted.length ? deleted : ['(none)']), ``,
-  `## Never in Sites`, ``, `${[...tree.keys()].filter((p) => !forSites(p)).length} file(s) under android/ (the Android app project) stay only in GitHub.`, ``,
 ].join('\n');
 fs.rmSync(zip, { force: true });
 if (changed.length) execFileSync('git', ['archive', '--format=zip', '-0', '-o', zip, commit, '--', ...changed]);
