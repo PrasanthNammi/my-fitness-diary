@@ -2,24 +2,34 @@
 // for a data item) and watch → phone commands (applied once each, in order, malformed ones ignored).
 const assert=require('assert/strict'),esbuild=require('esbuild'),os=require('os'),path=require('path');
 const out=path.join(os.tmpdir(),'mfd-watch-sync.cjs');
-const stubs={'../data/store':'export const getDB=()=>null,subscribe=()=>()=>{}','../data/repositories':'export const exerciseName=id=>"Ex "+id','../components/ui':'export const toast=()=>{}','./native':'export const ask=async()=>({}),inApp=()=>false,onNative=()=>()=>{},tell=()=>{}','./appUpdate':'export const appVersion=()=>null,newer=()=>false'};
+const stubs={'../adapters/engine':'export const engine=()=>null','../data/store':'export const getDB=()=>null,subscribe=()=>()=>{}','../data/repositories':'export const exercises={},workouts={}','../components/ui':'export const toast=()=>{}','./native':'export const ask=async()=>({}),inApp=()=>false,onNative=()=>()=>{},tell=()=>{}','./appUpdate':'export const appVersion=()=>null,newer=()=>false'};
 (async()=>{
  await esbuild.build({entryPoints:['frontend/lib/watch.ts'],bundle:true,platform:'node',format:'cjs',outfile:out,logLevel:'silent',
   plugins:[{name:'stubs',setup(b){b.onResolve({filter:/.*/},a=>stubs[a.path]?{path:a.path,namespace:'stub'}:undefined);b.onLoad({filter:/.*/,namespace:'stub'},a=>({contents:stubs[a.path]}))}}]});
  const store={};globalThis.localStorage={getItem:k=>store[k]??null,setItem:(k,v)=>{store[k]=String(v)}};
  const W=require(out);
  const set=(done)=>({done,weightKg:80,reps:8});
- const db={settings:{weightUnit:'kg'},folders:[{id:'f1',name:'Push/Pull'}],
+ const EX={bench:{id:'bench',name:'Bench Press (Barbell)',primaryMuscle:'Chest',equipment:'Barbell',tracking:'weight_reps'},ohp:{id:'ohp',name:'Shoulder Press (Dumbbell)',primaryMuscle:'Shoulders',equipment:'Dumbbell',tracking:'weight_reps'},squat:{id:'squat',name:'Squat (Barbell)',primaryMuscle:'Quadriceps',equipment:'Barbell',tracking:'weight_reps'},odd:{id:'odd',name:'Odd',primaryMuscle:'Neck',equipment:'',tracking:'reps'}};
+ const lib={byId:id=>EX[id],all:()=>Object.values(EX)};
+ const db={settings:{weightUnit:'kg',defaultRestSec:120},folders:[{id:'f1',name:'Push/Pull'}],workouts:[{id:'h1',title:'Push',routineId:'r1',startedAt:0,endedAt:5,exercises:[{id:'hb',exerciseId:'bench',tracking:'weight_reps',restSec:90,note:'',supersetId:null,sets:[{id:'hs',type:'normal',weightKg:77.5,reps:8,timeSec:null,distanceKm:null,done:true}]}]}],
   routines:[{id:'r1',name:'Push',folderId:'f1',exercises:[{exerciseId:'bench',sets:[set(),set(),set()]},{exerciseId:'ohp',sets:[set()]}]},{id:'r2',name:'Legs',folderId:null,exercises:[]}],
-  active:{title:'Push',startedAt:1700000000000,exercises:[{exerciseId:'bench',sets:[set(true),set(true),set(false)]}]}};
- const s=W.snapshot(db);
- assert.deepEqual(s,{v:1,units:{weight:'kg'},routines:[{id:'r1',name:'Push',folder:'Push/Pull',exercises:[{name:'Ex bench',sets:3},{name:'Ex ohp',sets:1}]},{id:'r2',name:'Legs',folder:null,exercises:[]}],
-  workout:{title:'Push',startedAt:1700000000000,exercises:[{name:'Ex bench',done:2,total:3}]}});
- assert.equal(W.snapshot({...db,active:null}).workout,null);
+  active:{id:'w1',title:'Push',routineId:'r1',startedAt:1700000000000,exercises:[{id:'b1',exerciseId:'bench',tracking:'weight_reps',restSec:90,supersetId:null,sets:[{id:'s1',type:'normal',weightKg:80,reps:8,timeSec:null,distanceKm:null,done:true},{id:'s2',type:'normal',weightKg:null,reps:null,timeSec:null,distanceKm:null,done:false,aiTarget:true,suggested:{weightKg:82.5,reps:8}}]},{id:'b2',exerciseId:'ohp',tracking:'weight_reps',restSec:60,supersetId:null,sets:[{id:'t1',type:'warmup',weightKg:null,reps:null,timeSec:null,distanceKm:null,done:false}]}],timers:{b1:{durationSec:90,endsAt:1700000090000,pausedRemainingSec:null}}}};
+ const s=W.snapshot(db,lib,['c1','c2']);
+ assert.deepEqual(s.applied,['c1','c2']);assert.deepEqual(s.units,{weight:'kg',defaultRestSec:120});
+ assert.deepEqual(s.routines,[{id:'r1',name:'Push',folder:'Push/Pull',exercises:[{name:'Bench Press (Barbell)',sets:3},{name:'Shoulder Press (Dumbbell)',sets:1}]},{id:'r2',name:'Legs',folder:null,exercises:[]}]);
+ const w=s.workout;assert.deepEqual([w.id,w.title,w.routineId,w.blocks.length],['w1','Push','r1',2]);
+ assert.deepEqual([w.blocks[0].name,w.blocks[0].step,w.blocks[1].step],['Bench Press (Barbell)',2.5,1],'barbell 2.5 kg steps, dumbbell 1 kg');
+ assert.deepEqual(w.blocks[0].sets[0],{id:'s1',type:'normal',done:true,ai:false,v:{weightKg:80,reps:8,timeSec:null,distanceKm:null},t:{weightKg:null,reps:null,timeSec:null,distanceKm:null},p:{weightKg:77.5,reps:8,timeSec:null,distanceKm:null}});
+ assert.deepEqual([w.blocks[0].sets[1].ai,w.blocks[0].sets[1].t.weightKg,w.blocks[0].sets[1].p],[true,82.5,null],'AI target faded; no 2nd set last time');
+ assert.equal(w.blocks[1].sets[0].p,null,'warm-up has no previous warm-up');
+ assert.deepEqual(w.timers.b1,{endsAt:1700000090000,durationSec:90});
+ assert.deepEqual(s.library.recent.map(e=>e.id),['bench'],'recently used first');
+ assert.deepEqual(Object.keys(s.library.muscles).sort(),['Chest','Legs','Shoulders'],'muscles grouped; unknown left out');
+ assert.equal(W.snapshot({...db,active:null},lib).workout,null);
  // A huge library stays under the data-item limit.
- const many={...db,routines:Array.from({length:150},(_,i)=>({id:'r'+i,name:'Routine '+i,folderId:null,exercises:Array.from({length:12},()=>({exerciseId:'some-long-exercise-id-'+i,sets:[set(),set(),set(),set()]}))}))};
- const big=W.snapshot(many);assert.equal(big.routines.length,100);assert.ok(JSON.stringify(big).length<=80000);
- console.log('PASS watch snapshot: routines with folders and set counts, running workout progress, units, stays under the size limit');
+ const many={...db,active:null,routines:Array.from({length:150},(_,i)=>({id:'r'+i,name:'Routine '+i,folderId:null,exercises:Array.from({length:12},()=>({exerciseId:'some-long-exercise-id-'+i,sets:[set(),set(),set(),set()]}))}))};
+ const big=W.snapshot(many,lib);assert.equal(big.routines.length,100);assert.ok(JSON.stringify(big).length<=80000);
+ console.log('PASS watch snapshot: routines, full running workout (set types, values, faded and AI targets, previous session, rest timers, weight steps), exercise library by recent and muscle, applied commands, size limit');
  // Commands: once each, in order; malformed ignored; a failing one doesn't stop the rest.
  const got=[];const handle=c=>{if(c.type==='boom')throw Error('x');got.push(c.id)};
  const c=(id,type='hello')=>({v:1,id,type});
