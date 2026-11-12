@@ -124,8 +124,17 @@ class WatchActivity : ComponentActivity() {
             AppScaffold(timeText = { TimeText() }) {
                 SwipeDismissableNavHost(navController = nav, startDestination = "home") {
                     composable("home") {
-                        HomeScreen(snapshot, view, nearby, onWorkout = { nav.navigate("overview") }, onStartEmpty = { send("startEmpty") }, onRoutines = { nav.navigate("routines") })
+                        HomeScreen(snapshot, view, nearby, units, onWorkout = { nav.navigate("overview") }, onStartEmpty = { send("startEmpty") }, onRoutines = { nav.navigate("routines") }, onQuick = { nav.navigate(it) })
                     }
+                    composable("weigh") { WeighScreen(view.today, units) { kg -> send("weighIn", mapOf("kg" to Math.round(kg * 100) / 100.0)); nav.popBackStack() } }
+                    composable("water") { WaterScreen(view.today) { ml -> send("water", mapOf("ml" to ml)) } }
+                    composable("food") { FoodScreen(view.today, snapshot?.foods.orEmpty()) { f -> nav.navigate("foodpick/${f.ref}") } }
+                    composable("foodpick/{ref}") { entry ->
+                        snapshot?.foods?.firstOrNull { it.ref == entry.arguments?.getString("ref") }?.let { f ->
+                            FoodPickScreen(f) { meal, amount -> send("foodRelog", mapOf("from" to f.from, "ref" to f.ref, "meal" to meal, "amount" to amount, "unit" to f.unit)); nav.popBackStack("home", false) }
+                        }
+                    }
+                    composable("checkin") { CheckinScreen(view.today) { e, s -> send("checkin", mapOf("energy" to e, "soreness" to s)); nav.popBackStack() } }
                     composable("routines") { snapshot?.let { s -> RoutinesScreen(s, onRoutine = { nav.navigate("routine/${it.id}") }, onStartEmpty = { send("startEmpty") }) } }
                     composable("routine/{id}") { entry ->
                         val r = snapshot?.routines?.firstOrNull { it.id == entry.arguments?.getString("id") }

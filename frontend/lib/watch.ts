@@ -2,8 +2,12 @@
 // small snapshot for the watch whenever the diary changes (routines, the running workout, settings), and takes the
 // watch's commands from the phone app's queue, applying each one once. Protocol: android/shared/.../Sync.kt.
 import { getDB, subscribe, type DB } from '../data/store';
-import { exercises, workouts } from '../data/repositories';
-import type { Exercise, SetEntry, SetType, TrackingMode } from '../domain/types';
+import { body, diary, exercises, workouts } from '../data/repositories';
+import type { Exercise, Food, PortionUnit, SetEntry, SetType, TrackingMode } from '../domain/types';
+import { allowedUnits, calculateTargets, nutrientsFor, sumNutrients } from '../domain/nutrition';
+import { checkinNumber, isRecoveryRow } from '../domain/progressStats';
+import { applyQuickLog, QUICK_LOGS } from '../domain/watchQuickLogs';
+import { addDays, toISODate } from './format';
 import { findPrevious, ordinalWithinType } from '../domain/training';
 import { applyWorkoutCommand, WORKOUT_COMMANDS } from '../domain/watchCommands';
 import { heartSeries } from '../domain/heartRate';
@@ -18,7 +22,7 @@ export const watchSupported = () => { const v = appVersion(); return inApp() && 
 
 /** The protocol version both sides speak (Sync.VERSION). */
 export const SYNC_VERSION = 1;
-const MAX_ROUTINES = 100, MAX_BYTES = 80_000, RECENT = 30, PER_MUSCLE = 25, APPLIED = 60;
+const MAX_ROUTINES = 100, MAX_BYTES = 80_000, RECENT = 30, PER_MUSCLE = 25, APPLIED = 60, RECENT_FOODS = 15, FAVOURITES = 10;
 
 type Values = { weightKg?: number | null; reps?: number | null; timeSec?: number | null; distanceKm?: number | null };
 /** `last`: the first working set of its latest session, so an exercise added on the watch starts pre-filled. */
@@ -40,7 +44,17 @@ export type Snapshot = {
     timers: Record<string, { endsAt: number | null; durationSec: number }>;
   };
   library: { recent: WatchExercise[]; muscles: Record<string, WatchExercise[]> };
+  /** Today on the phone, for the quick logs and tiles. */
+  today: {
+    date: string; kcalTarget: number | null; kcalEaten: number; protein: number; proteinTarget: number | null;
+    waterMl: number; waterGoalMl: number; lastWeight: { kg: number; date: string } | null;
+    checkin: { energy: number | null; soreness: number | null; sleep: number | null; steps: number | null } | null;
+    workoutsThisWeek: number;
+  };
+  /** Foods to log again without typing: recent entries and favourites, with energy and protein per unit. */
+  foods: WatchFood[];
 };
+export type WatchFood = { ref: string; from: 'entry' | 'favourite'; name: string; amount: number; unit: PortionUnit; kcalPerUnit: number; proteinPerUnit: number; units: PortionUnit[] };
 
 export type Library = { byId: (id: string) => Exercise | undefined; all: () => Exercise[] };
 const MUSCLES: [string, RegExp][] = [
@@ -94,7 +108,32 @@ export function snapshot(d: DB, lib: Library, applied: string[] = []): Snapshot 
       timers: Object.fromEntries(Object.entries(a.timers).map(([k, t]) => [k, { endsAt: t.endsAt, durationSec: t.durationSec }])),
     } : null,
     library: { recent, muscles },
+    today: { date: '', kcalTarget: null, kcalEaten: 0, protein: 0, proteinTarget: null, waterMl: 0, waterGoalMl: 2500, lastWeight: null, checkin: null, workoutsThisWeek: 0 },
+    foods: [],
   };
+  const today = toISODate(new Date());
+  const eaten = sumNutrients(d.diary.filter((e) => e.date === today).map((e) => nutrientsFor(e.food, e.amount, e.unit)));
+  const targets = d.profile ? calculateTargets(d.profile).targets : null;
+  const lastWeight = [...d.weights].sort((x, y) => y.date.localeCompare(x.date))[0];
+  const check = d.checkins.find((c) => c.date === today && isRecoveryRow(c));
+  const weekStart = addDays(today, -6);
+  s.today = {
+    date: today, kcalTarget: targets?.kcal ?? null, kcalEaten: Math.round(eaten.kcal), protein: Math.round(eaten.protein), proteinTarget: targets?.protein ?? null,
+    waterMl: d.water[today] ?? 0, waterGoalMl: d.profile?.waterGoalMl ?? 2500, lastWeight: lastWeight ? { kg: lastWeight.kg, date: lastWeight.date } : null,
+    checkin: check ? { energy: checkinNumber(check.energy), soreness: checkinNumber(check.soreness), sleep: checkinNumber(check.sleep), steps: checkinNumber(check.steps) } : null,
+    workoutsThisWeek: d.workouts.filter((w) => toISODate(new Date(w.startedAt)) >= weekStart).length,
+  };
+  const food = (f: Food, ref: string, from: WatchFood['from'], amount: number, unit: PortionUnit): WatchFood => {
+    const one = nutrientsFor(f, 1, unit);
+    return { ref, from, name: f.name, amount, unit, kcalPerUnit: Math.round(one.kcal * 1000) / 1000, proteinPerUnit: Math.round(one.protein * 1000) / 1000, units: allowedUnits(f) };
+  };
+  const seenFoods = new Set<string>();
+  for (const e of [...d.diary].sort((x, y) => (y.date + y.createdAt).localeCompare(x.date + x.createdAt))) {
+    if (s.foods.length >= RECENT_FOODS) break;
+    if (seenFoods.has(e.food.id)) continue;
+    seenFoods.add(e.food.id); s.foods.push(food(e.food, e.id, 'entry', e.amount, e.unit));
+  }
+  for (const f of (d.settings.favouriteFoods ?? []).slice(0, FAVOURITES)) if (!seenFoods.has(f.id)) { seenFoods.add(f.id); s.foods.push(food(f, f.id, 'favourite', f.refAmount, f.refUnit)); }
   // Very large libraries: drop the extras before going over the limit (the running workout always fits).
   if (JSON.stringify(s).length > MAX_BYTES) s.library.muscles = {};
   if (JSON.stringify(s).length > MAX_BYTES) s.routines = s.routines.map((r) => ({ ...r, exercises: [] }));
@@ -139,6 +178,7 @@ function handle(c: WatchCommand) {
   } else if (c.type === 'finish' && d.active?.id === c.workoutId) {
     if (workouts.finish()) toast('Workout saved from your watch');
   } else if (c.type === 'discard' && d.active?.id === c.workoutId) workouts.discard();
+  else if ((QUICK_LOGS as readonly string[]).includes(c.type)) applyQuickLog(c, d, { logWeight: body.logWeight, setWater: diary.setWater, addFood: diary.add, saveCheckIn: body.saveCheckIn });
   else if (c.type === 'heartRate') {
     // Sent right after "finish": attaches to that saved workout (never replaces readings already there).
     const hr = heartSeries(c.series, 'watch');
