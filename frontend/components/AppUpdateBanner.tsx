@@ -50,7 +50,7 @@ export function AppUpdateBanner() {
 
   return (
     <div className="update-banner" role="status">
-      <span className="update-banner-text">{progress ?? `New version of the MFD app (${update.version})`}</span>
+      <span className="update-banner-text">{progress ?? 'New version available'}</span>
       {!progress && <button className="btn btn-primary btn-sm" onClick={start}>Update</button>}
       {!progress && <button className="icon-btn" aria-label="Not now" onClick={() => setDismissed(true)}><X /></button>}
       {update.url && <a ref={link} href={update.url} target="_blank" rel="noopener noreferrer" hidden />}
