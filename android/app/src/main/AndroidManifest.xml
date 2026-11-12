@@ -90,6 +90,15 @@
                 <action android:name="com.google.firebase.MESSAGING_EVENT" />
             </intent-filter>
         </service>
+        <!-- Commands from the MFD watch app (WatchLink.kt). Only apps with this package and signing key can send. -->
+        <service
+            android:name=".WatchListener"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="com.google.android.gms.wearable.MESSAGE_RECEIVED" />
+                <data android:scheme="wear" android:host="*" android:pathPrefix="/mfd/" />
+            </intent-filter>
+        </service>
         <!-- The rest notification's −15s / +15s buttons. -->
         <receiver
             android:name=".RestActionReceiver"

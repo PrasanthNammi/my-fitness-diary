@@ -5,6 +5,7 @@ import {installSyncWake} from './lib/sync';
 import {setWeekStartDay} from './domain/week';
 import { RestBar } from './components/RestBar';
 import { syncHealth } from './lib/health';
+import { installWatchSync } from './lib/watch';
 import { AiAddedNotice } from './components/AiAddedNotice';
 import { useEffect, useState, useSyncExternalStore } from 'react';
 import { Dumbbell, Sparkles, Sun, TrendingUp, Utensils, ChevronUp } from 'lucide-react';
@@ -115,6 +116,7 @@ export function App() {
   // Week start from Settings, applied before any screen below renders its weeks.
   setWeekStartDay(useDB((d) => d.settings.weekStart));
   useEffect(() => installSyncWake(), []);
+  useEffect(() => installWatchSync(), []);
   // Android app: refresh sleep and steps from Health Connect on opening MFD (at most every 10 minutes).
   useEffect(() => { const run = () => { if (!document.hidden) void syncHealth(); }; run(); document.addEventListener('visibilitychange', run); return () => document.removeEventListener('visibilitychange', run); }, []);
   useEffect(() => setHub(false), [routeKey]);

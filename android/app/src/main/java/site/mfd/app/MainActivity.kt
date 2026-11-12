@@ -247,6 +247,12 @@ class MainActivity : ComponentActivity() {
                     answer(result)
                 }
             }
+            "watchState" -> answer(JSONObject().put("ok", WatchLink.publish(applicationContext, m.optString("json"))))
+            "watchStatus" -> lifecycleScope.launch {
+                val watches = try { WatchLink.watches(this@MainActivity) } catch (e: Exception) { emptyList() }
+                answer(JSONObject().put("watches", org.json.JSONArray(watches.map { JSONObject().put("name", it.first).put("nearby", it.second) })))
+            }
+            "watchDrain" -> answer(JSONObject().put("commands", WatchLink.drain(applicationContext)))
             "save" -> {
                 val name = m.optString("name").takeIf { SAVE_NAME.matches(it) } ?: return
                 pendingSave = Triple(m.optString("text"), id, reply)

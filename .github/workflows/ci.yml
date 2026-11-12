@@ -79,7 +79,8 @@ jobs:
       - name: Connector tests (network disabled)
         run: npm run test:local
   android:
-    # The Android app compiles (debug build; release signing keys never leave the owner's machine).
+    # The Android phone and watch apps compile (debug builds; release signing keys never leave the owner's machine),
+    # and the phone-watch protocol tests pass.
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -88,6 +89,6 @@ jobs:
         with:
           distribution: temurin
           java-version: '21'
-      - name: Build the debug APK
-        run: cd android && ./gradlew --no-daemon assembleDebug
+      - name: Build the debug APKs and test the phone-watch protocol
+        run: cd android && ./gradlew --no-daemon assembleDebug :shared:testDebugUnitTest
 

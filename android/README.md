@@ -69,6 +69,22 @@ Read-only, only while MFD is open, nothing else is read. Health Connect links to
 Health Connect). Debug builds add `HealthTestActivity` (`app/src/debug`) to write sample data for testing:
 `adb shell am start -n site.mfd.app/.HealthTestActivity`.
 
+## Galaxy Watch app (`wear/`, MFD 2.0)
+
+A Wear OS app (Compose for Wear OS) with the same application ID and signing key as the phone app; Android only lets
+apps with the same package and key talk over the Wearable Data Layer. The protocol lives in `shared/` (`Sync.kt`,
+with unit tests):
+
+- phone → watch: one data item at `/mfd/state` holding a snapshot the page publishes on every diary change
+  (`frontend/lib/watch.ts`: routines with folders and set counts, the running workout, units; under 80 KB);
+- watch → phone: messages at `/mfd/command`, one JSON command each with an id. `WatchListener` queues them
+  (`WatchLink`), the page takes them with `watchDrain` and applies each id once, so nothing is lost while MFD is
+  closed or reloading.
+
+Build: `./gradlew :wear:assembleRelease` (`wear/build/outputs/apk/release/wear-release.apk`). It installs on the
+watch over Wi-Fi debugging (`adb pair`, `adb connect`, `adb install`), not from the Play Store. Wear Compose stays on
+1.6.x until the project moves to Android Gradle plugin 9.1 (1.7 needs it).
+
 ## New versions (the app updates itself)
 
 From 1.3 the app updates itself from MFD's download site, `https://mfd-downloads.shanustylish777.workers.dev` (a
