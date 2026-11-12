@@ -45,6 +45,7 @@ import androidx.wear.compose.material3.ListHeader
 import androidx.wear.compose.material3.ScreenScaffold
 import androidx.wear.compose.material3.Text
 import kotlinx.coroutines.delay
+import kotlin.math.roundToInt
 
 /** "12:34" or "1:02:03". */
 fun clock(sec: Long): String { val s = maxOf(0, sec); val h = s / 3600; val m = s % 3600 / 60; val x = s % 60
@@ -83,7 +84,7 @@ private fun PhoneLine(nearby: Boolean?) = Text(
 
 // ───────── Home ─────────
 @Composable
-fun HomeScreen(s: Snapshot?, view: View, nearby: Boolean?, onWorkout: () -> Unit, onStartEmpty: () -> Unit, onRoutines: () -> Unit) = ListScreen {
+fun HomeScreen(s: Snapshot?, view: View, nearby: Boolean?, units: Units, onWorkout: () -> Unit, onStartEmpty: () -> Unit, onRoutines: () -> Unit, onQuick: (String) -> Unit) = ListScreen {
     item { PhoneLine(nearby) }
     item { Text("MFD", fontWeight = FontWeight.ExtraBold, fontSize = 20.sp, color = C.accent) }
     if (s == null) {
@@ -96,6 +97,12 @@ fun HomeScreen(s: Snapshot?, view: View, nearby: Boolean?, onWorkout: () -> Unit
     else if (view.starting != null) item { Text("Starting ${view.starting}…", color = C.accent2, textAlign = TextAlign.Center) }
     else item { Row("Start empty workout", accent = true, icon = { Icon(Icons.Filled.PlayArrow, null) }, onClick = onStartEmpty) }
     item { Row("Routines", "${s.routines.size} routines", icon = { Icon(Icons.Filled.List, null) }, onClick = onRoutines) }
+    val t = view.today
+    item { Text("Quick log", color = C.muted, fontSize = 13.sp, fontWeight = FontWeight.Bold) }
+    item { Row("Weigh-in", t.lastWeightKg?.let { "Last ${num((units.toShown(it) * 10).roundToInt() / 10.0)} ${units.unit}" }) { onQuick("weigh") } }
+    item { Row("Water", "%.1f / %.1f L".format(t.waterMl / 1000.0, t.waterGoalMl / 1000.0)) { onQuick("water") } }
+    item { Row("Food", kcalLine(t)) { onQuick("food") } }
+    item { Row("Check-in", "Energy & soreness") { onQuick("checkin") } }
 }
 
 @Composable

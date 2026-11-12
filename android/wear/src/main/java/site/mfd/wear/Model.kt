@@ -12,7 +12,16 @@ data class Snapshot(
     val workout: Workout?,
     val recent: List<LibExercise>,
     val muscles: Map<String, List<LibExercise>>,
+    val today: Today = Today(),
+    val foods: List<WatchFood> = emptyList(),
 )
+
+data class Today(
+    val date: String = "", val kcalTarget: Int? = null, val kcalEaten: Int = 0, val protein: Int = 0, val proteinTarget: Int? = null,
+    val waterMl: Int = 0, val waterGoalMl: Int = 2500, val lastWeightKg: Double? = null, val lastWeightDate: String? = null,
+    val energy: Int? = null, val soreness: Int? = null, val sleep: Double? = null, val steps: Int? = null, val workoutsThisWeek: Int = 0,
+)
+data class WatchFood(val ref: String, val from: String, val name: String, val amount: Double, val unit: String, val kcalPerUnit: Double, val proteinPerUnit: Double, val units: List<String>)
 
 data class Routine(val id: String, val name: String, val folder: String?, val exercises: List<Pair<String, Int>>)
 data class LibExercise(val id: String, val name: String, val muscle: String, val tracking: String, val last: Values? = null)
@@ -67,6 +76,15 @@ object Parse {
             },
             recent = library?.optJSONArray("recent").items(::lib),
             muscles = muscles?.keys()?.asSequence()?.associateWith { k -> muscles.optJSONArray(k).items(::lib) } ?: emptyMap(),
+            today = o.optJSONObject("today")?.let { t ->
+                val lw = t.optJSONObject("lastWeight"); val c = t.optJSONObject("checkin")
+                Today(t.optString("date"), t.int("kcalTarget"), t.optInt("kcalEaten"), t.optInt("protein"), t.int("proteinTarget"), t.optInt("waterMl"), t.optInt("waterGoalMl", 2500),
+                    lw?.dbl("kg"), lw?.str("date"), c?.int("energy"), c?.int("soreness"), c?.dbl("sleep"), c?.int("steps"), t.optInt("workoutsThisWeek"))
+            } ?: Today(),
+            foods = o.optJSONArray("foods").items { f ->
+                WatchFood(f.optString("ref"), f.optString("from"), f.optString("name"), f.optDouble("amount", 1.0), f.optString("unit"), f.optDouble("kcalPerUnit"), f.optDouble("proteinPerUnit"),
+                    f.optJSONArray("units")?.let { a -> (0 until a.length()).map { a.optString(it) } } ?: listOf(f.optString("unit")))
+            },
         )
     }
 }
