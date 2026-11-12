@@ -53,6 +53,25 @@ fun addExercise(nav: androidx.navigation.NavHostController, e: LibExercise, into
 
 /** MFD on the Galaxy Watch. Screens follow the Lovable /watch design; data comes from the phone (WatchStore). */
 class WatchActivity : ComponentActivity() {
+    // Heart-rate and notification permissions, asked when the first workout starts; the session starts either way.
+    private var pendingWorkout: String? = null
+    private val permissions = registerForActivityResult(androidx.activity.result.contract.ActivityResultContracts.RequestMultiplePermissions()) {
+        pendingWorkout?.let { WorkoutService.start(this, it) }; pendingWorkout = null
+    }
+    private fun session(id: String?) {
+        if (id == null) { WorkoutService.stop(this); return }
+        val wanted = buildList {
+            add(if (android.os.Build.VERSION.SDK_INT >= 36) "android.permission.health.READ_HEART_RATE" else android.Manifest.permission.BODY_SENSORS)
+            add(android.Manifest.permission.ACTIVITY_RECOGNITION)
+            if (android.os.Build.VERSION.SDK_INT >= 33) add(android.Manifest.permission.POST_NOTIFICATIONS)
+        }.filter { checkSelfPermission(it) != android.content.pm.PackageManager.PERMISSION_GRANTED }
+        val prefs = getSharedPreferences("watch", MODE_PRIVATE)
+        if (wanted.isNotEmpty() && !prefs.getBoolean("asked", false)) {
+            prefs.edit().putBoolean("asked", true).apply()
+            pendingWorkout = id; permissions.launch(wanted.toTypedArray())
+        } else WorkoutService.start(this, id)
+    }
+
     private val listener = DataClient.OnDataChangedListener { events ->
         for (e in events) if (e.type == DataEvent.TYPE_CHANGED && e.dataItem.uri.path == Sync.STATE)
             DataMapItem.fromDataItem(e.dataItem).dataMap.getString(Sync.KEY_JSON)?.let { WatchStore.receive(this, it) }
@@ -95,6 +114,7 @@ class WatchActivity : ComponentActivity() {
         // A workout appearing (started here or on the phone) opens it; one ending goes back home.
         val workoutId = view.workout?.id
         LaunchedEffect(workoutId) {
+            session(workoutId)
             val route = nav.currentDestination?.route
             if (workoutId != null && route != "overview" && route?.startsWith("exercise") != true) nav.navigate("overview") { popUpTo("home") }
             if (workoutId == null && (route == "overview" || route?.startsWith("exercise") == true)) nav.popBackStack("home", false)
@@ -122,7 +142,13 @@ class WatchActivity : ComponentActivity() {
                         MuscleScreen(name, snapshot?.muscles?.get(name).orEmpty()) { e -> addExercise(nav, e, into) { t, f -> send(t, f) } }
                     }
                     composable("finish") {
-                        view.workout?.let { w -> FinishScreen(w, units, null to null, onSave = { send("finish", mapOf("workoutId" to w.id)); nav.popBackStack("home", false) }, onDiscard = { nav.navigate("discard") }) }
+                        view.workout?.let { w -> FinishScreen(w, units, WorkoutService.summary(w.startedAt), onSave = {
+                            val heart = WorkoutService.series(w.startedAt, System.currentTimeMillis())
+                            send("finish", mapOf("workoutId" to w.id))
+                            // After finish, so it attaches to the saved workout on the phone.
+                            if (heart != null) send("heartRate", mapOf("workoutId" to w.id, "series" to heart))
+                            nav.popBackStack("home", false)
+                        }, onDiscard = { nav.navigate("discard") }) }
                     }
                     composable("discard") {
                         view.workout?.let { w -> ConfirmScreen("Discard workout?", "Nothing from it is saved.", "Discard", onYes = { send("discard", mapOf("workoutId" to w.id)); nav.popBackStack("home", false) }, onNo = { nav.popBackStack() }) }

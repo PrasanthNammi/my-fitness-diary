@@ -156,6 +156,7 @@ fun RoutineScreen(r: Routine, startDisabled: Boolean, onStart: () -> Unit) = Lis
 fun OverviewScreen(w: Workout, onExercise: (Block) -> Unit, onAdd: () -> Unit, onFinish: () -> Unit) = ListScreen {
     item { Text(clock(elapsed(w.startedAt)), color = C.accent, fontSize = 30.sp, fontWeight = FontWeight.ExtraBold) }
     item { Text(w.title, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis) }
+    item { HeartChip() }
     w.blocks.forEachIndexed { i, b ->
         val ssStart = b.supersetId != null && w.blocks.getOrNull(i - 1)?.supersetId != b.supersetId
         if (ssStart) item { Text("Superset", color = C.superset, fontSize = 12.sp, fontWeight = FontWeight.Bold) }
@@ -184,6 +185,13 @@ private fun ExerciseRow(b: Block, inSuperset: Boolean, onClick: () -> Unit) {
         },
         label = { Text(b.name, maxLines = 2, overflow = TextOverflow.Ellipsis, fontWeight = FontWeight.Bold) },
     )
+}
+
+/** Live heart rate during a workout ("♥ 132"), hidden until the first reading. */
+@Composable
+fun HeartChip() {
+    val v = WorkoutService.bpm.intValue
+    if (v > 0) Text("♥ $v", color = C.failure, fontWeight = FontWeight.ExtraBold, fontSize = 15.sp)
 }
 
 @Composable

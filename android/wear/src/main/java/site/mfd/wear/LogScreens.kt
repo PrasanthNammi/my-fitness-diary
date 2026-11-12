@@ -208,7 +208,8 @@ fun RestScreen(b: Block, timer: Timer?, units: Units, next: String?, onSend: (St
     val ends = timer?.endsAt
     val left = if (ends == null) 0 else maxOf(0, ((ends - now + 999) / 1000).toInt())
     val over = ends == null || left == 0
-    LaunchedEffect(over) { if (over) { if (ends != null) buzz(ctx); delay(2000); onDone() } }
+    // The workout session buzzes (also with the screen off); without it, buzz here.
+    LaunchedEffect(over) { if (over) { if (ends != null && !WorkoutService.running) buzz(ctx); delay(2000); onDone() } }
     Box(Modifier.fillMaxSize().background(if (over) C.accentSoft else C.bg).clickable(enabled = over) { onDone() }, contentAlignment = Alignment.Center) {
         if (!over) CircularProgressIndicator(progress = { left / maxOf(1f, (timer?.durationSec ?: 1).toFloat()) }, modifier = Modifier.fillMaxSize().padding(4.dp), strokeWidth = 8.dp,
             colors = ProgressIndicatorDefaults.colors(indicatorColor = C.accent, trackColor = C.surface))
@@ -216,6 +217,7 @@ fun RestScreen(b: Block, timer: Timer?, units: Units, next: String?, onSend: (St
             Text(if (over) "Rest over" else "Rest", color = if (over) C.text else C.muted, fontWeight = FontWeight.Bold, fontSize = if (over) 24.sp else 13.sp)
             if (!over) Text(mmss(left), fontSize = 44.sp, fontWeight = FontWeight.ExtraBold)
             next?.let { Text("Next: $it", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = C.muted) }
+            HeartChip()
             if (!over) Row(horizontalArrangement = Arrangement.spacedBy(4.dp), modifier = Modifier.padding(top = 6.dp, start = 14.dp, end = 14.dp)) {
                 Button(onClick = { onSend("restAdjust", mapOf("block" to b.id, "sec" to -15)) }, modifier = Modifier.height(36.dp).width(52.dp), colors = ButtonDefaults.filledTonalButtonColors(containerColor = C.surface2), label = { Text("−15", fontWeight = FontWeight.Bold) })
                 Button(onClick = { onSend("restSkip", mapOf("block" to b.id)); onDone() }, modifier = Modifier.height(36.dp), colors = ButtonDefaults.buttonColors(containerColor = C.accent, contentColor = Color.White), label = { Text("Skip") })
