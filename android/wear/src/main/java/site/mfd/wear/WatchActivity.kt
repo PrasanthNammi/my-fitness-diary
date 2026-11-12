@@ -22,6 +22,24 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import site.mfd.shared.Sync
 
+/** The exercise to log next after `b`: itself while it has sets left, else the next one with sets left. */
+fun nextPending(w: Workout, b: Block): Block? =
+    if (b.sets.any { !it.done }) b else w.blocks.drop(w.blocks.indexOf(b) + 1).firstOrNull { x -> x.sets.any { !it.done } } ?: w.blocks.firstOrNull { x -> x.sets.any { !it.done } }
+
+/**
+ * After a set is logged: in a superset, straight on to the next partner that still has sets (rest comes after the
+ * round); otherwise the rest timer if the exercise has one; otherwise stay for the next set.
+ */
+fun afterLog(nav: androidx.navigation.NavHostController, w: Workout, b: Block) {
+    val ss = b.supersetId
+    if (ss != null) {
+        val members = w.blocks.filter { it.supersetId == ss }
+        val after = members.drop(members.indexOf(b) + 1).firstOrNull { m -> m.sets.count { !it.done } >= (if (m.id == b.id) 2 else 1) }
+        if (after != null) { nav.navigate("exercise/${after.id}") { popUpTo("overview") }; return }
+    }
+    if (b.restSec > 0) nav.navigate("rest/${b.id}")
+}
+
 /** MFD on the Galaxy Watch. Screens follow the Lovable /watch design; data comes from the phone (WatchStore). */
 class WatchActivity : ComponentActivity() {
     private val listener = DataClient.OnDataChangedListener { events ->
@@ -54,10 +72,14 @@ class WatchActivity : ComponentActivity() {
     private fun App() {
         val nav = rememberSwipeDismissableNavController()
         val scope = rememberCoroutineScope()
+        // Read through State in every screen: navigation keeps each screen's content lambda, so plain values captured
+        // here would go stale while the screen is open.
+        val viewState = remember { androidx.compose.runtime.derivedStateOf { Optimistic.view(WatchStore.snapshot.value, WatchStore.outbox.toList()) } }
         val snapshot by WatchStore.snapshot
         val nearby by WatchStore.phoneNearby
-        val view = remember(snapshot, WatchStore.outbox.toList()) { Optimistic.view(snapshot, WatchStore.outbox) }
+        val view by viewState
         fun send(type: String, fields: Map<String, Any?> = emptyMap()) = scope.launch { WatchStore.send(this@WatchActivity, type, fields) }
+        val units by remember { androidx.compose.runtime.derivedStateOf { Units(WatchStore.snapshot.value?.weightUnit == "lb") } }
 
         // A workout appearing (started here or on the phone) opens it; one ending goes back home.
         val workoutId = view.workout?.id
@@ -80,8 +102,37 @@ class WatchActivity : ComponentActivity() {
                     }
                     composable("overview") { view.workout?.let { w -> OverviewScreen(w) { b -> nav.navigate("exercise/${b.id}") } } }
                     composable("exercise/{id}") { entry ->
-                        val b = view.workout?.blocks?.firstOrNull { it.id == entry.arguments?.getString("id") }
-                        ComingNext(b?.name ?: "Exercise")
+                        val w = view.workout
+                        val b = w?.blocks?.firstOrNull { it.id == entry.arguments?.getString("id") }
+                        if (w != null && b != null) ExerciseScreen(
+                            w, b, units,
+                            onSend = { type, fields -> send(type, fields + ("workoutId" to w.id)) },
+                            onOtherExercise = { dir -> w.blocks.getOrNull(w.blocks.indexOf(b) + dir)?.let { nav.navigate("exercise/${it.id}") { popUpTo("overview") } } },
+                            onSetType = { set -> nav.navigate("settype/${b.id}/${set.id}") },
+                            onActions = { nav.navigate("actions/${b.id}") },
+                            onOverview = { nav.popBackStack("overview", false) },
+                            onLogged = { logged -> afterLog(nav, w, logged) },
+                        )
+                    }
+                    composable("actions/{block}") { ComingNext("Exercise actions") }
+                    composable("settype/{block}/{set}") { entry ->
+                        val w = view.workout
+                        val b = w?.blocks?.firstOrNull { it.id == entry.arguments?.getString("block") }
+                        val set = b?.sets?.firstOrNull { it.id == entry.arguments?.getString("set") }
+                        if (w != null && b != null && set != null) SetTypeScreen(set) { t ->
+                            send("setType", mapOf("workoutId" to w.id, "block" to b.id, "set" to set.id, "setType" to t)); nav.popBackStack()
+                        }
+                    }
+                    composable("rest/{block}") { entry ->
+                        val w = view.workout
+                        val b = w?.blocks?.firstOrNull { it.id == entry.arguments?.getString("block") }
+                        if (w != null && b != null) {
+                            val nextBlock = nextPending(w, b)
+                            val nextSet = nextBlock?.sets?.firstOrNull { !it.done }
+                            RestScreen(b, w.timers[b.id], units, nextSet?.let { setText(nextBlock.tracking, Values(Engine.shown(it, "weightKg"), Engine.shown(it, "reps")?.toInt(), Engine.shown(it, "timeSec")?.toInt(), Engine.shown(it, "distanceKm")), units) },
+                                onSend = { type, fields -> send(type, fields + ("workoutId" to w.id)) },
+                                onDone = { if (nextBlock != null) nav.navigate("exercise/${nextBlock.id}") { popUpTo("overview") } else nav.popBackStack("overview", false) })
+                        }
                     }
                 }
             }

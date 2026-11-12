@@ -73,7 +73,9 @@ export function applyWorkoutCommand(a: ActiveWorkout, c: WatchCommand, ctx: Watc
       if (!b || b.sets.length >= 50) return false;
       const last = b.sets[b.sets.length - 1];
       const planned = (f: Field) => last ? last[f] ?? last.suggested?.[f] ?? null : null;
-      b.sets.push({ id: ctx.newId(), type: 'normal', weightKg: null, reps: null, timeSec: null, distanceKm: null, floors: null, steps: null, rpe: null, done: false,
+      // The watch names the new set (so its next taps on it match before the phone answers); else a fresh id.
+      const wanted = str(c.newSet), id = wanted && /^[\w-]{8,64}$/.test(wanted) && !a.exercises.some((x) => x.sets.some((y) => y.id === wanted)) ? wanted : ctx.newId();
+      b.sets.push({ id, type: 'normal', weightKg: null, reps: null, timeSec: null, distanceKm: null, floors: null, steps: null, rpe: null, done: false,
         suggested: { weightKg: planned('weightKg'), reps: planned('reps'), timeSec: planned('timeSec'), distanceKm: planned('distanceKm') } });
       return true;
     }

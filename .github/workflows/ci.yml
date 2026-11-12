@@ -90,5 +90,5 @@ jobs:
           distribution: temurin
           java-version: '21'
       - name: Build the debug APKs and test the phone-watch protocol
-        run: cd android && ./gradlew --no-daemon assembleDebug :shared:testDebugUnitTest
+        run: cd android && ./gradlew --no-daemon assembleDebug :shared:testDebugUnitTest :wear:testDebugUnitTest
 

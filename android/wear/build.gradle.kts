@@ -41,6 +41,7 @@ android {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
     }
+    testOptions { unitTests.isReturnDefaultValues = true }
     buildFeatures {
         compose = true
         buildConfig = true
@@ -55,6 +56,8 @@ kotlin {
 
 dependencies {
     implementation(project(":shared"))
+    testImplementation("junit:junit:4.13.2")
+    testImplementation("org.json:json:20250517")
     implementation(platform("androidx.compose:compose-bom:2026.06.00"))
     implementation("androidx.wear.compose:compose-material3:1.6.2")
     implementation("androidx.wear.compose:compose-foundation:1.6.2")

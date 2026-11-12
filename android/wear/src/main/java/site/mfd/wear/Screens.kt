@@ -186,5 +186,5 @@ private fun ExerciseRow(b: Block, inSuperset: Boolean, onClick: () -> Unit) {
 @Composable
 fun ComingNext(title: String) = ListScreen {
     item { Text(title, fontWeight = FontWeight.ExtraBold, textAlign = TextAlign.Center) }
-    item { Text("Logging sets on the watch comes in the next build.", color = C.muted, textAlign = TextAlign.Center) }
+    item { Text("Coming in the next build.", color = C.muted, textAlign = TextAlign.Center) }
 }
