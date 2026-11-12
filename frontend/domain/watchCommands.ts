@@ -101,8 +101,12 @@ export function applyWorkoutCommand(a: ActiveWorkout, c: WatchCommand, ctx: Watc
       const ex = ctx.exercise(str(c.exercise) ?? '');
       if (!ex || a.exercises.length >= 40) return false;
       const sets = typeof c.sets === 'number' && Number.isInteger(c.sets) ? Math.min(10, Math.max(1, c.sets)) : 3;
-      const block = prepareActiveBlock({ id: ctx.newId(), exerciseId: ex.id, tracking: ex.tracking, restSec: ex.tracking === 'distance_time' ? 0 : ctx.defaultRestSec, note: '', supersetId: null,
-        sets: Array.from({ length: sets }, () => ({ id: ctx.newId(), type: 'normal' as SetType, weightKg: null, reps: null, timeSec: null, distanceKm: null, floors: null, steps: null, rpe: null, done: false })) });
+      // The watch names the new exercise and its sets (so its next taps match before the phone answers).
+      const used = new Set(a.exercises.flatMap((x) => [x.id, ...x.sets.map((y) => y.id)]));
+      const free = (v: unknown) => { const id = str(v); return id && /^[\w-]{8,64}$/.test(id) && !used.has(id) ? (used.add(id), id) : ctx.newId(); };
+      const setIds = Array.isArray(c.newSets) ? c.newSets : [];
+      const block = prepareActiveBlock({ id: free(c.newBlock), exerciseId: ex.id, tracking: ex.tracking, restSec: ex.tracking === 'distance_time' ? 0 : ctx.defaultRestSec, note: '', supersetId: null,
+        sets: Array.from({ length: sets }, (_, i) => ({ id: free(setIds[i]), type: 'normal' as SetType, weightKg: null, reps: null, timeSec: null, distanceKm: null, floors: null, steps: null, rpe: null, done: false })) });
       a.exercises.push(block);
       a.timers[block.id] = { durationSec: block.restSec, endsAt: null, pausedRemainingSec: null };
       // Added from inside a superset: joins it, right after that exercise.

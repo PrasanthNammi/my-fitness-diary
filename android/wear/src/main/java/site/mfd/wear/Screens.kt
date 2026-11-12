@@ -91,6 +91,7 @@ fun HomeScreen(s: Snapshot?, view: View, nearby: Boolean?, onWorkout: () -> Unit
         return@ListScreen
     }
     val w = view.workout
+    view.ended?.let { item { Text("✓ $it · syncing to your phone", color = C.success, fontSize = 12.sp, textAlign = TextAlign.Center) } }
     if (w != null) item { WorkoutCard(w, onWorkout) }
     else if (view.starting != null) item { Text("Starting ${view.starting}…", color = C.accent2, textAlign = TextAlign.Center) }
     else item { Row("Start empty workout", accent = true, icon = { Icon(Icons.Filled.PlayArrow, null) }, onClick = onStartEmpty) }
@@ -152,7 +153,7 @@ fun RoutineScreen(r: Routine, startDisabled: Boolean, onStart: () -> Unit) = Lis
 
 // ───────── Workout overview ─────────
 @Composable
-fun OverviewScreen(w: Workout, onExercise: (Block) -> Unit) = ListScreen {
+fun OverviewScreen(w: Workout, onExercise: (Block) -> Unit, onAdd: () -> Unit, onFinish: () -> Unit) = ListScreen {
     item { Text(clock(elapsed(w.startedAt)), color = C.accent, fontSize = 30.sp, fontWeight = FontWeight.ExtraBold) }
     item { Text(w.title, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis) }
     w.blocks.forEachIndexed { i, b ->
@@ -161,6 +162,8 @@ fun OverviewScreen(w: Workout, onExercise: (Block) -> Unit) = ListScreen {
         item { ExerciseRow(b, inSuperset = b.supersetId != null) { onExercise(b) } }
     }
     if (w.blocks.isEmpty()) item { Text("No exercises yet", color = C.muted) }
+    item { Row("Add exercise", icon = { Icon(Icons.Filled.Add, null) }, onClick = onAdd) }
+    item { Row("Finish", accent = true, icon = { Icon(Icons.Filled.Check, null) }, onClick = onFinish) }
 }
 
 @Composable

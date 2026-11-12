@@ -49,6 +49,9 @@ assert.ok(ok(a,C('restSkip',{block:'b1'})));assert.equal(a.timers.b1.endsAt,null
 assert.ok(ok(a,C('addExercise',{exercise:'curl'})));const curl=a.exercises.at(-1);assert.deepEqual([curl.exerciseId,curl.restSec,curl.sets.length,!!a.timers[curl.id]],['curl',120,3,true]);
 assert.ok(ok(a,C('addExercise',{exercise:'run',sets:1})));assert.equal(a.exercises.at(-1).restSec,0,'distance has no rest');
 assert.ok(!ok(a,C('addExercise',{exercise:'unknown'})));
+assert.ok(ok(a,C('addExercise',{exercise:'curl',sets:2,newBlock:'watch-blk-0001',newSets:['watch-set-0001','watch-set-0002']})));assert.deepEqual([a.exercises.at(-1).id,...a.exercises.at(-1).sets.map(x=>x.id)],['watch-blk-0001','watch-set-0001','watch-set-0002'],'the watch names a new exercise and its sets');
+assert.ok(ok(a,C('addExercise',{exercise:'curl',sets:1,newBlock:'watch-blk-0001',newSets:['bad id!']})));assert.ok(a.exercises.at(-1).id!=='watch-blk-0001'&&a.exercises.at(-1).sets[0].id!=='bad id!','taken or invalid ids get fresh ones');
+a.exercises.splice(-2);
 assert.ok(ok(a,C('addExercise',{exercise:'curl',supersetWith:'b1'})));assert.equal(a.exercises[1].exerciseId,'curl','placed right after its superset partner');assert.equal(a.exercises[0].supersetId,a.exercises[1].supersetId);
 assert.ok(ok(a,C('unsuperset',{block:a.exercises[1].id})));assert.equal(a.exercises[0].supersetId,null,'a superset of one is dissolved');
 assert.ok(ok(a,C('moveExercise',{block:'b1',dir:1})));assert.equal(a.exercises[1].id,'b1');assert.ok(!ok(a,C('moveExercise',{block:a.exercises[0].id,dir:-1})),'already first');

@@ -20,7 +20,8 @@ export const SYNC_VERSION = 1;
 const MAX_ROUTINES = 100, MAX_BYTES = 80_000, RECENT = 30, PER_MUSCLE = 25, APPLIED = 60;
 
 type Values = { weightKg?: number | null; reps?: number | null; timeSec?: number | null; distanceKm?: number | null };
-type WatchExercise = { id: string; name: string; muscle: string; tracking: TrackingMode };
+/** `last`: the first working set of its latest session, so an exercise added on the watch starts pre-filled. */
+type WatchExercise = { id: string; name: string; muscle: string; tracking: TrackingMode; last: Values | null };
 export type Snapshot = {
   v: number;
   /** Ids of watch commands the phone has applied (the watch stops re-showing them as pending). */
@@ -49,7 +50,7 @@ const MUSCLES: [string, RegExp][] = [
 export const muscleGroup = (m: string) => MUSCLES.find(([, r]) => r.test(m))?.[0] ?? null;
 export const weightStep = (ex: Exercise | undefined) => (ex && /barbell|smith|ez|trap bar|machine|cable|leverage|sled/i.test(ex.equipment + ' ' + ex.name) ? 2.5 : 1);
 const fields = (s: Partial<SetEntry> | undefined | null): Values => ({ weightKg: s?.weightKg ?? null, reps: s?.reps ?? null, timeSec: s?.timeSec ?? null, distanceKm: s?.distanceKm ?? null });
-const watchExercise = (e: Exercise): WatchExercise => ({ id: e.id, name: e.name, muscle: e.primaryMuscle, tracking: e.tracking });
+
 
 /** What the watch needs, kept small (a data item is limited to 100 KB). */
 export function snapshot(d: DB, lib: Library, applied: string[] = []): Snapshot {
@@ -57,6 +58,10 @@ export function snapshot(d: DB, lib: Library, applied: string[] = []): Snapshot 
   const name = (id: string) => lib.byId(id)?.name ?? 'Unknown exercise';
   const a = d.active;
   // Recently used exercises first (from finished workouts, newest first), then the library grouped by muscle.
+  const watchExercise = (e: Exercise): WatchExercise => {
+    const last = findPrevious(d.workouts, e.id, 'normal', 0);
+    return { id: e.id, name: e.name, muscle: e.primaryMuscle, tracking: e.tracking, last: last ? fields(last) : null };
+  };
   const recentIds: string[] = [];
   for (const w of [...d.workouts].sort((x, y) => y.endedAt - x.endedAt)) for (const b of w.exercises) if (!recentIds.includes(b.exerciseId) && recentIds.length < RECENT) recentIds.push(b.exerciseId);
   const recent = recentIds.map((id) => lib.byId(id)).filter((e): e is Exercise => !!e).map(watchExercise);
