@@ -5,6 +5,8 @@
     <!-- Barcode scanning in the food diary. Asked for the first time the scanner opens. -->
     <uses-permission android:name="android.permission.CAMERA" />
     <uses-feature android:name="android.hardware.camera" android:required="false" />
+    <!-- Rest timer, friends and AI notifications (Android 13+ asks when they are turned on in Settings). -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
     <!-- ChatGPT and Claude links open in their apps when installed (Android 11+ package visibility). -->
     <queries>
@@ -46,5 +48,21 @@
                 <data android:scheme="site.mfd.app" android:host="auth" />
             </intent-filter>
         </activity>
+
+        <!-- Notifications from the MFD push service (Firebase), shown by the app itself. -->
+        <service
+            android:name=".PushService"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="com.google.firebase.MESSAGING_EVENT" />
+            </intent-filter>
+        </service>
+        <!-- The rest notification's −15s / +15s buttons. -->
+        <receiver
+            android:name=".RestActionReceiver"
+            android:exported="false" />
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_icon"
+            android:resource="@drawable/ic_notification" />
     </application>
 </manifest>

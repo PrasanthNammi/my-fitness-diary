@@ -2,10 +2,12 @@ import {DurableObject} from 'cloudflare:workers';
 import type {IntegrationConfig} from './config';
 import {privateJson} from './service';
 import {knownPushService, sendPush, vapidPublicKey, type PushSubscription, type Vapid} from './webpush';
+import {FCM_TOKEN, FcmSender, fcmAccountOf} from './fcm';
 
 // Phone notifications for MFD: rest-timer alerts while the app is in the background, and
 // a short message when ChatGPT or Claude adds something. One PushHub object per user holds
-// that user's devices (push subscriptions), pending rest alarms and preferences. Nothing else.
+// that user's devices (browser push subscriptions and Android app FCM tokens), pending rest alarms and
+// preferences. Nothing else.
 type Rest = {id: string; ends: number; label: string};
 type Prefs = {ai: boolean; social: boolean; messages: boolean};
 const PREF_KEYS = ['ai', 'social', 'messages'] as const;
@@ -25,6 +27,7 @@ export class PushHub extends DurableObject<Record<string, unknown>> {
     super(ctx, env);
     this.sql = ctx.storage.sql;
     this.sql.exec(`CREATE TABLE IF NOT EXISTS devices (endpoint TEXT PRIMARY KEY, p256dh TEXT NOT NULL, auth TEXT NOT NULL, added INTEGER NOT NULL);
+      CREATE TABLE IF NOT EXISTS apps (token TEXT PRIMARY KEY, added INTEGER NOT NULL);
       CREATE TABLE IF NOT EXISTS rests (id TEXT PRIMARY KEY, ends INTEGER NOT NULL, label TEXT NOT NULL);
       CREATE TABLE IF NOT EXISTS state (k TEXT PRIMARY KEY, v TEXT NOT NULL);
       CREATE TABLE IF NOT EXISTS seen (id TEXT PRIMARY KEY, at INTEGER NOT NULL);`);
@@ -33,10 +36,14 @@ export class PushHub extends DurableObject<Record<string, unknown>> {
   private put(k: string, v: string) {this.sql.exec('INSERT OR REPLACE INTO state (k, v) VALUES (?, ?)', k, v);}
   private vapid() {const v = vapidOf(this.env, this.get('subject') ?? ''); if (!v) throw Error('Push not configured'); return v;}
   private devices() {return this.sql.exec<{endpoint: string; p256dh: string; auth: string}>('SELECT endpoint, p256dh, auth FROM devices').toArray().map(d => ({endpoint: d.endpoint, keys: {p256dh: d.p256dh, auth: d.auth}}));}
+  private apps() {return this.sql.exec<{token: string}>('SELECT token FROM apps').toArray().map(a => a.token);}
+  private hasDevices() {return this.devices().length + this.apps().length > 0;}
+  private fcmSender: FcmSender | null | undefined;
+  private fcm() {if (this.fcmSender === undefined) {const a = fcmAccountOf(this.env); this.fcmSender = a ? new FcmSender(a, fetch) : null;} return this.fcmSender;}
 
   /** Sends to every device of this user; forgets devices the push service says are gone. */
   private async broadcast(message: Record<string, unknown>, topic: string, ttl: number) {
-    const vapid = this.vapid();
+    const vapid = this.vapid(), fcm = this.fcm();
     const statuses = await Promise.all(this.devices().map(async sub => {
       try {
         const status = await sendPush(sub, message, vapid, fetch, {ttl, topic, urgency: 'high'});
@@ -44,8 +51,15 @@ export class PushHub extends DurableObject<Record<string, unknown>> {
         return status;
       } catch {return 0; /* one device failing must not stop the others */}
     }));
-    // Counts and push-service status codes only (no endpoints, users or content): visible in `wrangler tail`.
-    console.log(JSON.stringify({push: topic, devices: statuses.length, statuses}));
+    const apps = !fcm ? [] : await Promise.all(this.apps().map(async token => {
+      try {
+        const result = await fcm.send(token, message, ttl, topic);
+        if (result === 'gone') this.sql.exec('DELETE FROM apps WHERE token=?', token);
+        return result;
+      } catch {return 'failed';}
+    }));
+    // Counts and push-service status codes only (no endpoints, tokens, users or content): visible in `wrangler tail`.
+    console.log(JSON.stringify({push: topic, devices: statuses.length, statuses, apps}));
   }
 
   async addDevice(sub: PushSubscription, subject: string, allowLocal: boolean) {
@@ -55,6 +69,13 @@ export class PushHub extends DurableObject<Record<string, unknown>> {
     this.sql.exec('DELETE FROM devices WHERE endpoint NOT IN (SELECT endpoint FROM devices ORDER BY added DESC LIMIT ?)', MAX_DEVICES);
   }
   async removeDevice(endpoint: string) {this.sql.exec('DELETE FROM devices WHERE endpoint=?', endpoint);}
+  /** The Android app: its FCM token instead of a browser subscription. */
+  async addApp(token: string, subject: string) {
+    this.put('subject', subject);
+    this.sql.exec('INSERT OR REPLACE INTO apps (token, added) VALUES (?, ?)', token, Date.now());
+    this.sql.exec('DELETE FROM apps WHERE token NOT IN (SELECT token FROM apps ORDER BY added DESC LIMIT ?)', MAX_DEVICES);
+  }
+  async removeApp(token: string) {this.sql.exec('DELETE FROM apps WHERE token=?', token);}
   async prefs(): Promise<Prefs> {return {ai: this.get('ai') !== 'off', social: this.get('social') !== 'off', messages: this.get('messages') !== 'off'};}
   async setPrefs(p: Partial<Prefs>) {for (const k of PREF_KEYS) if (typeof p[k] === 'boolean') this.put(k, p[k] ? 'on' : 'off');}
 
@@ -105,7 +126,7 @@ export class PushHub extends DurableObject<Record<string, unknown>> {
   /** A friend liked, commented or sent a message. Respects the user's switches; at most 30 an hour.
    * The tag groups them on the phone: a newer like on the same workout replaces the older one. */
   async social(m: SocialMessage) {
-    if (this.get(m.kind === 'message' ? 'messages' : 'social') === 'off' || !this.devices().length) return false;
+    if (this.get(m.kind === 'message' ? 'messages' : 'social') === 'off' || !this.hasDevices()) return false;
     const hour = Math.floor(Date.now() / 3600_000), [h, n] = (this.get('social-rate') ?? '0:0').split(':').map(Number);
     const count = h === hour ? (n ?? 0) + 1 : 1;
     if (count > SOCIAL_PER_HOUR) return false;
@@ -116,7 +137,7 @@ export class PushHub extends DurableObject<Record<string, unknown>> {
 
   /** One message per AI addition; repeats of the same request are ignored. */
   async aiAdded(requestId: string | null, message: {title: string; body: string}) {
-    if (this.get('ai') === 'off' || !this.devices().length) return;
+    if (this.get('ai') === 'off' || !this.hasDevices()) return;
     if (requestId) {
       this.sql.exec('DELETE FROM seen WHERE at < ?', Date.now() - 86400_000);
       if (this.sql.exec('SELECT 1 FROM seen WHERE id=?', requestId).toArray().length) return;
@@ -219,12 +240,23 @@ export async function handlePush(request: Request, env: Record<string, unknown>,
     const hub = ns.get(ns.idFromName(user));
     if (path === '/push/devices' && method === 'POST') {
       const b = await body(request), keys = b.keys as Record<string, unknown> | undefined;
+      if ('fcm' in b) {
+        if (typeof b.fcm !== 'string' || !FCM_TOKEN.test(b.fcm)) return privateJson({error: 'Invalid app token'}, 400);
+        await hub.addApp(b.fcm, config.authOrigin);
+        return privateJson({ok: true});
+      }
       if (typeof b.endpoint !== 'string' || b.endpoint.length > 1024 || typeof keys?.p256dh !== 'string' || typeof keys.auth !== 'string' || keys.p256dh.length > 128 || keys.auth.length > 64) return privateJson({error: 'Invalid subscription'}, 400);
       if (!knownPushService(b.endpoint, allowLocal)) return privateJson({error: 'Unknown push service'}, 400);
       await hub.addDevice({endpoint: b.endpoint, keys: {p256dh: keys.p256dh, auth: keys.auth}}, config.authOrigin, allowLocal);
       return privateJson({ok: true});
     }
-    if (path === '/push/devices/remove' && method === 'POST') {const b = await body(request); if (typeof b.endpoint !== 'string') return privateJson({error: 'Invalid endpoint'}, 400); await hub.removeDevice(b.endpoint); return privateJson({ok: true});}
+    if (path === '/push/devices/remove' && method === 'POST') {
+      const b = await body(request);
+      if (typeof b.fcm === 'string') await hub.removeApp(b.fcm);
+      else if (typeof b.endpoint === 'string') await hub.removeDevice(b.endpoint);
+      else return privateJson({error: 'Invalid endpoint'}, 400);
+      return privateJson({ok: true});
+    }
     if (path === '/push/prefs' && method === 'GET') return privateJson(await hub.prefs());
     if (path === '/push/prefs' && method === 'POST') {const b = await body(request), p: Partial<Prefs> = {}; for (const k of PREF_KEYS) if (k in b) {if (typeof b[k] !== 'boolean') return privateJson({error: 'Invalid preferences'}, 400); p[k] = b[k] as boolean;} if (!Object.keys(p).length) return privateJson({error: 'Invalid preferences'}, 400); await hub.setPrefs(p); return privateJson({ok: true});}
     if (path === '/push/rests' && method === 'GET') return privateJson({rests: await hub.rests()});

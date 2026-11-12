@@ -7,7 +7,10 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.content.res.Configuration
 import android.net.Uri
+import android.os.Build
 import android.os.Bundle
+import android.provider.Settings
+import android.webkit.CookieManager
 import android.webkit.PermissionRequest
 import android.webkit.ValueCallback
 import android.webkit.WebChromeClient
@@ -20,15 +23,24 @@ import androidx.activity.OnBackPressedCallback
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.browser.customtabs.CustomTabsIntent
+import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
+import androidx.core.content.edit
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
+import androidx.webkit.JavaScriptReplyProxy
+import androidx.webkit.WebViewCompat
+import androidx.webkit.WebViewFeature
+import com.google.firebase.FirebaseApp
+import com.google.firebase.messaging.FirebaseMessaging
+import org.json.JSONObject
 
 /**
  * My Fitness Diary for Android: the live web app in a full-screen WebView. The app itself (screens, data, offline
  * cache, sign-in) comes from the website, so every web release reaches this app at once; this shell adds what a
- * browser tab can't (camera permission, outside links in their own apps, and later native notifications).
+ * browser tab can't: camera permission, outside links in their own apps, Google sign-in, and native notifications
+ * (the page talks to the app through the `MFDNative` channel, on the MFD site only; see frontend/lib/native.ts).
  */
 class MainActivity : ComponentActivity() {
 
@@ -40,6 +52,24 @@ class MainActivity : ComponentActivity() {
         val request = pendingCamera ?: return@registerForActivityResult
         pendingCamera = null
         if (granted) request.grant(arrayOf(PermissionRequest.RESOURCE_VIDEO_CAPTURE)) else request.deny()
+    }
+
+    private var pendingEnable: Pair<Int, JavaScriptReplyProxy>? = null
+    private val notificationPermission = registerForActivityResult(ActivityResultContracts.RequestPermission()) {
+        val (id, reply) = pendingEnable ?: return@registerForActivityResult
+        pendingEnable = null
+        finishEnable(id, reply)
+    }
+
+    // Export & import → Download: the page's file, saved where the user picks (Downloads, Drive…).
+    private var pendingSave: Triple<String, Int, JavaScriptReplyProxy>? = null
+    private val saveFile = registerForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri ->
+        val (text, id, reply) = pendingSave ?: return@registerForActivityResult
+        pendingSave = null
+        val saved = uri != null && try {
+            contentResolver.openOutputStream(uri, "wt")?.use { it.write(text.toByteArray()) } != null
+        } catch (e: Exception) { false }
+        reply.postMessage(JSONObject().put("id", id).put("saved", saved).toString())
     }
 
     private val filePicker = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
@@ -105,23 +135,97 @@ class MainActivity : ComponentActivity() {
             }
         }
 
+        if (WebViewFeature.isFeatureSupported(WebViewFeature.WEB_MESSAGE_LISTENER)) {
+            WebViewCompat.addWebMessageListener(web, "MFDNative", setOf(SITE_ORIGIN)) { _, message, origin, isMainFrame, reply ->
+                if (isMainFrame && origin.toString().trimEnd('/') == SITE_ORIGIN) message.data?.let { onPageMessage(it, reply) }
+            }
+        }
+
         onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
             override fun handleOnBackPressed() {
                 if (web.canGoBack()) web.goBack() else { isEnabled = false; onBackPressedDispatcher.onBackPressed() }
             }
         })
 
-        val signIn = signInUrl(intent)
+        val start = signInUrl(intent) ?: openUrl(intent)
         when {
-            signIn != null -> web.loadUrl(signIn)
+            start != null -> web.loadUrl(start)
             savedInstanceState == null || web.restoreState(savedInstanceState) == null -> web.loadUrl(SITE)
         }
     }
 
-    // The app is already open (singleTask): a sign-in hand-off from Chrome arrives here and closes the Chrome tab.
+    // The app is already open (singleTask): a sign-in hand-off from Chrome, or a tapped notification, arrives here.
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
-        signInUrl(intent)?.let { web.loadUrl(it) }
+        (signInUrl(intent) ?: openUrl(intent))?.let { web.loadUrl(it) }
+    }
+
+    /** A tapped notification: the MFD screen it is about ("/" just brings MFD to the front). */
+    private fun openUrl(intent: Intent?): String? {
+        val path = intent?.getStringExtra(EXTRA_OPEN)?.takeIf { isAppPath(it) && it != "/" } ?: return null
+        intent.removeExtra(EXTRA_OPEN)
+        return SITE + path.removePrefix("/")
+    }
+
+    // ── Messages from the page (frontend/lib/native.ts) ──────────────────────────────
+    private fun onPageMessage(raw: String, reply: JavaScriptReplyProxy) {
+        val m = try { JSONObject(raw) } catch (e: Exception) { return }
+        val id = m.optInt("id", 0)
+        fun answer(o: JSONObject) { if (id != 0) reply.postMessage(o.put("id", id).toString()) }
+        when (m.optString("op")) {
+            "hello" -> page = reply
+            "notifications" -> answer(JSONObject().put("granted", notificationsOn()).put("blocked", notificationsBlocked()).put("push", pushAvailable()))
+            "enable" -> enable(id, reply)
+            "token" -> token { answer(JSONObject().put("token", it ?: JSONObject.NULL)) }
+            "rest" -> {
+                val restId = m.optString("id").takeIf { REST_ID.matches(it) } ?: return
+                Notify.resting(this, restId, m.optString("label").take(80), m.optLong("ends"))
+            }
+            "restOver" -> Notify.restOver(this, m.optString("id").takeIf { REST_ID.matches(it) } ?: return, m.optString("label").take(80))
+            "restClear" -> Notify.clearRest(this, m.optBoolean("all"))
+            "save" -> {
+                val name = m.optString("name").takeIf { SAVE_NAME.matches(it) } ?: return
+                pendingSave = Triple(m.optString("text"), id, reply)
+                try { saveFile.launch(name) } catch (e: ActivityNotFoundException) { pendingSave = null; answer(JSONObject().put("saved", false)) }
+            }
+        }
+    }
+
+    private fun notificationsOn() = NotificationManagerCompat.from(this).areNotificationsEnabled()
+    private val asked get() = getSharedPreferences("app", MODE_PRIVATE).getBoolean("askedNotifications", false)
+    /** Off, and Android won't ask again (denied twice, or switched off in settings). */
+    private fun notificationsBlocked(): Boolean = !notificationsOn() && (Build.VERSION.SDK_INT < 33 ||
+        (asked && !shouldShowRequestPermissionRationale(Manifest.permission.POST_NOTIFICATIONS)))
+    private fun pushAvailable() = FirebaseApp.getApps(this).isNotEmpty()
+
+    private fun enable(id: Int, reply: JavaScriptReplyProxy) {
+        when {
+            notificationsOn() -> finishEnable(id, reply)
+            notificationsBlocked() -> {
+                // Only the phone's settings can turn them back on.
+                try { startActivity(Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).putExtra(Settings.EXTRA_APP_PACKAGE, packageName)) } catch (e: ActivityNotFoundException) {}
+                reply.postMessage(JSONObject().put("id", id).put("granted", false).toString())
+            }
+            else -> {
+                getSharedPreferences("app", MODE_PRIVATE).edit { putBoolean("askedNotifications", true) }
+                pendingEnable = id to reply
+                notificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
+            }
+        }
+    }
+
+    private fun finishEnable(id: Int, reply: JavaScriptReplyProxy) {
+        val granted = notificationsOn()
+        if (!granted) { reply.postMessage(JSONObject().put("id", id).put("granted", false).toString()); return }
+        token { reply.postMessage(JSONObject().put("id", id).put("granted", true).put("token", it ?: JSONObject.NULL).toString()) }
+    }
+
+    /** This install's Firebase token, or null when Firebase isn't set up or can't be reached. */
+    private fun token(done: (String?) -> Unit) {
+        if (!pushAvailable()) { done(null); return }
+        try {
+            FirebaseMessaging.getInstance().token.addOnCompleteListener { task -> done(if (task.isSuccessful) task.result else null) }
+        } catch (e: Exception) { done(null) }
     }
 
     /** site.mfd.app://auth?code=... → the site's own sign-in callback, finished in this WebView (it holds the
@@ -139,8 +243,15 @@ class MainActivity : ComponentActivity() {
         web.saveState(outState)
     }
 
-    override fun onResume() { super.onResume(); web.onResume() }
-    override fun onPause() { web.onPause(); super.onPause() }
+    override fun onResume() { super.onResume(); web.onResume(); onScreen = this }
+    override fun onPause() {
+        onScreen = null
+        web.onPause()
+        CookieManager.getInstance().flush() // the rest buttons use the session cookie even if MFD is closed
+        super.onPause()
+    }
+    override fun onDestroy() { if (onScreen === this) onScreen = null; page = null; super.onDestroy() }
+    private var page: JavaScriptReplyProxy? = null
 
     private fun isOwnSite(uri: Uri?): Boolean = uri?.scheme == "https" && uri.host == SITE_HOST
 
@@ -169,5 +280,21 @@ class MainActivity : ComponentActivity() {
     companion object {
         const val SITE = "https://prasanth-nammi-portfolio.shanustylish777.chatgpt.site/"
         val SITE_HOST: String = Uri.parse(SITE).host!!
+        val SITE_ORIGIN: String = SITE.trimEnd('/')
+        const val EXTRA_OPEN = "open"
+        private val REST_ID = Regex("^[\\w:.-]{1,100}$")
+        private val SAVE_NAME = Regex("^[\\w.-]{1,80}\\.json$")
+        private val APP_PATH = Regex("^/(#/[\\w%./:-]{0,400})?$")
+
+        /** "/", or "/#/<route>": the only places a notification may open. */
+        fun isAppPath(path: String) = APP_PATH.matches(path)
+
+        private var onScreen: MainActivity? = null
+
+        /** To the page, only while MFD is on screen; false otherwise (the caller then acts without it). */
+        fun sendToPage(event: JSONObject): Boolean {
+            val page = onScreen?.page ?: return false
+            return try { page.postMessage(event.toString()); true } catch (e: Exception) { false }
+        }
     }
 }

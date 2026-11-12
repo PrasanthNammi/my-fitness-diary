@@ -16,6 +16,9 @@ that commit builds.
   file and a `MANIFEST.txt`, and checks each file's hash before finishing. The bundle is needed
   because ChatGPT's GitHub reader can't move binary files (images, GIFs); GitHub is only used
   to check hashes.
+- The Android app project (`android/`) never goes to Sites: the website doesn't use it, and
+  ChatGPT's upload refuses zips holding its build tools. The bundle leaves it out, and
+  `MANIFEST.txt` says how many files that is (step 5's "only in GitHub" count).
 
 ## 2. Ship it (ChatGPT Work mode, in the Sites project)
 
@@ -38,8 +41,9 @@ Attach the bundle zip. Paste this prompt and fill in the hashes:
 >    - Delete each file listed under "Delete".
 >    - Don't edit, merge or reformat any file content yourself.
 > 5. **Check before building.** Compare blob hashes for every tracked Sites file against the
->    GitHub tree, excluding `node_modules/`. Expected: 0 different, 0 only in GitHub, and only
->    `public/react/**` and `public/sw.js` only in Sites. If that's not the result, stop, and first
+>    GitHub tree, excluding `node_modules/`. Expected: 0 different; only in GitHub: exactly the
+>    files under `android/` (the count in `MANIFEST.txt`; Sites must not get them); only in
+>    Sites: only `public/react/**` and `public/sw.js`. If that's not the result, stop, and first
 >    put the checkout back to the starting commit (`git checkout -- .` and delete the files the
 >    bundle added), so the next attempt starts clean.
 > 6. **Build and publish** as usual (`npm run build`).

@@ -3,7 +3,8 @@ import { X } from 'lucide-react';
 import type { ActiveWorkout } from '../domain/types';
 import { resetTimer, timerRemaining, timerState } from '../domain/training';
 import { getDB, useDB } from '../data/store';
-import { reclaimRests, restsHandedOff, scheduleRests, type PendingRest } from '../lib/push';
+import { reclaimRests, refreshAppPush, restsHandedOff, scheduleRests, type PendingRest } from '../lib/push';
+import { onNative } from '../lib/native';
 import { closeRestNotification, closeRestingNotification, restNotificationsOn, restingText, showRestOver, showResting } from '../lib/restNotification';
 import { exerciseName, workouts } from '../data/repositories';
 import { chime, primeChime } from '../lib/chime';
@@ -65,6 +66,7 @@ export function RestBar() {
   useRestAlerts(a, now);
   useEffect(() => {
     document.addEventListener('pointerdown', primeChime);
+    void refreshAppPush();
     return () => document.removeEventListener('pointerdown', primeChime);
   }, []);
   // Leaving MFD hands running rests to phone notifications; coming back takes them back,
@@ -91,7 +93,7 @@ export function RestBar() {
       const next = runningRests(getDB().active, Date.now())[0];
       if (next && restNotificationsOn()) {
         const hidden = document.visibilityState === 'hidden', body = restingText(next.ends, Date.now(), hidden), key = `${next.id}:${body}`;
-        if (key !== shown) { shown = key; resting = true; void showResting(next.id, next.label, body, hidden).catch(() => undefined); }
+        if (key !== shown) { shown = key; resting = true; void showResting(next.id, next.label, body, hidden, next.ends).catch(() => undefined); }
       } else if (resting) { resting = false; shown = ''; if (!next) void closeRestingNotification(); }
     };
     const timer = setInterval(tick, 1000);
@@ -99,7 +101,9 @@ export function RestBar() {
     document.addEventListener('visibilitychange', tick);
     const onMessage = (e: MessageEvent) => { if (e.data?.type === 'MFD_REST_ADJUST' && typeof e.data.id === 'string' && [-15, 15].includes(e.data.sec)) { adjustRest(e.data.id, e.data.sec); tick(); } };
     navigator.serviceWorker?.addEventListener('message', onMessage);
-    return () => { clearInterval(timer); document.removeEventListener('visibilitychange', tick); navigator.serviceWorker?.removeEventListener('message', onMessage); };
+    // The Android app's notification buttons while MFD is on screen (in the background the app asks the server).
+    const offNative = onNative((e) => { if (e.event === 'restAdjust' && typeof e.id === 'string' && (e.sec === 15 || e.sec === -15)) { adjustRest(e.id, e.sec); tick(); } });
+    return () => { clearInterval(timer); document.removeEventListener('visibilitychange', tick); navigator.serviceWorker?.removeEventListener('message', onMessage); offNative(); };
   }, []);
 
   const running = a?.exercises
