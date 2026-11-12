@@ -22,8 +22,8 @@ android {
         applicationId = "site.mfd.app"
         minSdk = 26
         targetSdk = 36
-        versionCode = 4
-        versionName = "1.3"
+        versionCode = 5
+        versionName = "1.4"
         // MFD's download site: where the app finds and downloads its own updates. Test builds can point
         // elsewhere with -PmfdDownloads=https://...
         val downloads = (project.findProperty("mfdDownloads") as String?) ?: "https://mfd-downloads.shanustylish777.workers.dev"
@@ -71,4 +71,6 @@ dependencies {
     implementation("com.google.firebase:firebase-messaging")
     // Firebase pulls in an old Fragment library; the permission prompts need 1.3+.
     implementation("androidx.fragment:fragment-ktx:1.9.0")
+    implementation("androidx.health.connect:connect-client:1.1.0")
+    implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.10.0")
 }

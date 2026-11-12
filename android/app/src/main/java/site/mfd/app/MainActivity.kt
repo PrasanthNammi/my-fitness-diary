@@ -29,6 +29,10 @@ import androidx.core.content.edit
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
+import androidx.health.connect.client.PermissionController
+import androidx.lifecycle.lifecycleScope
+import kotlinx.coroutines.launch
+import java.time.LocalDate
 import androidx.webkit.JavaScriptReplyProxy
 import androidx.webkit.WebViewCompat
 import androidx.webkit.WebViewFeature
@@ -52,6 +56,14 @@ class MainActivity : ComponentActivity() {
         val request = pendingCamera ?: return@registerForActivityResult
         pendingCamera = null
         if (granted) request.grant(arrayOf(PermissionRequest.RESOURCE_VIDEO_CAPTURE)) else request.deny()
+    }
+
+    // Health Connect: Android's own permission screen for sleep and steps.
+    private var pendingHealth: Pair<Int, JavaScriptReplyProxy>? = null
+    private val healthPermission = registerForActivityResult(PermissionController.createRequestPermissionResultContract()) { granted ->
+        val (id, reply) = pendingHealth ?: return@registerForActivityResult
+        pendingHealth = null
+        reply.postMessage(JSONObject().put("id", id).put("granted", granted.intersect(Health.PERMISSIONS).isNotEmpty()).toString())
     }
 
     private var pendingEnable: Pair<Int, JavaScriptReplyProxy>? = null
@@ -201,10 +213,49 @@ class MainActivity : ComponentActivity() {
                     }
                 }
             }
+            "healthStatus" -> lifecycleScope.launch {
+                val availability = Health.availability(this@MainActivity)
+                val granted = try { Health.granted(this@MainActivity) } catch (e: Exception) { false }
+                answer(JSONObject().put("availability", availability).put("granted", granted))
+            }
+            "healthConnect" -> lifecycleScope.launch { connectHealth(id, reply) }
+            "healthRead" -> {
+                val from = parseDay(m.optString("from")) ?: return
+                val to = parseDay(m.optString("to")) ?: return
+                lifecycleScope.launch {
+                    val result = try {
+                        val days = org.json.JSONArray()
+                        for (d in Health.read(this@MainActivity, from, to)) days.put(JSONObject().put("date", d.date.toString())
+                            .put("sleep", d.sleepHours ?: JSONObject.NULL).put("steps", d.steps ?: JSONObject.NULL))
+                        JSONObject().put("days", days)
+                    } catch (e: SecurityException) { JSONObject().put("error", "permission") } catch (e: Exception) { JSONObject().put("error", "read") }
+                    answer(result)
+                }
+            }
             "save" -> {
                 val name = m.optString("name").takeIf { SAVE_NAME.matches(it) } ?: return
                 pendingSave = Triple(m.optString("text"), id, reply)
                 try { saveFile.launch(name) } catch (e: ActivityNotFoundException) { pendingSave = null; answer(JSONObject().put("saved", false)) }
+            }
+        }
+    }
+
+    private fun parseDay(s: String): LocalDate? = try {
+        LocalDate.parse(s).takeIf { !it.isAfter(LocalDate.now().plusDays(1)) && it.isAfter(LocalDate.now().minusYears(1)) }
+    } catch (e: Exception) { null }
+
+    private suspend fun connectHealth(id: Int, reply: JavaScriptReplyProxy) {
+        fun answer(o: JSONObject) = reply.postMessage(o.put("id", id).toString())
+        when (Health.availability(this)) {
+            "unsupported" -> answer(JSONObject().put("granted", false).put("state", "unsupported"))
+            "install" -> {
+                // Android 13 and earlier: Health Connect is an app from the Play Store.
+                try { startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("market://details?id=${Health.PROVIDER}&url=healthconnect://onboarding")).setPackage("com.android.vending")) } catch (e: ActivityNotFoundException) {}
+                answer(JSONObject().put("granted", false).put("state", "install"))
+            }
+            else -> if (try { Health.granted(this) } catch (e: Exception) { false }) answer(JSONObject().put("granted", true)) else {
+                pendingHealth = id to reply
+                try { healthPermission.launch(Health.PERMISSIONS) } catch (e: Exception) { pendingHealth = null; answer(JSONObject().put("granted", false)) }
             }
         }
     }

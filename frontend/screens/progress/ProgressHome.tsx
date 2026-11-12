@@ -9,11 +9,12 @@ import { body, exerciseName, exercises } from '../../data/repositories';
 import { openTool } from '../../adapters/engine';
 import { exerciseStats, metricLabels, setMetrics, type Metric } from '../../domain/records';
 import {
-  BODY_LIMITS, bodySeries, buckets, checkinNumber, localISO, RANGES, rangeStart, recoveryCheckins, summary, workoutsInRange,
+  BODY_LIMITS, bodySeries, buckets, checkinNumber, isRecoveryRow, localISO, RANGES, rangeStart, recoveryCheckins, summary, workoutsInRange,
   type RangeDays, type StatMetric,
 } from '../../domain/progressStats';
 import { cmTo, fmtInt, fmtNum, kgTo, mss, parseDecimal, todayISO, toCm, toKg } from '../../lib/format';
 import { navigate } from '../../lib/router';
+import { connectHealth, syncHealth, useHealth } from '../../lib/health';
 import { MuscleStats } from './MuscleStats';
 import { averageSeries } from '../../domain/weeklyRecap';
 import { ExerciseThumb } from '../training/ExercisePicker';
@@ -346,12 +347,25 @@ function MeasurementsSheet({ open, onClose, last, unit }: { open: boolean; onClo
 function RecoveryCard({ from }: { from: string | null }) {
   const checkins = useDB((d) => d.checkins);
   const [date, setDate] = useState(todayISO());
-  const existing = checkins.find((c) => c.date === date && (c.sleep != null || c.energy != null || c.soreness != null || c.note));
+  const existing = checkins.find((c) => c.date === date && isRecoveryRow(c));
   const init = () => ({ sleep: checkinNumber(existing?.sleep) ?? 7, soreness: checkinNumber(existing?.soreness) ?? 2, energy: checkinNumber(existing?.energy) ?? 4, note: existing?.note ?? '' });
   const [v, setV] = useState(init);
   useEffect(() => setV(init()), [date, existing?.id]); // eslint-disable-line react-hooks/exhaustive-deps
   const [removing, setRemoving] = useState<string | null>(null);
   const recent = recoveryCheckins(checkins, from).slice(0, 7);
+  // The Android app: sleep and steps from Health Connect (Samsung Health…).
+  const [health, refreshHealth] = useHealth();
+  const [linking, setLinking] = useState(false);
+  useEffect(() => { if (health === 'on') void syncHealth(); }, [health]);
+  const link = async () => {
+    setLinking(true);
+    try {
+      const r = await connectHealth();
+      toast(r === 'connected' ? 'Sleep and steps connected' : r === 'install' ? 'Install Health Connect from the Play Store, then tap again.' : r === 'unsupported' ? 'Health Connect isn’t available on this phone.' : 'Sleep and steps weren’t allowed.');
+    } catch { toast('Couldn’t connect. Please try again.'); }
+    finally { setLinking(false); refreshHealth(); }
+  };
+  const steps = checkinNumber(existing?.steps);
   const sliders: [keyof typeof v & ('sleep' | 'soreness' | 'energy'), string, typeof Moon, number, number, number, string][] = [
     ['sleep', 'Sleep', Moon, 3, 12, 0.5, ' h'], ['soreness', 'Soreness', Activity, 1, 5, 1, '/5'], ['energy', 'Energy', Zap, 1, 5, 1, '/5'],
   ];
@@ -365,6 +379,12 @@ function RecoveryCard({ from }: { from: string | null }) {
           <input type="range" min={min} max={max} step={step} value={v[k]} onChange={(e) => setV({ ...v, [k]: Number(e.target.value) })} />
         </label>
       ))}
+      {steps !== null && <p className="small muted tnum" style={{ margin: 0 }}>{fmtInt(steps)} steps{health === 'on' ? ' · from Health Connect' : ''}</p>}
+      {(health === 'off' || health === 'reconnect') && (
+        <button type="button" className="btn btn-secondary btn-block" disabled={linking} onClick={() => void link()}>
+          <Moon aria-hidden="true" />{health === 'reconnect' ? 'Reconnect sleep & steps' : 'Get sleep & steps from Samsung Health'}
+        </button>
+      )}
       <input className="input" aria-label="Note" placeholder="Note (optional)" value={v.note} onChange={(e) => setV({ ...v, note: e.target.value })} />
       <button type="button" className="btn btn-primary btn-block" onClick={save}>{existing ? 'Update check-in' : 'Save check-in'}</button>
       {recent.length > 0 && <div className="progress-history">

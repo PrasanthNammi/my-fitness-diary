@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Debug builds only: lets tests put sample sleep and steps into Health Connect (HealthTestActivity). -->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <uses-permission android:name="android.permission.health.WRITE_SLEEP" />
+    <uses-permission android:name="android.permission.health.WRITE_STEPS" />
+    <application>
+        <activity
+            android:name=".HealthTestActivity"
+            android:exported="true" />
+    </application>
+</manifest>

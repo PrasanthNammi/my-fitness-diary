@@ -3,8 +3,8 @@
 A native Android app (`site.mfd.app`) around the live web app. Screens, data, the offline cache and sign-in all come
 from the website in a full-screen WebView, so every web release reaches the app at once. The app adds what a browser
 tab can't: camera permission for barcodes, outside links (ChatGPT, Claude) opening in their own apps, Google sign-in
-(through a Chrome tab), native notifications with a lock-screen rest countdown, and saving exports. Next: Health
-Connect.
+(through a Chrome tab), native notifications with a lock-screen rest countdown, saving exports, updating itself, and
+sleep and steps from Health Connect.
 
 The page talks to the app through a `MFDNative` message channel that only the MFD site's own origin gets
 (`MainActivity.onPageMessage`, `frontend/lib/native.ts`).
@@ -49,6 +49,23 @@ The WebView has no Web Push, so the app uses Firebase Cloud Messaging:
   `npx wrangler secret put MFD_FCM_SA --config <wrangler.json>` (paste the whole JSON).
 - Messages are data-only; the app builds every notification (`Notify.kt`). The rest countdown is the app's own
   (Android keeps it ticking on the lock screen); the server sends "Rest over" while MFD is in the background.
+
+## Sleep and steps (Health Connect, from 1.4)
+
+Recovery check-ins (Progress → Recovery) can fill themselves from Android Health Connect, where Samsung Health and
+other apps share data. "Get sleep & steps from Samsung Health" on the Recovery card opens Health Connect's own
+permission screen (read sleep, read steps; either can be allowed alone). After that, each time MFD opens (at most every
+10 minutes) the last 7 days are read (`Health.kt`) and merged (`mergeHealthDays`):
+
+- steps follow Health Connect's daily total (or, when that is empty, the busiest single source, so a phone and a watch
+  aren't added together);
+- sleep counts on the day it ends, from every source together with awake time removed, and only fills a day without
+  sleep: hours typed or adjusted by hand are never replaced. Under 30 minutes (naps) is left out.
+
+Read-only, only while MFD is open, nothing else is read. Health Connect links to `PrivacyActivity` (text in
+`strings.xml`) from its permission screens. Samsung Health must share to Health Connect (Samsung Health → Settings →
+Health Connect). Debug builds add `HealthTestActivity` (`app/src/debug`) to write sample data for testing:
+`adb shell am start -n site.mfd.app/.HealthTestActivity`.
 
 ## New versions (the app updates itself)
 
