@@ -14,6 +14,8 @@ import { useTargets } from '../../data/selectors';
 import { fmtInt, fmtNum, mss, parseDecimal, parseMss, todayISO } from '../../lib/format';
 import { PLATE_CHOICES, plateSetup } from '../../domain/plates';
 import { navigate } from '../../lib/router';
+import { useAppUpdate } from '../../lib/appUpdate';
+import { ask, inApp } from '../../lib/native';
 import { draftFromProfile, ProfileFields, profileFromDraft, validateDraft, type ProfileDraft } from '../auth/Onboarding';
 
 export function SettingsScreen({ section }: { section: string | null }) {
@@ -34,6 +36,7 @@ function SettingsHome() {
   const account = useDB((d) => d.account);
   const profile = useDB((d) => d.profile);
   const t = useTargets();
+  const update = useAppUpdate();
   const items: [string, string, string, typeof User][] = [
     ['profile', 'Profile & goals', profile ? `${GOALS[profile.goal].label} · ${profile.trainingDaysPerWeek} days/week` : '', UserRound],
     ['targets', 'Nutrition targets', t ? `${fmtInt(t.targets.kcal)} kcal · how it’s calculated` : '', Calculator],
@@ -47,6 +50,18 @@ function SettingsHome() {
     <>
       <TopBar title="Settings" />
       <div className="screen stack">
+        {update && (
+          <div className="list">
+            <a className="list-row" href={update.url} target="_blank" rel="noopener">
+              <Download size={20} className="muted" />
+              <div className="grow">
+                <div className="row-title">Update the MFD app</div>
+                <div className="row-sub ellipsis">Version {update.version} · download and install it over this one</div>
+              </div>
+              <ChevronRight className="chev" />
+            </a>
+          </div>
+        )}
         <div className="list">
           {items.map(([k, title, sub, Icon]) => (
             <button key={k} className="list-row" onClick={() => navigate(`/settings/${k}`)}>
@@ -256,9 +271,17 @@ function DataSettings() {
   const exportData = () => setExportText(JSON.stringify(getDB(), null, 2));
   const download = () => {
     if (!exportText) return;
+    const name = `my-fitness-diary-${todayISO()}.json`;
+    // The Android app's WebView can't download blob: links; the app saves the file with Android's "Save to" picker.
+    if (inApp()) {
+      void ask<{ saved?: boolean }>('save', { name, mime: 'application/json', text: exportText }, 600_000)
+        .then((r) => { if (r.saved) toast('Export saved'); })
+        .catch(() => toast('Could not save. Use Copy instead.'));
+      return;
+    }
     const a = document.createElement('a');
     a.href = URL.createObjectURL(new Blob([exportText], { type: 'application/json' }));
-    a.download = `my-fitness-diary-${todayISO()}.json`;
+    a.download = name;
     a.click();
     setTimeout(() => URL.revokeObjectURL(a.href), 1000);
   };
