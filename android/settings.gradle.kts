@@ -14,3 +14,5 @@ dependencyResolutionManagement {
 }
 rootProject.name = "MyFitnessDiary"
 include(":app")
+include(":wear")
+include(":shared")
