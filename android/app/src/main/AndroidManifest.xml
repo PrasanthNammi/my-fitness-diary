@@ -10,9 +10,15 @@
     <!-- Updating itself from MFD's download site (Android asks the person to allow it once, and to confirm each
          update). -->
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
-    <!-- Health Connect: read sleep and steps for the recovery check-ins (asked when the person connects). -->
+    <!-- Health Connect, read only (asked when the person connects; each can be allowed alone): recovery check-ins,
+         workout heart rate, weigh-ins. -->
     <uses-permission android:name="android.permission.health.READ_SLEEP" />
     <uses-permission android:name="android.permission.health.READ_STEPS" />
+    <uses-permission android:name="android.permission.health.READ_HEART_RATE" />
+    <uses-permission android:name="android.permission.health.READ_RESTING_HEART_RATE" />
+    <uses-permission android:name="android.permission.health.READ_HEART_RATE_VARIABILITY" />
+    <uses-permission android:name="android.permission.health.READ_WEIGHT" />
+    <uses-permission android:name="android.permission.health.READ_BODY_FAT" />
 
     <!-- ChatGPT and Claude links open in their apps when installed (Android 11+ package visibility). -->
     <queries>

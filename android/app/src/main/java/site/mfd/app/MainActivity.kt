@@ -220,14 +220,29 @@ class MainActivity : ComponentActivity() {
             }
             "healthConnect" -> lifecycleScope.launch { connectHealth(id, reply) }
             "healthRead" -> {
-                val from = parseDay(m.optString("from")) ?: return
-                val to = parseDay(m.optString("to")) ?: return
+                val from = parseDay(m.optString("from")); val to = parseDay(m.optString("to"))
+                if (from == null || to == null) return answer(JSONObject().put("error", "invalid"))
                 lifecycleScope.launch {
                     val result = try {
                         val days = org.json.JSONArray()
                         for (d in Health.read(this@MainActivity, from, to)) days.put(JSONObject().put("date", d.date.toString())
-                            .put("sleep", d.sleepHours ?: JSONObject.NULL).put("steps", d.steps ?: JSONObject.NULL))
+                            .put("sleep", d.sleepHours ?: JSONObject.NULL).put("steps", d.steps ?: JSONObject.NULL)
+                            .put("restingHr", d.restingHr ?: JSONObject.NULL).put("hrv", d.hrvMs ?: JSONObject.NULL)
+                            .put("weightKg", d.weightKg ?: JSONObject.NULL).put("bodyFat", d.bodyFatPct ?: JSONObject.NULL))
                         JSONObject().put("days", days)
+                    } catch (e: SecurityException) { JSONObject().put("error", "permission") } catch (e: Exception) { JSONObject().put("error", "read") }
+                    answer(result)
+                }
+            }
+            "healthHeart" -> {
+                // A finished workout's start and end (epoch ms), within the last 30 days.
+                val start = m.optLong("from", 0); val end = m.optLong("to", 0); val now = System.currentTimeMillis()
+                if (start <= now - 30L * 86_400_000 || end <= start || end > now + 60_000) return answer(JSONObject().put("error", "invalid"))
+                lifecycleScope.launch {
+                    val result = try {
+                        val h = Health.heart(this@MainActivity, java.time.Instant.ofEpochMilli(start), java.time.Instant.ofEpochMilli(end))
+                        JSONObject().put("samples", org.json.JSONArray(h.samples.map { org.json.JSONArray(listOf(it.first, it.second)) }))
+                            .put("avg", h.avg ?: JSONObject.NULL).put("max", h.max ?: JSONObject.NULL)
                     } catch (e: SecurityException) { JSONObject().put("error", "permission") } catch (e: Exception) { JSONObject().put("error", "read") }
                     answer(result)
                 }
