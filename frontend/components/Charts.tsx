@@ -22,8 +22,8 @@ const fmtDate = (ms: number) => new Date(ms).toLocaleDateString(undefined, { day
 
 /** Responsive line chart with tap-to-inspect. Units are shown in the axis label. */
 export function LineChart({
-  points, unit, format = (v) => String(Math.round(v * 100) / 100), height = 180, label,
-}: { points: Pt[]; unit: string; format?: (v: number) => string; height?: number; label: string }) {
+  points, unit, format = (v) => String(Math.round(v * 100) / 100), height = 180, label, color = 'var(--accent)',
+}: { points: Pt[]; unit: string; format?: (v: number) => string; height?: number; label: string; color?: string }) {
   const W = 340;
   const H = height;
   const pad = { l: 48, r: 10, t: 20, b: 24 };
@@ -75,11 +75,11 @@ export function LineChart({
         <text x={2} y={10}>{unit}</text>
         <text x={pad.l} y={H - 6}>{fmtDate(minX)}</text>
         <text x={W - pad.r} y={H - 6} textAnchor="end">{fmtDate(maxX)}</text>
-        <path d={d} fill="none" stroke={smooth ? 'var(--faint)' : 'var(--accent)'} strokeWidth={smooth ? 1.25 : 2} strokeLinejoin="round" strokeLinecap="round" />
-        {points.length <= 40 && xs.map((x, i) => <circle key={i} cx={x} cy={ys[i]} r={smooth ? 2 : 2.5} fill={smooth ? 'var(--faint)' : 'var(--accent)'} />)}
-        {smooth && <path className="chart-avg" d={dAvg} fill="none" stroke="var(--accent)" strokeWidth="2.5" strokeLinejoin="round" strokeLinecap="round" />}
+        <path d={d} fill="none" stroke={smooth ? 'var(--faint)' : color} strokeWidth={smooth ? 1.25 : 2} strokeLinejoin="round" strokeLinecap="round" />
+        {points.length <= 40 && xs.map((x, i) => <circle key={i} cx={x} cy={ys[i]} r={smooth ? 2 : 2.5} fill={smooth ? 'var(--faint)' : color} />)}
+        {smooth && <path className="chart-avg" d={dAvg} fill="none" stroke={color} strokeWidth="2.5" strokeLinejoin="round" strokeLinecap="round" />}
         <line x1={xs[s]} x2={xs[s]} y1={pad.t} y2={H - pad.b} stroke="var(--ink-3)" strokeDasharray="3 3" />
-        <circle cx={xs[s]} cy={ys[s]} r="5" fill="var(--surface)" stroke="var(--accent)" strokeWidth="2" />
+        <circle cx={xs[s]} cy={ys[s]} r="5" fill="var(--surface)" stroke={color} strokeWidth="2" />
       </svg>
     </figure>
   );

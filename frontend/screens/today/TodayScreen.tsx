@@ -13,6 +13,7 @@ import { fibreTarget } from '../../domain/nutrition';
 import { navigate } from '../../lib/router';
 import { weightTrend } from '../../domain/weeklyRecap';
 import { WeekRecap } from './WeekRecap';
+import { RecoveryToday } from './RecoveryToday';
 
 /** Energy split by where it comes from: protein and carbs 4 kcal/g, fat 9, fibre 2; "Other" is the rest. */
 export function calorieSegments(kcal: number, protein: number, carbs: number, fat: number, fibre: number) {
@@ -177,6 +178,8 @@ export function TodayScreen() {
             )}
           </section>
         </div>
+
+        <RecoveryToday date={date} />
 
         {dayWorkouts.length > 0 && (
           <section className="card overview-card" aria-label="Workouts on this day">

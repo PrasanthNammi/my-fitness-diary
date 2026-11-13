@@ -17,6 +17,8 @@ import { navigate } from '../../lib/router';
 import { connectHealth, syncHealth, useHealth } from '../../lib/health';
 import { MuscleStats } from './MuscleStats';
 import { RecoveryVitals, SourceBadge } from './RecoveryHealth';
+import { takeCheckInRequest } from './RecoveryPage';
+import { History } from 'lucide-react';
 import { averageSeries } from '../../domain/weeklyRecap';
 import { ExerciseThumb } from '../training/ExercisePicker';
 import { ExercisePage } from '../training/ExercisePage';
@@ -350,13 +352,17 @@ function MeasurementsSheet({ open, onClose, last, unit }: { open: boolean; onClo
 /** Sleep, soreness and energy sliders for a day (today by default), a note, and recent check-ins. */
 function RecoveryCard({ from }: { from: string | null }) {
   const checkins = useDB((d) => d.checkins);
-  const [date, setDate] = useState(todayISO());
+  // Opened from Recovery or Overview to edit a day: that day, with the card in view.
+  const [requested] = useState(takeCheckInRequest);
+  const [date, setDate] = useState(requested ?? todayISO());
+  useEffect(() => { if (requested) document.getElementById('recovery-card')?.scrollIntoView({ block: 'start' }); }, [requested]);
   const existing = checkins.find((c) => c.date === date && isRecoveryRow(c));
   const init = () => ({ sleep: checkinNumber(existing?.sleep) ?? 7, soreness: checkinNumber(existing?.soreness) ?? 2, energy: checkinNumber(existing?.energy) ?? 4, note: existing?.note ?? '' });
   const [v, setV] = useState(init);
   useEffect(() => setV(init()), [date, existing?.id]); // eslint-disable-line react-hooks/exhaustive-deps
   const [removing, setRemoving] = useState<string | null>(null);
-  const recent = recoveryCheckins(checkins, from).slice(0, 7);
+  // Only the latest check-in here; the rest is on Progress → Recovery.
+  const recent = recoveryCheckins(checkins, from).slice(0, 1);
   // The Android app: sleep and steps from Health Connect (Samsung Health…).
   const [health, refreshHealth] = useHealth();
   const [linking, setLinking] = useState(false);
@@ -375,7 +381,7 @@ function RecoveryCard({ from }: { from: string | null }) {
   ];
   const save = () => { body.saveCheckIn({ date, sleep: v.sleep, soreness: v.soreness, energy: v.energy, note: v.note.trim() }); toast('Check-in saved'); };
   return (
-    <section className="card progress-card" aria-label="Recovery check-in">
+    <section id="recovery-card" className="card progress-card" aria-label="Recovery check-in">
       <div className="progress-card-head"><span className="eyebrow">Recovery check-in</span><DateChip label="Check-in date" value={date} onChange={setDate} /></div>
       <RecoveryVitals date={date} />
       {sliders.map(([k, label, Icon, min, max, step, u]) => (
@@ -398,10 +404,11 @@ function RecoveryCard({ from }: { from: string | null }) {
           return (
             <div key={c.id} className="progress-checkin">
               <span className="grow"><span className="name">{shortDay(c.date)}</span><span className="sub tnum">{parts.join(' · ') || '—'}</span>{c.note?.trim() && <span className="note">{c.note}</span>}</span>
-              <OverflowMenu small title="Check-in" actions={[{ label: 'Edit', icon: Pencil, onSelect: () => setDate(c.date) }, { label: 'Delete check-in', icon: Trash2, danger: true, onSelect: () => setRemoving(c.id) }]} />
+              <OverflowMenu small title="Check-in" actions={[{ label: 'Edit', icon: Pencil, onSelect: () => setDate(c.date) }, { label: 'Show history', icon: History, onSelect: () => navigate('/progress/recovery') }, { label: 'Delete check-in', icon: Trash2, danger: true, onSelect: () => setRemoving(c.id) }]} />
             </div>
           );
         })}
+        <button className="btn btn-link progress-more" onClick={() => navigate('/progress/recovery')}>See all recovery<ChevronRight aria-hidden="true" /></button>
       </div>}
       <ConfirmSheet open={!!removing} onClose={() => setRemoving(null)} danger title="Delete this check-in?" confirmLabel="Delete"
         onConfirm={() => { if (removing) { body.deleteCheckIn(removing); toast('Check-in deleted'); } }} />
