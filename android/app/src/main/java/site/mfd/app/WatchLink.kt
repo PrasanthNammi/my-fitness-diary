@@ -59,6 +59,11 @@ object WatchLink {
 /** Commands from the watch: checked, queued, and the page (if open) is told to take them. */
 class WatchListener : WearableListenerService() {
     override fun onMessageReceived(event: MessageEvent) {
+        // Live heart rate: only to an open MFD page (shown next to the workout timer), never stored or queued.
+        if (event.path == Sync.HEART) {
+            Sync.heart(event.data)?.let { MainActivity.sendToOpenPage(JSONObject().put("event", "watchHeart").put("bpm", it)) }
+            return
+        }
         if (event.path != Sync.COMMAND) return
         val command = Sync.command(event.data) ?: return
         WatchLink.enqueue(this, command)

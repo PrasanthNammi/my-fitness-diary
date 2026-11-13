@@ -1,7 +1,8 @@
 import {WorkoutClock} from './WorkoutClock';
 import { prepareActiveBlock, replaceExerciseBlock } from '../../domain/training';
 import { useEffect, useMemo, useState } from 'react';
-import { ChevronDown, Dumbbell, Pencil, Plus, Trash2, Sparkles, X } from 'lucide-react';
+import { ChevronDown, Dumbbell, Heart, Pencil, Plus, Trash2, Sparkles, X } from 'lucide-react';
+import { useWatchHeart } from '../../lib/watch';
 import type { ExerciseBlock, RestTimer, Workout } from '../../domain/types';
 import { countSets, pauseTimer, resetTimer, startTimer, workingVolume } from '../../domain/training';
 import { ConfirmSheet, Empty, Field, InfoButton, Notice, Sheet, toast } from '../../components/ui';
@@ -100,7 +101,7 @@ export function ActiveWorkoutScreen() {
           </div>
         )}
         <div className="wo-summary" aria-label="Workout summary">
-          <div><div className="k">Duration</div><div className="v accent-text">{duration(elapsed)}</div></div>
+          <div><div className="k">Duration</div><div className="v accent-text">{duration(elapsed)}<LiveHeart /></div></div>
           <div><div className="k">Volume</div><div className="v">{volumeParts(fmtVolume(workingVolume(a.exercises), weightUnit))}</div></div>
           <div><div className="k">Sets</div><div className="v">{done}<span className="muted">/{total}</span></div></div>
           <InfoButton title="Logging sets" label="How logging works" lines={[
@@ -281,4 +282,11 @@ function SaveAsRoutine({ workout, folders }: { workout: Workout; folders: import
 export function volumeParts(text: string) {
   const i = text.lastIndexOf(' ');
   return i < 0 ? text : <>{text.slice(0, i)}<span className="u">{text.slice(i)}</span></>;
+}
+
+/** The watch's live heart rate, next to the workout's duration (only while the MFD watch app sends it). */
+function LiveHeart() {
+  const bpm = useWatchHeart();
+  if (bpm === null) return null;
+  return <span className="live-heart tnum" aria-label={`Heart rate ${bpm} bpm from your watch`}><Heart aria-hidden="true" fill="currentColor" />{bpm}</span>;
 }
