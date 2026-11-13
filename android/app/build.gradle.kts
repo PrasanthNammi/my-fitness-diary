@@ -22,7 +22,7 @@ android {
         applicationId = "site.mfd.app"
         minSdk = 26
         targetSdk = 36
-        versionCode = 6
+        versionCode = 7
         versionName = "2.0"
         // MFD's download site: where the app finds and downloads its own updates. Test builds can point
         // elsewhere with -PmfdDownloads=https://...
