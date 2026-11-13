@@ -14,6 +14,7 @@ import { mss } from '../lib/format';
 import { useNow } from '../lib/hooks';
 import { useRoute } from '../lib/router';
 import { toast } from './ui';
+import { RestWave } from './RestWave';
 
 /** Fires a chime, vibration and message once when an exercise's rest timer runs out (on any screen). */
 function useRestAlerts(a: ActiveWorkout | null, now: number) {
@@ -138,21 +139,21 @@ export function RestBar() {
   });
   const name = exerciseName(running.exerciseId);
 
-  const left = timerRemaining(running.t, now), total = Math.max(1, running.t.durationSec), progress = Math.min(1, left / total);
-  const R = 21, C = 2 * Math.PI * R;
+  const left = timerRemaining(running.t, now);
+  // The bar's full length grows with +15 s, like the notification's.
+  const total = Math.max(running.t.durationSec, Math.ceil((running.t.endsAt! - Date.now()) / 1000));
   return (
     <div className="rest-dock" role="timer" aria-label={`Rest for ${name}: ${mss(left)} left`}>
-      <svg className="rest-ring" viewBox="0 0 48 48" aria-hidden="true">
-        <circle cx="24" cy="24" r={R} className="rest-ring-track" />
-        <circle cx="24" cy="24" r={R} className="rest-ring-fill" strokeDasharray={C} strokeDashoffset={C * (1 - progress)} />
-      </svg>
-      <div className="grow" style={{ minWidth: 0 }}>
-        <div className="rest-dock-label ellipsis">Rest · {name}</div>
-        <div className="rest-dock-time tnum">{mss(left)}</div>
+      <div className="rest-dock-row">
+        <div className="grow" style={{ minWidth: 0 }}>
+          <div className="rest-dock-label ellipsis">Rest · {name}</div>
+          <div className="rest-dock-time tnum">{mss(left)}</div>
+        </div>
+        <button className="rest-dock-btn" onClick={() => adjust(-15)} aria-label="15 seconds less">−15</button>
+        <button className="rest-dock-btn" onClick={() => adjust(15)} aria-label="15 seconds more">+15</button>
+        <button className="rest-dock-btn skip" onClick={skip} aria-label="Skip rest"><X size={18} /></button>
       </div>
-      <button className="rest-dock-btn" onClick={() => adjust(-15)} aria-label="15 seconds less">−15</button>
-      <button className="rest-dock-btn" onClick={() => adjust(15)} aria-label="15 seconds more">+15</button>
-      <button className="rest-dock-btn skip" onClick={skip} aria-label="Skip rest"><X size={18} /></button>
+      <RestWave endsAt={running.t.endsAt!} totalSec={total} />
     </div>
   );
 }
