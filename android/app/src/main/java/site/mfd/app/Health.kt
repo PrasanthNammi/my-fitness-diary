@@ -20,12 +20,14 @@ import androidx.health.connect.client.records.SleepSessionRecord
 import androidx.health.connect.client.records.StepsRecord
 import androidx.health.connect.client.records.WeightRecord
 import kotlin.reflect.KClass
-import androidx.health.connect.client.request.AggregateRequest
+import androidx.health.connect.client.request.AggregateGroupByPeriodRequest
 import androidx.health.connect.client.request.ReadRecordsRequest
 import androidx.health.connect.client.time.TimeRangeFilter
 import java.time.Duration
 import java.time.Instant
 import java.time.LocalDate
+import java.time.Period
+import site.mfd.shared.SleepMath
 import java.time.ZoneId
 
 /**
@@ -160,21 +162,13 @@ object Health {
             page = response.pageToken
         } while (SLEEP in allowed && page != null && sessions.size < 1000)
 
-        // Asleep time from every source together, minus time any source recorded as awake: the same night can
-        // arrive from two apps (a watch and a phone), so overlapping time is counted once.
+        // Sleep as Samsung Health counts it (site.mfd.shared.SleepMath): each session whole on the day it ends,
+        // minus its awake stages; the app with the most sleep that day when two recorded the same night.
         val awakeStages = setOf(SleepSessionRecord.STAGE_TYPE_AWAKE, SleepSessionRecord.STAGE_TYPE_AWAKE_IN_BED, SleepSessionRecord.STAGE_TYPE_OUT_OF_BED)
-        val asleep = mutableListOf<Span>()
-        val awake = mutableListOf<Span>()
-        for (s in sessions) {
-            if (s.stages.isEmpty()) asleep += Span(s.startTime, s.endTime)
-            else for (stage in s.stages) (if (stage.stage in awakeStages) awake else asleep) += Span(stage.startTime, stage.endTime)
-        }
-        val sleepByDay = mutableMapOf<LocalDate, Long>() // minutes
-        for (span in subtract(union(asleep), union(awake))) {
-            val day = span.end.atZone(zone).toLocalDate()
-            if (day.isBefore(from) || day.isAfter(to)) continue
-            sleepByDay[day] = (sleepByDay[day] ?: 0) + Duration.between(span.start, span.end).toMinutes()
-        }
+        val sleepByDay = SleepMath.byDay(sessions.map { s ->
+            SleepMath.Session(s.endTime.atZone(zone).toLocalDate().toString(), s.metadata.dataOrigin.packageName, s.startTime.toEpochMilli(), s.endTime.toEpochMilli(),
+                s.stages.map { SleepMath.Stage(if (it.stage in awakeStages) SleepMath.AWAKE else SleepMath.SLEEPING, it.startTime.toEpochMilli(), it.endTime.toEpochMilli()) })
+        })
 
         // Stages: the longest session ending that day that has them (a second app's copy of the same night is not
         // added). "Sleeping" without a stage counts as light sleep.
@@ -219,16 +213,20 @@ object Health {
             .filter { it.percentage.value in 2.0..70.0 }.groupBy { day(it.time) }
             .mapValues { (_, l) -> Math.round(l.maxBy { it.time }.percentage.value * 10) / 10.0 }
 
+        // Steps per local calendar day, as Samsung Health counts them: Health Connect's own daily totals by local
+        // date (a record crossing midnight is split the same way), with sources combined by the person's priority list.
+        val stepsByDay: Map<LocalDate, Long> = if (STEPS !in allowed) emptyMap() else client.aggregateGroupByPeriod(AggregateGroupByPeriodRequest(
+            metrics = setOf(StepsRecord.COUNT_TOTAL),
+            timeRangeFilter = TimeRangeFilter.between(from.atStartOfDay(), to.plusDays(1).atStartOfDay()),
+            timeRangeSlicer = Period.ofDays(1),
+        )).associate { it.startTime.toLocalDate() to (it.result[StepsRecord.COUNT_TOTAL] ?: 0L) }
+
         val days = mutableListOf<Day>()
         var d = from
         while (!d.isAfter(to)) {
-            val steps = if (STEPS !in allowed) null else client.aggregate(AggregateRequest(
-                setOf(StepsRecord.COUNT_TOTAL),
-                TimeRangeFilter.between(d.atStartOfDay(zone).toInstant(), d.plusDays(1).atStartOfDay(zone).toInstant()),
-            ))[StepsRecord.COUNT_TOTAL]?.takeIf { it > 0 } ?: bySource[d]
-            val minutes = sleepByDay[d]
-            // Under 30 minutes is a nap or a stray record, not a night's sleep; over 18 hours is an error.
-            val hours = minutes?.takeIf { it in 30..18 * 60 }?.let { Math.round(it / 6.0) / 10.0 }
+            val steps = if (STEPS !in allowed) null else stepsByDay[d]?.takeIf { it > 0 } ?: bySource[d]
+            // Under 30 minutes is a stray record, not a night's sleep; over 18 hours is an error.
+            val hours = SleepMath.hours(sleepByDay[d.toString()])
             days += Day(d, hours, steps?.takeIf { it in 1..200_000 }, resting[d], hrv[d], weight[d], fat[d], stagesByDay[d])
             d = d.plusDays(1)
         }

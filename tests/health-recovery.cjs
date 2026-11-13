@@ -49,3 +49,13 @@ S.body.deleteWeight('h2');assert.deepEqual(state.mfdSettings.healthWeightSkip,['
 assert.equal(S.body.mergeHealth([{date:'2026-11-10',sleep:null,steps:null,weightKg:79},{date:'2026-11-11',sleep:null,steps:null,weightKg:79.9}]),0,'neither comes back');
 assert.equal(S.body.mergeHealth([{date:'2026-11-12',sleep:null,steps:9000,weightKg:79.7,restingHr:57}]),2);assert.equal(state.weights.at(-1).source,'health');assert.equal(state.checkins[0].restingHr,57);
 console.log('PASS diary: a typed weight replaces Samsung Health\'s, a deleted one is remembered, new days come in');
+// A check-in saved with Health Connect's sleep unchanged keeps it Health Connect's (it can still be corrected);
+// changed, the hours are the person's and never replaced.
+S.body.mergeHealth([{date:'2026-11-13',sleep:6.8,steps:null}]);
+S.body.saveCheckIn({date:'2026-11-13',sleep:6.8,energy:4,soreness:2,note:''});
+assert.equal(state.checkins.find(c=>c.date==='2026-11-13').sleepSource,'health','unchanged: still from Health Connect');
+S.body.mergeHealth([{date:'2026-11-13',sleep:7.1,steps:null}]);assert.equal(state.checkins.find(c=>c.date==='2026-11-13').sleep,7.1,'corrected');
+S.body.saveCheckIn({date:'2026-11-13',sleep:8,energy:4,soreness:2,note:''});
+assert.equal(state.checkins.find(c=>c.date==='2026-11-13').sleepSource,undefined,'changed by hand');
+S.body.mergeHealth([{date:'2026-11-13',sleep:7.1,steps:null}]);assert.equal(state.checkins.find(c=>c.date==='2026-11-13').sleep,8,'kept');
+console.log('PASS check-ins: sleep left as Health Connect gave it can still be corrected; changed by hand it is kept');
