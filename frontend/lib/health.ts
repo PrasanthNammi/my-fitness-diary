@@ -63,6 +63,9 @@ export async function connectHealth(): Promise<'connected' | 'denied' | 'install
   return 'connected';
 }
 
+/** Stops reading here (Settings → Health & devices → Disconnect; the phone app also takes back the permissions). */
+export const forgetHealth = () => write(null);
+
 /** 'off' (not connected), 'on', or 'reconnect' (connected here, but permission was taken back in Android). */
 export function useHealth(): [HealthState | null, () => void] {
   const [state, setState] = useState<HealthState | null>(null);

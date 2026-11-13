@@ -67,6 +67,18 @@ object Health {
         return out
     }
 
+    /** Names of the kinds MFD may read, for Settings → Health & devices. */
+    suspend fun readable(ctx: Context): List<String> {
+        val a = allowed(ctx)
+        return listOf("sleep" to SLEEP, "steps" to STEPS, "heart" to HEART, "restingHr" to RESTING, "hrv" to HRV, "weight" to WEIGHT, "bodyFat" to BODY_FAT)
+            .filter { it.second in a }.map { it.first }
+    }
+
+    /** Takes back every Health Connect permission MFD has (Settings → Health & devices → Disconnect). */
+    suspend fun disconnect(ctx: Context) {
+        if (availability(ctx) == "ready") HealthConnectClient.getOrCreate(ctx).permissionController.revokeAllPermissions()
+    }
+
     /** Which of sleep and steps the person allowed (they can allow one and not the other). */
     suspend fun allowed(ctx: Context): Set<String> =
         if (availability(ctx) != "ready") emptySet()

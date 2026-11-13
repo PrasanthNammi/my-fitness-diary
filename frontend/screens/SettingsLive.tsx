@@ -1,7 +1,9 @@
 import {syncKey,syncNow} from '../lib/sync';
 import {ExercisePicker} from './training/ExercisePicker';
 import {useRef,useState,useSyncExternalStore,type ReactNode} from 'react';
-import {Timer,UserRound,Ruler,Goal,Library,Database,ShieldUser,Utensils,Dumbbell,Flag,Download,Upload,Archive,LogOut,RefreshCw,Bell,Palette,Bot,ChevronRight} from 'lucide-react';
+import {Timer,UserRound,Ruler,Goal,Library,Database,ShieldUser,Utensils,Dumbbell,Flag,Download,Upload,Archive,LogOut,RefreshCw,Bell,Palette,Bot,ChevronRight,HeartPulse} from 'lucide-react';
+import {HealthDevices} from './settings/HealthDevices';
+import {healthSupported} from '../lib/health';
 import {AppearanceSettings} from './settings/AppearanceSettings';
 import {NotificationSettings} from './settings/NotificationSettings';
 import {ConfirmSheet,TopBar,Sheet,toast} from '../components/ui';
@@ -32,6 +34,7 @@ export function SettingsLive({section}:{section:string|null}){
  if(['profile','targets','units','workout'].includes(section||''))return <SettingsScreen section={section}/>;
  if(section==='notifications')return <NotificationSettings/>;
  if(section==='appearance')return <AppearanceSettings/>;
+ if(section==='health')return <HealthDevices/>;
  const go=(p:string)=>()=>navigate('/settings/'+p);
  const pages:Record<string,{title:string;items:Item[]}>={
   catalogue:{title:'Exercise & food catalogue',items:[
@@ -56,6 +59,7 @@ export function SettingsLive({section}:{section:string|null}){
    {icon:<Palette/>,label:'Appearance',sub:appearance(),onClick:go('appearance')},
    {icon:<Timer/>,label:'Workout',sub:`Screen, vibration, rest ${mss(settings.defaultRestSec)}`,onClick:go('workout')},
    {icon:<Bell/>,label:'Notifications',sub:'Rest timers, AI entries',onClick:go('notifications')},
+   ...(healthSupported()?[{icon:<HeartPulse/>,label:'Health & devices',sub:'Samsung Health, Galaxy Watch, app version',onClick:go('health')}]:[]),
    {icon:<Library/>,label:'Exercise & food catalogue',sub:'Exercises, foods',onClick:go('catalogue')},
    {icon:<Bot/>,label:'AI assistants',sub:'ChatGPT and Claude',onClick:()=>navigate('/coach')}]},
   {title:'Data & account',items:[
