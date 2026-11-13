@@ -228,7 +228,9 @@ class MainActivity : ComponentActivity() {
                         for (d in Health.read(this@MainActivity, from, to)) days.put(JSONObject().put("date", d.date.toString())
                             .put("sleep", d.sleepHours ?: JSONObject.NULL).put("steps", d.steps ?: JSONObject.NULL)
                             .put("restingHr", d.restingHr ?: JSONObject.NULL).put("hrv", d.hrvMs ?: JSONObject.NULL)
-                            .put("weightKg", d.weightKg ?: JSONObject.NULL).put("bodyFat", d.bodyFatPct ?: JSONObject.NULL))
+                            .put("weightKg", d.weightKg ?: JSONObject.NULL).put("bodyFat", d.bodyFatPct ?: JSONObject.NULL)
+                            .put("sleepStages", d.stages?.let { JSONObject().put("deep", it.deep).put("light", it.light).put("rem", it.rem).put("awake", it.awake)
+                                .put("start", it.start.toEpochMilli()).put("end", it.end.toEpochMilli()) } ?: JSONObject.NULL))
                         JSONObject().put("days", days)
                     } catch (e: SecurityException) { JSONObject().put("error", "permission") } catch (e: Exception) { JSONObject().put("error", "read") }
                     answer(result)

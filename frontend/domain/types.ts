@@ -199,6 +199,10 @@ export interface WeightEntry {
   date: ISODate;
   kg: number;
   addedBy?: AddedBy;
+  /** Came from Samsung Health (Health Connect); a weight typed in MFD has none and is never replaced. */
+  source?: 'health';
+  /** Body fat % from Samsung Health on that day. */
+  bodyFat?: number;
 }
 
 /**
@@ -217,7 +221,14 @@ export interface CheckIn {
   hips?: number | string | null;
   arms?: number | string | null;
   note?: string;
+  /** From Samsung Health (Health Connect): resting heart rate (bpm), HRV (ms) and the night's sleep stages. */
+  restingHr?: number | null;
+  hrv?: number | null;
+  sleepStages?: SleepStages | null;
 }
+
+/** The night's main sleep by stage (minutes), with when it started and ended (epoch ms). */
+export interface SleepStages { deep: number; light: number; rem: number; awake: number; start: number; end: number }
 
 // ── Coach ─────────────────────────────────────────────────────────
 export interface CoachMessage {
@@ -265,4 +276,6 @@ export interface Settings {
   aiHidden?: string[];
   /** Plate calculator: the bar and plates at the user's gym, in `unit`. */
   plates?: { unit: 'kg' | 'lb'; bar: number; plates: number[] };
+  /** Days whose Samsung Health weight was deleted in MFD (not added again). */
+  healthWeightSkip?: string[];
 }

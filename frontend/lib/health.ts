@@ -1,7 +1,8 @@
-// Sleep and steps from Android Health Connect (Samsung Health and others share them there), in the MFD Android
-// app from 1.4. Once connected, the last 7 days fill the recovery check-ins each time MFD opens (body.mergeHealth:
-// steps follow Health Connect; sleep only fills days without it). Read only while MFD is open; nothing is written to
-// Health Connect, and the values stay in the person's own diary (see the app's privacy screen, strings.xml).
+// Samsung Health data from Android Health Connect, in the MFD Android app (1.4+; more kinds from 2.0). Once connected,
+// the last 7 days are read each time MFD opens (body.mergeHealth): steps, resting heart rate, HRV and sleep stages
+// follow Health Connect on the day's check-in, sleep hours only fill days without them, and weight and body fat become
+// weigh-ins marked as from Samsung Health (a typed weight is never replaced; a deleted one isn't added back). Read only
+// while MFD is open; the values stay in the person's own diary (see the app's privacy screen, strings.xml).
 import { useEffect, useState } from 'react';
 import { body } from '../data/repositories';
 import { addDays, todayISO } from './format';
@@ -18,8 +19,8 @@ const write = (v: string | null) => { try { if (v === null) localStorage.removeI
 export const healthSupported = () => { const v = appVersion(); return inApp() && !!v && !newer(HEALTH_FROM, v); };
 
 type Status = { availability?: string; granted?: boolean };
-/** One day from Health Connect. The heart-rate, HRV, weight and body-fat values are read now and shown in MFD 2.0. */
-export type HealthDayRead = { date: string; sleep: number | null; steps: number | null; restingHr?: number | null; hrv?: number | null; weightKg?: number | null; bodyFat?: number | null };
+/** One day from Health Connect (the 2.0 app adds sleep stages). */
+export type HealthDayRead = { date: string; sleep: number | null; steps: number | null; restingHr?: number | null; hrv?: number | null; weightKg?: number | null; bodyFat?: number | null; sleepStages?: unknown };
 type Day = HealthDayRead;
 export type HealthState = 'off' | 'on' | 'reconnect';
 
