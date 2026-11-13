@@ -147,13 +147,20 @@ export class PushHub extends DurableObject<Record<string, unknown>> {
   }
 }
 
-// ── Friends: what a like, comment or message says (from the database's signed request) ──
-export type SocialMessage = {kind: 'like' | 'comment' | 'message'; recipient: string; title: string; body: string; tag: string; url: string};
+// ── Friends: what a like, comment, message or friend request says (from the database's signed request) ──
+export type SocialMessage = {kind: 'like' | 'comment' | 'message' | 'request' | 'accepted'; recipient: string; title: string; body: string; tag: string; url: string};
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 const text = (v: unknown, max: number) => (typeof v === 'string' ? v.replace(/\s+/g, ' ').trim().slice(0, max) : '');
 export function socialMessage(b: Record<string, unknown>): SocialMessage | null {
   const kind = b.kind, recipient = b.recipient, actor = text(b.actor_name, 80);
-  if ((kind !== 'like' && kind !== 'comment' && kind !== 'message') || typeof recipient !== 'string' || !UUID.test(recipient) || !actor) return null;
+  if ((kind !== 'like' && kind !== 'comment' && kind !== 'message' && kind !== 'request' && kind !== 'accepted') || typeof recipient !== 'string' || !UUID.test(recipient) || !actor) return null;
+  if (kind === 'request' || kind === 'accepted') {
+    const user = typeof b.actor_username === 'string' && /^[a-z0-9._]{3,24}$/.test(b.actor_username) ? b.actor_username : null;
+    if (!user) return null;
+    return kind === 'request'
+      ? {kind, recipient, title: `${actor} sent you a friend request`, body: 'Tap to accept or decline', tag: 'friend:' + user, url: '/#/friends/activity'}
+      : {kind, recipient, title: `${actor} accepted your friend request`, body: 'You can now see each other\'s workouts', tag: 'friend:' + user, url: '/#/friends/u/' + user};
+  }
   const count = typeof b.count === 'number' && Number.isInteger(b.count) && b.count > 0 ? Math.min(b.count, 9999) : 1;
   if (kind === 'message') {
     const user = typeof b.actor_username === 'string' && /^[a-z0-9._]{3,24}$/.test(b.actor_username) ? b.actor_username : null;

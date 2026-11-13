@@ -21,6 +21,7 @@ import { isRecoveryRow, mergeHealthDays, mergeHealthWeights, type HealthDay } fr
 
 
 import { startTimer, prepareActiveBlock, logSetValues, findPrevious, ordinalWithinType } from '../domain/training';
+import { celebrate } from '../lib/haptics';
 
 export const newSet = (type: SetType = 'normal', from?: Partial<SetEntry>): SetEntry => ({
   id: uid(),
@@ -172,7 +173,7 @@ export const workouts = {
         a.timers[b.id] = startTimer({ ...t, durationSec: b.restSec }, Date.now());
       }
     });
-    const current=getDB();const records=activeRecords(current.workouts,current.active).get(setId);if(records?.length)toast('♛ '+records.map(r=>metricLabels[r.metric]).join(' · '));
+    const current=getDB();const records=activeRecords(current.workouts,current.active).get(setId);if(records?.length){toast('♛ '+records.map(r=>metricLabels[r.metric]).join(' · '));celebrate()}
   },
   /** Idempotent recovery for suspended tabs, offline use and stale callbacks. */
   expire(now = Date.now(), expectedId?: ID): { workout: Workout | null } | null {

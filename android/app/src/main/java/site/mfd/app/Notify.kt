@@ -19,7 +19,8 @@ object Notify {
     private const val REST_TAG = "rest" // before 2.0 (tagged); cleared with the current one
     const val CH_RESTING = "rest_timer"
     private const val CH_REST_OVER = "rest_done" // 2.0: sound only; the app vibrates itself (RestTimer)
-    private const val CH_FRIENDS = "friends"
+    private const val CH_FRIENDS = "social" // 2.0: likes, comments and friend requests, with sound and vibration
+    private const val CH_MESSAGES = "messages"
     private const val CH_AI = "ai"
     private const val CH_APP = "app"
 
@@ -53,6 +54,7 @@ object Notify {
     private fun channels(ctx: Context) {
         val nm = ctx.getSystemService(NotificationManager::class.java)
         nm.deleteNotificationChannel("rest_over") // before 2.0: vibrated through the channel, which silent modes switch off
+        nm.deleteNotificationChannel("friends") // before 2.0: no vibration
         nm.createNotificationChannels(listOf(
             // Default importance (not low) so it shows on the lock screen; it never makes a sound.
             NotificationChannel(CH_RESTING, "Rest timer", NotificationManager.IMPORTANCE_DEFAULT).apply {
@@ -61,8 +63,12 @@ object Notify {
             NotificationChannel(CH_REST_OVER, "Rest over", NotificationManager.IMPORTANCE_HIGH).apply {
                 description = "When a rest ends (MFD vibrates itself, also in silent mode, when Vibrate is on in MFD)"; enableVibration(false)
             },
-            NotificationChannel(CH_FRIENDS, "Friends", NotificationManager.IMPORTANCE_DEFAULT).apply {
-                description = "Likes, comments and messages from friends"
+            // High: sound, vibration and a pop-up, like a chat app (the phone's silent modes still apply).
+            NotificationChannel(CH_FRIENDS, "Likes, comments & friends", NotificationManager.IMPORTANCE_HIGH).apply {
+                description = "Likes and comments on your workouts, friend requests"; enableVibration(true); vibrationPattern = longArrayOf(0, 140, 90, 140)
+            },
+            NotificationChannel(CH_MESSAGES, "Messages", NotificationManager.IMPORTANCE_HIGH).apply {
+                description = "Messages from friends"; enableVibration(true); vibrationPattern = longArrayOf(0, 200, 100, 200)
             },
             NotificationChannel(CH_AI, "AI assistants", NotificationManager.IMPORTANCE_DEFAULT).apply {
                 description = "When ChatGPT or Claude adds something to your diary"
@@ -200,7 +206,7 @@ object Notify {
             return
         }
         val path = data["url"]?.takeIf { MainActivity.isAppPath(it) }
-        post(ctx, tag, NotificationCompat.Builder(ctx, if (tag == "ai") CH_AI else CH_FRIENDS)
+        post(ctx, tag, NotificationCompat.Builder(ctx, if (tag == "ai") CH_AI else if (tag.startsWith("msg:")) CH_MESSAGES else CH_FRIENDS)
             .setSmallIcon(R.drawable.ic_notification)
             .setContentTitle(title)
             .setContentText(body)

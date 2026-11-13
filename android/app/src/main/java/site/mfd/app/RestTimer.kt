@@ -148,7 +148,8 @@ object RestTimer {
         val left = max(0L, rest.ends - now)
         val total = max(1L, rest.ends - rest.start)
         val dark = (ctx.resources.configuration.uiMode and android.content.res.Configuration.UI_MODE_NIGHT_MASK) == android.content.res.Configuration.UI_MODE_NIGHT_YES
-        val bar = bar(left.toFloat() / total, (now % 600_000) / 1000f, dark)
+        // Half speed: at 4 redraws a second each step moves the wave only a little, so it reads as flowing.
+        val bar = bar(left.toFloat() / total, (now % 1_200_000) / 2000f, dark)
         val img = image(ctx, rest.image)
         fun views(layout: Int) = RemoteViews(ctx.packageName, layout).apply {
             setChronometer(R.id.rest_time, SystemClock.elapsedRealtime() + left, "Rest %s", true)
@@ -200,10 +201,13 @@ object RestTimer {
         Notify.restOver(ctx, rest.id, rest.label)
     }
 
-    fun vibrate(ctx: Context) {
+    /** A new personal record: a quick celebratory pattern, also in silent mode (mid-workout, like the rest end). */
+    fun celebrate(ctx: Context) = vibrate(ctx, longArrayOf(0, 70, 60, 70, 60, 70, 90, 260))
+
+    fun vibrate(ctx: Context, pattern: LongArray = longArrayOf(0, 260, 140, 260, 140, 420)) {
         val v: Vibrator = if (Build.VERSION.SDK_INT >= 31) ctx.getSystemService(VibratorManager::class.java).defaultVibrator
             else @Suppress("DEPRECATION") ctx.getSystemService(Vibrator::class.java)
-        val effect = VibrationEffect.createWaveform(longArrayOf(0, 260, 140, 260, 140, 420), -1)
+        val effect = VibrationEffect.createWaveform(pattern, -1)
         // Alarm vibrations also come in silent and vibrate-off modes, like a gym timer should.
         if (Build.VERSION.SDK_INT >= 33) v.vibrate(effect, VibrationAttributes.createForUsage(VibrationAttributes.USAGE_ALARM))
         else @Suppress("DEPRECATION") v.vibrate(effect, android.media.AudioAttributes.Builder().setUsage(android.media.AudioAttributes.USAGE_ALARM).build())
@@ -227,7 +231,8 @@ class RestService : Service() {
             val now = System.currentTimeMillis()
             if (now >= rest.ends) { RestTimer.finish(this@RestService); return } // the alarm's backup
             getSystemService(NotificationManager::class.java).notify(RestTimer.NOTIFICATION_ID, RestTimer.build(this@RestService, rest, now))
-            handler.postDelayed(this, 500 - now % 500) // twice a second: the wave flows; the countdown ticks by itself
+            // 4 times a second, under Android's limit of about 5 updates a second (the countdown ticks by itself).
+            handler.postDelayed(this, 250 - now % 250)
         }
     }
 
