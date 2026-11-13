@@ -72,6 +72,7 @@ export async function refreshUpstream(config: IntegrationConfig, fetcher: typeof
 const LABELS: Record<string, [string, string]> = {
   workouts: ['Workouts', 'Sessions, sets, weights and reps'], routines: ['Routines', 'Your saved workout plans'],
   nutrition: ['Food diary', 'Meals, calories and macros'], progress: ['Body weight', 'Weigh-ins and trends'],
+  recovery: ['Recovery', 'Sleep, steps, resting heart rate, HRV and check-ins'],
   profile: ['Profile', 'Name, age, height and goals'],
   log_workouts: ['Add workouts', 'Log a finished session'], log_routines: ['Add routines', 'Create a new workout plan'],
   log_nutrition: ['Add meals', 'Log food to your diary'], log_progress: ['Add weigh-ins', 'Record a body-weight entry'],
