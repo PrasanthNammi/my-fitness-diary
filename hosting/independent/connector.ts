@@ -1,7 +1,7 @@
 import type {AuthRequest, OAuthHelpers} from '@cloudflare/workers-oauth-provider';
 import {SECTIONS, WRITE_SECTIONS, PERMISSIONS} from '../worker/mcp';
 import type {IntegrationConfig} from './config';
-import {appBadge, brand, escape, htmlPage, logo, message} from './ui';
+import {appBadge, escape, htmlPage, icons, mark, message} from './ui';
 // The Worker is the OAuth server AI apps connect to, and itself the only Supabase OAuth
 // client. AI apps receive opaque tokens valid only at /mcp; the Supabase session that
 // reads the diary stays encrypted in the grant (props) and never leaves the Worker.
@@ -77,24 +77,26 @@ const LABELS: Record<string, [string, string]> = {
   log_workouts: ['Add workouts', 'Log a finished session'], log_routines: ['Add routines', 'Create a new workout plan'],
   log_nutrition: ['Add meals', 'Log food to your diary'], log_progress: ['Add weigh-ins', 'Record a body-weight entry'],
 };
+// Permissions added in the latest release, marked on the consent page.
+const NEW = ['recovery'];
 const tickbox = (attrs: string) => `<input type="checkbox" ${attrs}><span class="box"></span>`;
 function permissionGroup(group: 'read' | 'add', title: string, pill: string, list: readonly string[]) {
-  return `<fieldset><div class="ghead"><h2>${title} <span class="pill${group === 'add' ? ' add' : ''}">${pill}</span></h2>
-<label class="all tick">${tickbox(`data-all="${group}" aria-label="Select all: ${title}"`)}Select all</label></div>
-${list.map(s => `<label class="row tick">${tickbox(`name="permission" value="${s}" data-group="${group}"`)}<span class="lbl"><b>${LABELS[s][0]}</b><span>${LABELS[s][1]}</span></span></label>`).join('')}</fieldset>`;
+  return `<section class="card group"><fieldset><div class="ghead"><h2>${title} <span class="pill${group === 'add' ? ' add' : ''}">${pill}</span></h2>
+<label class="all tick"><span class="say">Select all</span>${tickbox(`data-all="${group}" aria-label="Select all: ${title}"`)}</label></div>
+${list.map(s => `<label class="row tick">${tickbox(`name="permission" value="${s}" data-group="${group}"`)}<span class="lbl"><b>${LABELS[s][0]}${NEW.includes(s) ? '<span class="new">New</span>' : ''}</b><span>${LABELS[s][1]}</span></span></label>`).join('')}</fieldset></section>`;
 }
 function consentPage(details: Awaited<ReturnType<OAuthHelpers['describeConsent']>>, handle: string, who: Identity) {
   const name = escape(details.clientName);
-  const origin = details.clientDomain ? `Published by <strong>${escape(details.clientDomain)}</strong>.` : 'This app registered itself; its name is not verified.';
-  return `<section class="card"><form method="post" action="${AUTHORIZE}" data-consent><input type="hidden" name="handle" value="${escape(handle)}"><input type="hidden" name="timezone" value="UTC" data-timezone>
-<div class="head"><div class="pair">${appBadge(details.clientName)}<span class="dots"></span>${logo}</div>
+  const origin = details.clientDomain ? `Published by <b>${escape(details.clientDomain)}</b>` : 'This app registered itself; its name is not verified';
+  return `<section class="consent"><form method="post" action="${AUTHORIZE}" data-consent><input type="hidden" name="handle" value="${escape(handle)}"><input type="hidden" name="timezone" value="UTC" data-timezone>
+<div class="intro"><div class="pair">${appBadge(details.clientName, 'lg')}<span class="dots"></span>${mark}</div>
 <h1>${name} wants to connect to your diary</h1>
-<p class="muted">Signed in as <span class="chip">${escape(who.email || who.userId)}</span></p>
-<p class="muted">${origin} Access will be sent to <strong>${escape(details.redirectHost)}</strong>.</p></div>
-${details.redirectIsLoopback ? '<div class="note warn"><p><strong>This sends access to an app on your computer.</strong> Continue only if you just started connecting from it.</p></div>' : ''}
-<div class="body">${permissionGroup('read', 'See your data', 'Read', SECTIONS)}${permissionGroup('add', 'Add new entries', 'Add only', WRITE_SECTIONS)}</div>
-<div class="note"><p>${name} can never edit or delete entries, see your password, or change your account.</p><p>Up to 30 new entries a day. Remove access any time from your connections page.</p></div>
-<div class="foot"><p class="summary" aria-live="polite"></p><div class="btns"><button class="btn primary" name="decision" value="approve">Allow access</button><button class="btn" name="decision" value="deny">Cancel</button></div></div>
+<span class="chip">Signed in as ${escape(who.email || who.userId)}</span>
+<p class="muted">${origin} · access goes to <b>${escape(details.redirectHost)}</b></p></div>
+${details.redirectIsLoopback ? `<div class="note warn" role="note">${icons.shield}<div><p><strong>This sends access to an app on your computer.</strong> Continue only if you just started connecting from it.</p></div></div>` : ''}
+${permissionGroup('read', 'See your data', 'Read', SECTIONS)}${permissionGroup('add', 'Add new entries', 'Add only', WRITE_SECTIONS)}
+<div class="card note">${icons.shield}<div><p>It <strong>can never edit or delete</strong> entries, see your password or change your account.</p><p>Up to 30 new entries a day.</p><p>Remove access any time from your connections page.</p></div></div>
+<div class="bar"><p class="summary" aria-live="polite"></p><div class="btns"><button class="btn primary" name="decision" value="approve">Allow access</button><button class="btn" name="decision" value="deny">Cancel</button></div></div>
 </form></section>`;
 }
 // Returns the extra form-action sources the page's redirects will pass through.
@@ -176,13 +178,13 @@ const GUIDES: [string, string, string, [string, string][]][] = [
 ];
 function setupGuide(link: string) {
   const picks = GUIDES.map(([id, name]) => [id, name]);
-  return `<section class="card"><div class="head"><h1>Connect an AI assistant</h1><p class="muted">Takes about a minute. You paste one link into your AI app; everything else is automatic.</p></div>
+  return `<section class="card"><div class="head"><h2 class="h2">Add an assistant</h2><p class="muted">Takes about a minute. You paste one link into your AI app; everything else is automatic.</p></div>
 <div class="setup">${picks.map(([id], i) => `<input type="radio" name="ai" id="app-${id}"${i ? '' : ' checked'}>`).join('')}
 <div class="picker">${picks.map(([id, name]) => `<label class="pick p-${id}" for="app-${id}">${appBadge(name)}${name}</label>`).join('')}</div>
-<div class="copy"><span>Your connector link</span><div class="copyrow"><label class="field" for="connector-link">My Fitness Diary link<input id="connector-link" readonly value="${escape(link)}"></label>
+<div class="copy"><span>Connector address</span><div class="copyrow"><label class="field" for="connector-link">My Fitness Diary link<input id="connector-link" readonly value="${escape(link)}"></label>
 <button type="button" class="btn small primary" data-copy="${escape(link)}" aria-controls="connector-link"><span>Copy</span></button></div></div>
 <div class="guides">${GUIDES.map(([id, name, url, steps]) => `<div class="guide g-${id}"><ol class="steps">${steps.map(([b, t]) => `<li><div><b>${b}</b><span>${t}</span></div></li>`).join('')}</ol><a class="btn" href="${url}" target="_blank" rel="noopener">Open ${name}</a></div>`).join('')}</div>
-</div><div class="foot"></div></section>`;
+</div></section>`;
 }
 type AiEntry = {kind: string; id: string; at: string; date?: string; unchanged: boolean; name?: string; meal?: string; kg?: number; kcal?: number; sets?: number; exercises?: number};
 const day = (d?: string) => d && /^\d{4}-\d{2}-\d{2}$/.test(d) ? new Date(d + 'T00:00:00Z').toLocaleDateString('en-GB', {day: 'numeric', month: 'short', timeZone: 'UTC'}) : '';
@@ -200,10 +202,10 @@ function reviewPage(grantId: string, name: string, entries: AiEntry[]) {
   if (!removable.length) return `<h1>Nothing to undo</h1><p>${escape(name)} added nothing in the last 24 hours that can be undone.${kept.length ? ` ${count(kept.length, 'entry', 'entries')} you changed in the app or added before undo was available stay in your diary.` : ''}</p><a class="btn primary" href="${CONNECTIONS}">Back to AI assistants</a>`;
   const box = (e: AiEntry) => `<label class="row tick"><input type="checkbox" name="entry" value="${escape(e.id)}" data-group="entry" checked><span class="box"></span><span class="lbl"><b>${entryLabel(e)}</b></span></label>`;
   return `<section class="card"><form method="post" action="${CONNECTIONS}" data-select><input type="hidden" name="grant_id" value="${escape(grantId)}"><input type="hidden" name="action" value="undo">
-<div class="head">${brand}<h1>Undo what ${escape(name)} added?</h1><p class="muted">Entries from the last 24 hours. Untick anything you want to keep.</p></div>
-<div class="body"><fieldset><div class="ghead"><h2>Will be removed <span class="pill add">${removable.length}</span></h2>
-<label class="all tick"><input type="checkbox" data-all="entry" aria-label="Select all entries" checked><span class="box"></span>Select all</label></div>${removable.map(box).join('')}</fieldset>
-${kept.length ? `<fieldset><div class="ghead"><h2>Kept <span class="pill">${kept.length}</span></h2></div><p class="muted">You changed these in the app, or they were added before undo was available.</p>${kept.map(e => `<div class="row"><span class="lbl"><b>${entryLabel(e)}</b></span></div>`).join('')}</fieldset>` : ''}</div>
+<div class="head"><h1>Undo what ${escape(name)} added?</h1><p class="muted">Entries from the last 24 hours. Untick anything you want to keep.</p></div>
+<fieldset><div class="ghead"><h2>Will be removed <span class="pill add">${removable.length}</span></h2>
+<label class="all tick"><span class="say">Select all</span><input type="checkbox" data-all="entry" aria-label="Select all entries" checked><span class="box"></span></label></div>${removable.map(box).join('')}</fieldset>
+${kept.length ? `<fieldset><div class="ghead"><h2>Kept <span class="pill">${kept.length}</span></h2></div><p class="muted kept">You changed these in the app, or they were added before undo was available.</p>${kept.map(e => `<div class="row"><span class="lbl"><b>${entryLabel(e)}</b></span></div>`).join('')}</fieldset>` : ''}
 <div class="foot"><p class="summary" aria-live="polite"></p><div class="btns"><button class="btn primary" data-submit>Remove selected</button><a class="btn" href="${CONNECTIONS}">Cancel</a></div></div>
 </form></section>`;
 }
@@ -240,15 +242,17 @@ export async function connections(request: Request, ctx: Ctx): Promise<Response>
   }
   const rows = await Promise.all(grants.map(async g => {
     const client = await oauth.lookupClient(g.clientId).catch(() => null), name = client?.clientName || 'Unnamed app';
-    const tags = g.scope.filter(s => LABELS[s]).map(s => `<span class="tag${s.startsWith('log_') ? ' add' : ''}">${LABELS[s][0]}</span>`).join('');
+    const tags = g.scope.filter(s => LABELS[s]).map(s => s.startsWith('log_') ? `<span class="tag add">${icons.plus}${escape(LABELS[s][0].replace(/^Add /, ''))}</span>` : `<span class="tag">${icons.eye}${LABELS[s][0]}</span>`).join('');
     const entries = await recent(g.clientId), undoable = entries?.filter(e => e.unchanged).length ?? 0;
-    const added = entries === null ? '' : entries.length ? `Added in the last 24 h: ${count(entries.length, 'entry', 'entries')}` : 'Nothing added in the last 24 h';
-    return `<div class="conn">${appBadge(name)}<div><strong>${escape(name)}</strong><span class="muted">Connected ${escape(new Date(g.createdAt * 1000).toLocaleDateString('en-GB', {day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC'}))}</span>${added ? `<span class="muted">${added}</span>` : ''}<div class="tags">${tags}</div></div>
-<div class="actions"><form method="post" action="${CONNECTIONS}"><input type="hidden" name="grant_id" value="${escape(g.id)}"><input type="hidden" name="action" value="review"><button class="btn small"${undoable ? '' : ' disabled'} title="See what this app added in the last 24 hours and choose what to remove">Review &amp; undo</button></form>
-<form method="post" action="${CONNECTIONS}" data-confirm="Confirm remove"><input type="hidden" name="grant_id" value="${escape(g.id)}"><button class="btn small danger">Remove</button></form></div></div>`;
+    const added = entries === null ? '' : entries.length ? `Added ${count(entries.length, 'entry', 'entries')} in the last 24 h` : 'Nothing added in the last 24 h';
+    const since = escape(new Date(g.createdAt * 1000).toLocaleDateString('en-GB', {day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC'}));
+    return `<section class="card conn"><div class="conn-head">${appBadge(name)}<div><strong>${escape(name)}</strong><span class="muted">Connected ${since}</span></div></div>
+<div class="tags">${tags}</div>${added ? `<p class="added">${added}</p>` : ''}
+<div class="actions">${undoable ? `<form method="post" action="${CONNECTIONS}"><input type="hidden" name="grant_id" value="${escape(g.id)}"><input type="hidden" name="action" value="review"><button class="btn" title="See what this app added in the last 24 hours and choose what to remove">${icons.undo}Review &amp; undo</button></form>` : ''}
+<form method="post" action="${CONNECTIONS}" data-confirm="Confirm remove"><input type="hidden" name="grant_id" value="${escape(g.id)}"><button class="btn danger">${icons.off}Remove access</button></form></div></section>`;
   }));
-  return page(`<section class="card"><div class="head">${brand}<h1>AI assistants</h1><p class="muted">Signed in as <span class="chip">${escape(who.email || who.userId)}</span></p><p class="muted">Apps that can use your diary. Removing one signs it out straight away.</p></div>
-<div class="body">${rows.join('') || '<p class="empty">No AI assistants are connected yet. Follow the steps below to add one.</p>'}</div></section>
+  return page(`<section class="intro left"><h1>AI assistants</h1><p class="muted">Apps that can use your diary. Removing one signs it out straight away.</p><p class="muted">Signed in as <span class="chip">${escape(who.email || who.userId)}</span></p></section>
+${rows.join('') || '<section class="card"><p class="empty">No AI assistants are connected yet. Follow the steps below to add one.</p></section>'}
 ${setupGuide(ctx.config.resource)}
 <form class="signout" method="post" action="/logout"><button class="linkbtn">Sign out</button></form>`, 200, new Headers(), 'AI assistants');
 }
