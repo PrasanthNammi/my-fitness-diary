@@ -9,6 +9,7 @@ import { ExerciseThumb } from '../training/ExercisePicker';
 import { volumeParts } from '../training/ActiveWorkout';
 import { duration, fmtNum, fmtVolume, kgTo, longDate, mss } from '../../lib/format';
 import { navigate } from '../../lib/router';
+import { HeartRateCard, useHeartFromHealth } from './HeartRate';
 
 /** One finished workout from history: totals and every logged set, with Edit and Delete. */
 export function SessionDetail({ id }: { id: string }) {
@@ -16,6 +17,7 @@ export function SessionDetail({ id }: { id: string }) {
   const unit = useDB((d) => d.settings.weightUnit);
   const [del, setDel] = useState(false);
   const [copy, setCopy] = useState(false);
+  useHeartFromHealth(w);
   if (!w) {
     return (
       <>
@@ -37,6 +39,7 @@ export function SessionDetail({ id }: { id: string }) {
           <div><div className="k">Volume</div><div className="v">{volumeParts(fmtVolume(workingVolume(w.exercises), unit))}</div></div>
           <div><div className="k">Sets</div><div className="v">{sets}</div></div>
         </div>
+        <HeartRateCard w={w} />
         {w.exercises.map((b) => {
           const labels = setLabels(b.sets);
           return (
