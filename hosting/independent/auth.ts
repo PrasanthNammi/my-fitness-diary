@@ -6,7 +6,7 @@ import type {RateGate} from './limits';
 import {integrationUpstream, privateJson} from './service';
 import {GOOGLE_BROWSER, random, GOOGLE_FLOW, GOOGLE_START, GOOGLE_CALLBACK, startGoogle, googleContext, firstPartyIdentity, sessionFingerprint} from './google';
 import type {OAuthHelpers} from '@cloudflare/workers-oauth-provider';
-import {brand, htmlPage, message, uiPolicy} from './ui';
+import {htmlPage, message, uiPolicy} from './ui';
 import {AUTHORIZE, UPSTREAM_CALLBACK, SUPABASE_CONSENT, CONNECTIONS, authorize, supabaseConsent, upstreamCallback, connections, audienceIs} from './connector';
 
 const ACCESS = '__Host-mfd-integration-access', REFRESH = '__Host-mfd-integration-refresh', CSRF = '__Host-mfd-integration-csrf';
@@ -118,10 +118,11 @@ export function createAuthService(config: IntegrationConfig, fetcher: typeof fet
           if (!validTransactionId(jar.get(GOOGLE_BROWSER))) changes.push(cookie(GOOGLE_BROWSER,random(),1800));
           const csrf = Array.from(crypto.getRandomValues(new Uint8Array(32)), n => n.toString(16).padStart(2,'0')).join('');
           changes.push(cookie(CSRF,csrf,600));
-          response = page(`<section class="card"><div class="head">${brand}<h1>Sign in to connect your AI assistant</h1><p class="muted">Use the same account as your diary app.</p></div><div class="foot">
-<form method="post" action="/auth/google"><input type="hidden" name="csrf" value="${csrf}"><input type="hidden" name="return_to" value="${escape(next)}"><button class="btn primary">Continue with Google</button></form>
+          response = page(`<section class="card"><div class="head"><h1>Sign in to connect your AI assistant</h1><p class="muted">Use your My Fitness Diary account. Next you choose exactly what it can see.</p></div><div class="foot">
+<form class="fields" method="post" action="/login"><input type="hidden" name="csrf" value="${csrf}"><input type="hidden" name="return_to" value="${escape(next)}"><label>Email <input type="email" name="email" autocomplete="username" required></label><label>Password <input type="password" name="password" autocomplete="current-password" required></label><button class="btn primary">Sign in</button></form>
 <div class="or">or</div>
-<form class="fields" method="post" action="/login"><input type="hidden" name="csrf" value="${csrf}"><input type="hidden" name="return_to" value="${escape(next)}"><label>Email <input type="email" name="email" autocomplete="username" required></label><label>Password <input type="password" name="password" autocomplete="current-password" required></label><button class="btn">Sign in with email</button></form></div></section>`);
+<form method="post" action="/auth/google"><input type="hidden" name="csrf" value="${csrf}"><input type="hidden" name="return_to" value="${escape(next)}"><button class="btn"><span class="g" aria-hidden="true">G</span>Continue with Google</button></form>
+</div></section><p class="fine">MFD never shares your password with assistants.</p>`);
         } else {
           if (!request.headers.get('content-type')?.startsWith('application/x-www-form-urlencoded')) throw Error('Form required');
           const reader = request.body?.getReader(); let body = '', size = 0; const decoder = new TextDecoder();
