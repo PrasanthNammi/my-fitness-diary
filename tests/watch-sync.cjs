@@ -50,4 +50,8 @@ const stubs={'../adapters/engine':'export const engine=()=>null','../data/store'
  assert.equal(W.applyCommands([c('aaaaaaaa1'),c('aaaaaaaa3'),c('aaaaaaaa4')],handle),1,'already applied ids skipped across calls');
  assert.deepEqual(got,['aaaaaaaa1','aaaaaaaa3','aaaaaaaa4']);
  console.log('PASS watch commands: applied once each in order, old versions and malformed ones ignored, one failure does not stop the rest');
+ // Commands from before watch sync started (watch app testing) are dropped, as are ones without a time.
+ assert.equal(W.beforeWatchSync({at:Date.UTC(2026,10,12,18,0)}),true);assert.equal(W.beforeWatchSync({}),true);assert.equal(W.beforeWatchSync({at:'x'}),true);
+ assert.equal(W.beforeWatchSync({at:Date.UTC(2026,10,13,12,1)}),false);
+ console.log('PASS watch test commands from before MFD 2.0 never reach the diary');
 })().catch(e=>{console.error(e);process.exit(1)});

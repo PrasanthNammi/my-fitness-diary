@@ -177,7 +177,13 @@ const appliedIds = (): string[] => { try { return JSON.parse(localStorage.getIte
 const markApplied = (id: string) => { try { localStorage.setItem(APPLIED_KEY, JSON.stringify([...appliedIds(), id].slice(-APPLIED))); } catch { /* best effort */ } };
 
 /** One watch command, on the phone's diary. Starting never replaces a running workout; finishing only the same one. */
+/** Watch sync starts with MFD 2.0: commands the watch made before this (testing the watch app) are taken and dropped,
+ *  so the watch clears them and they never reach the diary. */
+export const WATCH_SYNC_SINCE = Date.UTC(2026, 10, 13, 12, 0);
+export const beforeWatchSync = (c: Record<string, unknown>) => typeof c.at !== 'number' || c.at < WATCH_SYNC_SINCE;
+
 function handle(c: WatchCommand) {
+  if (beforeWatchSync(c)) return;
   const d = getDB();
   if (c.type === 'hello') toast('Your watch is connected');
   else if (c.type === 'startRoutine' || c.type === 'startEmpty') {
