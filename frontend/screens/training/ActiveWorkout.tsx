@@ -1,7 +1,7 @@
 import {WorkoutClock} from './WorkoutClock';
 import { prepareActiveBlock, replaceExerciseBlock } from '../../domain/training';
 import { useEffect, useMemo, useState } from 'react';
-import { ChevronDown, Dumbbell, Heart, Pencil, Plus, Trash2, Sparkles, X } from 'lucide-react';
+import { Check, ChevronDown, Dumbbell, Heart, Pencil, Plus, Trash2, Sparkles, X } from 'lucide-react';
 import { useWatchHeart } from '../../lib/watch';
 import type { ExerciseBlock, RestTimer, Workout } from '../../domain/types';
 import { countSets, pauseTimer, resetTimer, startTimer, workingVolume } from '../../domain/training';
@@ -96,7 +96,7 @@ export function ActiveWorkoutScreen() {
       <div className="screen wo-screen">
         {liveSuggestion && (
           <div className="ai-suggest-bar">
-            <button type="button" className="ai-suggest-open" onClick={() => openSuggestion(liveSuggestion.id)}><Sparkles aria-hidden="true" /><span className="grow">{liveSuggestion.status === 'used' ? 'AI suggestions' : 'New AI suggestions'} · {suggestionSource(liveSuggestion)}</span><span className="go">{liveSuggestion.status === 'used' ? `${acceptedCount(liveSuggestion)} Accepted` : 'Review'}</span></button>
+            <button type="button" className="ai-suggest-open" onClick={() => openSuggestion(liveSuggestion.id)}><Sparkles aria-hidden="true" /><span className="grow">{liveSuggestion.status === 'used' ? 'AI suggestions' : 'New AI suggestions'} · {suggestionSource(liveSuggestion)}</span><span className="go">{liveSuggestion.status === 'used' ? <span className="accepted" aria-label={`${acceptedCount(liveSuggestion)} accepted`}>{acceptedCount(liveSuggestion)}<Check aria-hidden="true" /></span> : 'Review'}</span></button>
             <button type="button" className="ai-suggest-x" aria-label="Dismiss AI suggestions" onClick={() => setRemovingSuggestion(liveSuggestion.id)}><X /></button>
           </div>
         )}

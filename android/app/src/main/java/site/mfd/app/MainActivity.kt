@@ -196,7 +196,9 @@ class MainActivity : ComponentActivity() {
             "token" -> token { answer(JSONObject().put("token", it ?: JSONObject.NULL)) }
             "rest" -> {
                 val restId = m.optString("id").takeIf { REST_ID.matches(it) } ?: return
-                Notify.resting(this, restId, m.optString("label").take(80), m.optLong("ends"))
+                Notify.resting(this, restId, m.optString("label").take(80), m.optLong("ends"),
+                    m.optString("next").take(120).ifEmpty { null }, m.optString("image").take(400).ifEmpty { null },
+                    m.optLong("duration").coerceIn(0, 3600), if (m.has("vibrate")) m.optBoolean("vibrate") else null)
             }
             "restOver" -> Notify.restOver(this, m.optString("id").takeIf { REST_ID.matches(it) } ?: return, m.optString("label").take(80))
             "restClear" -> Notify.clearRest(this, m.optBoolean("all"))
@@ -429,6 +431,9 @@ class MainActivity : ComponentActivity() {
         }
 
         /** To the page, only while MFD is on screen; false otherwise (the caller then acts without it). */
+        /** MFD is on screen now (the page chimes and vibrates itself then). */
+        fun onScreenNow() = onScreen != null
+
         fun sendToPage(event: JSONObject): Boolean {
             val page = onScreen?.page ?: return false
             return try { page.postMessage(event.toString()); true } catch (e: Exception) { false }
