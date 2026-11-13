@@ -78,7 +78,10 @@ object Health {
     data class Day(
         val date: LocalDate, val sleepHours: Double?, val steps: Long?,
         val restingHr: Long? = null, val hrvMs: Double? = null, val weightKg: Double? = null, val bodyFatPct: Double? = null,
+        val stages: Stages? = null,
     )
+    /** The night's main sleep session by stage (minutes), with when it started and ended. */
+    data class Stages(val deep: Long, val light: Long, val rem: Long, val awake: Long, val start: Instant, val end: Instant)
     data class Span(val start: Instant, val end: Instant)
 
     /** Overlapping or touching spans joined. */
@@ -135,6 +138,16 @@ object Health {
             sleepByDay[day] = (sleepByDay[day] ?: 0) + Duration.between(span.start, span.end).toMinutes()
         }
 
+        // Stages: the longest session ending that day that has them (a second app's copy of the same night is not
+        // added). "Sleeping" without a stage counts as light sleep.
+        val stagesByDay = sessions.filter { it.stages.isNotEmpty() }.groupBy { it.endTime.atZone(zone).toLocalDate() }
+            .mapValues { (_, l) ->
+                val s = l.maxBy { Duration.between(it.startTime, it.endTime) }
+                fun mins(vararg types: Int) = s.stages.filter { it.stage in types }.sumOf { Duration.between(it.startTime, it.endTime).toMinutes() }
+                Stages(mins(SleepSessionRecord.STAGE_TYPE_DEEP), mins(SleepSessionRecord.STAGE_TYPE_LIGHT, SleepSessionRecord.STAGE_TYPE_SLEEPING, SleepSessionRecord.STAGE_TYPE_UNKNOWN),
+                    mins(SleepSessionRecord.STAGE_TYPE_REM), mins(*awakeStages.toIntArray()), s.startTime, s.endTime)
+            }.filterValues { it.deep + it.light + it.rem >= 30 }
+
         // Steps: Health Connect's own daily total (it combines sources by the person's priority list). When that
         // is empty (a source not on the list), the busiest single source, so a phone and a watch counting the same
         // walk are not added together.
@@ -178,7 +191,7 @@ object Health {
             val minutes = sleepByDay[d]
             // Under 30 minutes is a nap or a stray record, not a night's sleep; over 18 hours is an error.
             val hours = minutes?.takeIf { it in 30..18 * 60 }?.let { Math.round(it / 6.0) / 10.0 }
-            days += Day(d, hours, steps?.takeIf { it in 1..200_000 }, resting[d], hrv[d], weight[d], fat[d])
+            days += Day(d, hours, steps?.takeIf { it in 1..200_000 }, resting[d], hrv[d], weight[d], fat[d], stagesByDay[d])
             d = d.plusDays(1)
         }
         return days

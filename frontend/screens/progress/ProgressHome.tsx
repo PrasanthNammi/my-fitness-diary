@@ -16,6 +16,7 @@ import { cmTo, fmtInt, fmtNum, kgTo, mss, parseDecimal, todayISO, toCm, toKg } f
 import { navigate } from '../../lib/router';
 import { connectHealth, syncHealth, useHealth } from '../../lib/health';
 import { MuscleStats } from './MuscleStats';
+import { RecoveryVitals, SourceBadge } from './RecoveryHealth';
 import { averageSeries } from '../../domain/weeklyRecap';
 import { ExerciseThumb } from '../training/ExercisePicker';
 import { ExercisePage } from '../training/ExercisePage';
@@ -216,6 +217,8 @@ function WeightCard({ from }: { from: string | null }) {
   const [removing, setRemoving] = useState<{ id: string; label: string } | null>(null);
   const [allRows, setAllRows] = useState(false);
   const series = bodySeries(weights, [], 'weight', from);
+  const byId = useMemo(() => new Map(weights.map((w) => [w.id, w])), [weights]);
+  const fat = [...weights].reverse().find((w) => w.bodyFat != null && (!from || w.date >= from));
   const avgOf = useMemo(() => new Map(averageSeries(weights).map((r) => [r.date, r.avg])), [weights]);
   const show = (kg: number) => kgTo(kg, unit);
   const latest = series.at(-1), end = latest && avgOf.get(latest.date), start = series[0] && avgOf.get(series[0].date);
@@ -244,6 +247,7 @@ function WeightCard({ from }: { from: string | null }) {
         <LineChart label="Weight" points={series.map((r) => { const a = avgOf.get(r.date); return { x: new Date(r.date + 'T12:00:00').getTime(), y: show(r.value), ...(a !== undefined ? { avg: show(a) } : {}) }; })} unit={unit} height={150} format={(v) => fmtNum(v, 1)} />
         <div className="chart-legend"><span><i className="dot" />Daily</span><span className="accent-text"><i className="line" />7-day average</span></div>
       </>}
+      {fat && <div className="body-fat-row"><span className="grow">Body fat <b className="tnum">{fmtNum(fat.bodyFat!, 1)}%</b><span className="muted"> · {shortDay(fat.date)}</span></span><SourceBadge /></div>}
       <div className="quick-entry">
         <input className="input tnum" inputMode="decimal" aria-label={`Weight in ${unit}`} placeholder={`Weight (${unit})`} value={text} onChange={(e) => { setText(e.target.value); setErr(null); }} onKeyDown={(e) => e.key === 'Enter' && add()} aria-invalid={!!err} />
         <DateChip label="Weigh-in date" value={date} onChange={setDate} />
@@ -253,7 +257,7 @@ function WeightCard({ from }: { from: string | null }) {
       <div className="progress-history">
         {[...series].reverse().slice(0, allRows ? undefined : 8).map((r) => (
           <div key={r.id} className="progress-history-row">
-            <span>{day(r.date)}</span><strong className="tnum">{fmtNum(show(r.value), 1)} {unit}</strong>
+            <span>{day(r.date)}</span>{byId.get(r.id)?.source === 'health' && <SourceBadge />}<strong className="tnum">{fmtNum(show(r.value), 1)} {unit}</strong>
             <button className="icon-btn" aria-label={`Remove weight from ${day(r.date)}`} onClick={() => setRemoving({ id: r.id, label: `${fmtNum(show(r.value), 1)} ${unit} · ${day(r.date)}` })}><Trash2 /></button>
           </div>
         ))}
@@ -373,13 +377,14 @@ function RecoveryCard({ from }: { from: string | null }) {
   return (
     <section className="card progress-card" aria-label="Recovery check-in">
       <div className="progress-card-head"><span className="eyebrow">Recovery check-in</span><DateChip label="Check-in date" value={date} onChange={setDate} /></div>
+      <RecoveryVitals date={date} />
       {sliders.map(([k, label, Icon, min, max, step, u]) => (
         <label key={k} className="slider-row">
           <span className="slider-head"><span><Icon aria-hidden="true" />{label}</span><strong className="tnum">{fmtNum(v[k], 1)}{u}</strong></span>
           <input type="range" min={min} max={max} step={step} value={v[k]} onChange={(e) => setV({ ...v, [k]: Number(e.target.value) })} />
         </label>
       ))}
-      {steps !== null && <p className="small muted tnum" style={{ margin: 0 }}>{fmtInt(steps)} steps{health === 'on' ? ' · from Health Connect' : ''}</p>}
+      {steps !== null && !existing?.sleepStages && checkinNumber(existing?.restingHr) === null && checkinNumber(existing?.hrv) === null && <p className="small muted tnum" style={{ margin: 0 }}>{fmtInt(steps)} steps{health === 'on' ? ' · from Health Connect' : ''}</p>}
       {(health === 'off' || health === 'reconnect') && (
         <button type="button" className="btn btn-secondary btn-block" disabled={linking} onClick={() => void link()}>
           <Moon aria-hidden="true" />{health === 'reconnect' ? 'Reconnect Samsung Health' : 'Get sleep, steps & heart rate from Samsung Health'}
@@ -389,7 +394,7 @@ function RecoveryCard({ from }: { from: string | null }) {
       <button type="button" className="btn btn-primary btn-block" onClick={save}>{existing ? 'Update check-in' : 'Save check-in'}</button>
       {recent.length > 0 && <div className="progress-history">
         {recent.map((c) => {
-          const parts = [checkinNumber(c.sleep) !== null && `Sleep ${fmtNum(checkinNumber(c.sleep)!, 1)}h`, checkinNumber(c.soreness) !== null && `Sore ${checkinNumber(c.soreness)}/5`, checkinNumber(c.energy) !== null && `Energy ${checkinNumber(c.energy)}/5`, checkinNumber(c.steps) !== null && `${fmtInt(checkinNumber(c.steps)!)} steps`].filter(Boolean);
+          const parts = [checkinNumber(c.sleep) !== null && `Sleep ${fmtNum(checkinNumber(c.sleep)!, 1)}h`, checkinNumber(c.soreness) !== null && `Sore ${checkinNumber(c.soreness)}/5`, checkinNumber(c.energy) !== null && `Energy ${checkinNumber(c.energy)}/5`, checkinNumber(c.steps) !== null && `${fmtInt(checkinNumber(c.steps)!)} steps`, checkinNumber(c.restingHr) !== null && `Resting ${checkinNumber(c.restingHr)} bpm`, checkinNumber(c.hrv) !== null && `HRV ${fmtNum(checkinNumber(c.hrv)!, 0)} ms`].filter(Boolean);
           return (
             <div key={c.id} className="progress-checkin">
               <span className="grow"><span className="name">{shortDay(c.date)}</span><span className="sub tnum">{parts.join(' · ') || '—'}</span>{c.note?.trim() && <span className="note">{c.note}</span>}</span>

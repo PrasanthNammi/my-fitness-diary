@@ -1,5 +1,5 @@
 // Progress screen numbers: pure functions over the diary, so they can be tested without the app.
-import type { CheckIn, ISODate, WeightEntry, Workout } from './types';
+import type { CheckIn, ISODate, SleepStages, WeightEntry, Workout } from './types';
 import { daysIntoWeek } from './week';
 import { workingVolume } from './training';
 
@@ -81,13 +81,24 @@ export function bodySeries(weights: WeightEntry[], checkins: CheckIn[], field: B
 }
 
 /** A check-in row with recovery data (sleep, energy, soreness, steps or a note), not only measurements. */
-export const isRecoveryRow = (c: CheckIn) => num(c.sleep) !== null || num(c.energy) !== null || num(c.soreness) !== null || num(c.steps) !== null || !!c.note?.trim();
+export const isRecoveryRow = (c: CheckIn) => num(c.sleep) !== null || num(c.energy) !== null || num(c.soreness) !== null || num(c.steps) !== null || !!c.note?.trim() || num(c.restingHr) !== null || num(c.hrv) !== null || !!c.sleepStages;
 
-export type HealthDay = { date: ISODate; sleep: number | null; steps: number | null };
+export type HealthDay = { date: ISODate; sleep: number | null; steps: number | null; restingHr?: number | null; hrv?: number | null; sleepStages?: unknown; weightKg?: number | null; bodyFat?: number | null };
+const inRangeNum = (v: unknown, lo: number, hi: number) => (typeof v === 'number' && Number.isFinite(v) && v >= lo && v <= hi ? v : null);
+/** Valid sleep stages (minutes within a day, a start before the end), else null. */
+export function sleepStages(v: unknown): SleepStages | null {
+  if (!v || typeof v !== 'object') return null;
+  const o = v as Record<string, unknown>, m = (k: string) => inRangeNum(o[k], 0, 1440);
+  const [deep, light, rem, awake] = [m('deep'), m('light'), m('rem'), m('awake')];
+  const start = inRangeNum(o.start, 1, 1e14), end = inRangeNum(o.end, 1, 1e14);
+  if (deep === null || light === null || rem === null || awake === null || start === null || end === null || end <= start || end - start > 86_400_000) return null;
+  return { deep: Math.round(deep), light: Math.round(light), rem: Math.round(rem), awake: Math.round(awake), start, end };
+}
+const sameStages = (a: unknown, b: SleepStages) => !!a && typeof a === 'object' && (['deep', 'light', 'rem', 'awake', 'start', 'end'] as const).every((k) => (a as SleepStages)[k] === b[k]);
 /**
- * Applies Health Connect days to check-ins (mutating `rows`): steps follow Health Connect; sleep only fills a day
- * that has none, so hours typed or adjusted by hand are never replaced. Invalid values are ignored. Returns the
- * dates that changed (none: nothing was touched).
+ * Applies Health Connect days to check-ins (mutating `rows`): steps, resting heart rate, HRV and sleep stages follow
+ * Health Connect; sleep hours only fill a day that has none, so hours typed or adjusted by hand are never replaced.
+ * Invalid values are ignored. Returns the dates that changed (none: nothing was touched).
  */
 export function mergeHealthDays(rows: CheckIn[], days: HealthDay[], newId: () => string): ISODate[] {
   const changed: ISODate[] = [];
@@ -95,16 +106,59 @@ export function mergeHealthDays(rows: CheckIn[], days: HealthDay[], newId: () =>
     if (typeof x?.date !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(x.date)) continue;
     const sleep = typeof x.sleep === 'number' && x.sleep >= 0.5 && x.sleep <= 18 ? Math.round(x.sleep * 10) / 10 : null;
     const steps = typeof x.steps === 'number' && Number.isInteger(x.steps) && x.steps > 0 && x.steps <= 200_000 ? x.steps : null;
+    const restingHr = inRangeNum(x.restingHr, 25, 150), hrvRaw = inRangeNum(x.hrv, 1, 300), hrv = hrvRaw === null ? null : Math.round(hrvRaw * 10) / 10;
+    const stages = sleepStages(x.sleepStages);
     let row = rows.find((c) => c.date === x.date && isRecoveryRow(c));
     const setSteps = steps !== null && num(row?.steps) !== steps, setSleep = sleep !== null && num(row?.sleep) === null;
-    if (!setSteps && !setSleep) continue;
+    const setResting = restingHr !== null && num(row?.restingHr) !== restingHr, setHrv = hrv !== null && num(row?.hrv) !== hrv;
+    const setStages = stages !== null && !sameStages(row?.sleepStages, stages);
+    if (!setSteps && !setSleep && !setResting && !setHrv && !setStages) continue;
     if (!row) { row = { id: newId(), date: x.date, note: '' }; rows.push(row); }
     if (setSteps) row.steps = steps;
     if (setSleep) row.sleep = sleep;
+    if (setResting) row.restingHr = restingHr;
+    if (setHrv) row.hrv = hrv;
+    if (setStages) row.sleepStages = stages;
     changed.push(x.date);
   }
   if (changed.length) rows.sort((a, b) => a.date.localeCompare(b.date));
   return changed;
+}
+
+/**
+ * Applies Health Connect weight and body fat to weigh-ins (mutating `weights`). A day without a weigh-in gets one
+ * marked as from Samsung Health, and one already from there follows it; a weight typed in MFD is never replaced
+ * (body fat is added next to it). Days in `skip` (a Samsung Health weight deleted in MFD) are left alone.
+ * Returns the dates that changed.
+ */
+export function mergeHealthWeights(weights: WeightEntry[], days: HealthDay[], newId: () => string, skip: readonly string[] = []): ISODate[] {
+  const changed: ISODate[] = [];
+  for (const x of days) {
+    if (typeof x?.date !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(x.date) || skip.includes(x.date)) continue;
+    const kgRaw = inRangeNum(x.weightKg, 20, 400), kg = kgRaw === null ? null : Math.round(kgRaw * 100) / 100;
+    const fatRaw = inRangeNum(x.bodyFat, 2, 70), fat = fatRaw === null ? null : Math.round(fatRaw * 10) / 10;
+    const row = weights.find((w) => w.date === x.date);
+    if (!row) {
+      if (kg === null) continue;
+      weights.push({ id: newId(), date: x.date, kg, source: 'health', ...(fat !== null ? { bodyFat: fat } : {}) });
+      changed.push(x.date);
+      continue;
+    }
+    let touched = false;
+    if (row.source === 'health' && kg !== null && row.kg !== kg) { row.kg = kg; touched = true; }
+    if (fat !== null && row.bodyFat !== fat) { row.bodyFat = fat; touched = true; }
+    if (touched) changed.push(x.date);
+  }
+  if (changed.length) weights.sort((a, b) => a.date.localeCompare(b.date));
+  return changed;
+}
+
+/** Today against the person's own previous days: within ±5 % of their usual is "normal". */
+export function vsUsual(values: number[]): { usual: number; state: 'normal' | 'higher' | 'lower' } | null {
+  if (values.length < 3) return null;
+  const today = values[values.length - 1]!, prev = values.slice(0, -1), usual = prev.reduce((a, b) => a + b, 0) / prev.length;
+  const diff = (today - usual) / (usual || 1);
+  return { usual: Math.round(usual), state: diff > 0.05 ? 'higher' : diff < -0.05 ? 'lower' : 'normal' };
 }
 
 /** Recovery check-ins (sleep, energy, soreness, steps or a note), newest first. Measurement-only rows are left out. */

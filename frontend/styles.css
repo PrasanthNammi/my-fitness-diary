@@ -1852,6 +1852,29 @@ button.social-person { cursor: pointer; border-left: 0; border-right: 0; }
 .live-heart svg { width: 12px; height: 12px; animation: live-pulse 1.6s ease-in-out infinite; }
 @media (prefers-reduced-motion: reduce) { .live-heart svg { animation: none; } }
 
+/* Samsung Health recovery data (MFD 2.0) */
+.health-badge { display: inline-flex; align-items: center; height: 20px; padding: 0 8px; border-radius: 999px; font-size: 11px; font-weight: 700; background: var(--water-soft); color: var(--water-text); white-space: nowrap; }
+.progress-history-row .health-badge { flex: none; color: var(--water-text); }
+.body-fat-row { display: flex; align-items: center; gap: 8px; margin-top: 10px; padding: 10px 12px; border-radius: var(--r); background: var(--surface-2); font-size: 14px; font-weight: 600; }
+.recovery-vitals { margin: 4px 0 6px; }
+.sleep-box { border-radius: var(--r); background: var(--surface-2); padding: 12px; }
+.sleep-head { display: flex; align-items: center; gap: 8px; }
+.sleep-head svg { width: 15px; height: 15px; color: var(--protein); }
+.sleep-window { margin: 0 0 8px; font-size: 11px; color: var(--muted); }
+.sleep-bar { display: flex; gap: 2px; height: 8px; border-radius: 999px; overflow: hidden; }
+.sleep-legend { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 4px 8px; margin-top: 6px; font-size: 11px; font-weight: 600; color: var(--muted); }
+.sleep-legend span { display: inline-flex; align-items: center; gap: 4px; }
+.sleep-legend i { width: 6px; height: 6px; border-radius: 50%; }
+.vital-row { display: flex; align-items: center; gap: 10px; padding: 10px 0; border-bottom: 1px solid var(--line); }
+.vital-row:last-of-type { border-bottom: 0; }
+.vital-icon svg { width: 16px; height: 16px; display: block; }
+.vital-label { margin: 0; font-size: 12px; font-weight: 700; color: var(--muted); }
+.vital-value { margin: 0; font-weight: 800; }
+.vital-value small { font-size: 11px; font-weight: 600; color: var(--muted); }
+.vital-chip { flex: none; display: inline-flex; align-items: center; height: 24px; padding: 0 8px; border-radius: 999px; font-size: 11px; font-weight: 700; white-space: nowrap; background: var(--warmup-soft); color: var(--warmup-text); }
+.vital-chip.normal { background: var(--success-soft); color: var(--success-text); }
+.sparkline { flex: none; }
+.vitals-note { margin: 2px 0 0; font-size: 11px; font-weight: 600; color: var(--muted); }
 /* Workout heart rate (MFD 2.0) */
 :root { --hr-z1: #8e9aa6; --hr-z2: #2f9cf0; --hr-z3: #16a34a; --hr-z4: #ff8a3d; --hr-z5: #e5484d; }
 .hr-card { display: block; width: 100%; text-align: left; margin: 12px 0 12px; color: inherit; font: inherit; cursor: pointer; }

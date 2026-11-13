@@ -17,7 +17,7 @@ import { uid } from '../lib/format';
 import { resolveExercise } from '../catalogue/runtime';
 import { activeSuggestion, applyTargets, extraTargets, fits, matchBlock, removeTargets, targetSets, type AiSuggestion } from '../domain/aiSuggestions';
 import { getDB, update } from './store';
-import { isRecoveryRow, mergeHealthDays, type HealthDay } from '../domain/progressStats';
+import { isRecoveryRow, mergeHealthDays, mergeHealthWeights, type HealthDay } from '../domain/progressStats';
 
 
 import { startTimer, prepareActiveBlock, logSetValues, findPrevious, ordinalWithinType } from '../domain/training';
@@ -303,13 +303,18 @@ export const body = {
   logWeight(date: ISODate, kg: number) {
     update((d) => {
       const existing = d.weights.find((w) => w.date === date);
-      if (existing) existing.kg = kg;
+      if (existing) { existing.kg = kg; delete existing.source; } // typed now: no longer Samsung Health's
       else d.weights.push({ id: uid(), date, kg });
       d.weights.sort((a, b) => a.date.localeCompare(b.date));
     });
   },
   deleteWeight(id: ID) {
-    update((d) => void (d.weights = d.weights.filter((w) => w.id !== id)));
+    update((d) => {
+      // A Samsung Health weight deleted here is not added back by the next read (the last 60 such days are kept).
+      const w = d.weights.find((x) => x.id === id);
+      if (w?.source === 'health') d.settings.healthWeightSkip = [...(d.settings.healthWeightSkip ?? []).filter((x) => x !== w.date), w.date].slice(-60);
+      d.weights = d.weights.filter((x) => x.id !== id);
+    });
   },
   /** Recovery check-in (sleep hours, energy, soreness, note). One per day: a second one updates it. */
   saveCheckIn(c: { date: ISODate; sleep: number | null; energy: number | null; soreness: number | null; note: string }) {
@@ -326,10 +331,11 @@ export const body = {
    * changes. Returns how many days changed.
    */
   mergeHealth(days: HealthDay[]) {
-    // Dry run on a copy first: only write (and sync) when something changes.
-    if (!mergeHealthDays(getDB().checkins.map((c) => ({ ...c })), days, uid).length) return 0;
+    // Dry run on copies first: only write (and sync) when something changes.
+    const db = getDB(), skip = db.settings.healthWeightSkip ?? [];
+    if (!mergeHealthDays(db.checkins.map((c) => ({ ...c })), days, uid).length && !mergeHealthWeights(db.weights.map((w) => ({ ...w })), days, uid, skip).length) return 0;
     let changed = 0;
-    update((d) => { changed = mergeHealthDays(d.checkins, days, uid).length; });
+    update((d) => { changed = mergeHealthDays(d.checkins, days, uid).length + mergeHealthWeights(d.weights, days, uid, d.settings.healthWeightSkip ?? []).length; });
     return changed;
   },
   /** Removes the recovery part of a check-in; measurements on the same row stay. */
@@ -337,7 +343,7 @@ export const body = {
     update((d) => {
       d.checkins = d.checkins.flatMap((x) => {
         if (x.id !== id) return [x];
-        const kept = { ...x, sleep: null, steps: null, energy: null, soreness: null, note: '' };
+        const kept = { ...x, sleep: null, steps: null, energy: null, soreness: null, note: '', restingHr: null, hrv: null, sleepStages: null };
         return ['waist', 'chest', 'hips', 'arms'].some((k) => kept[k as 'waist'] != null && kept[k as 'waist'] !== '') ? [kept] : [];
       });
     });
