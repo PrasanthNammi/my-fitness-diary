@@ -82,6 +82,8 @@ export interface SetEntry {
   aiPrev?: SetEntry['suggested'] | null;
   /** A set the AI suggestion added (removed again on dismiss unless ticked or typed in). */
   aiAdded?: boolean;
+  /** When the set was logged (epoch ms); places exercises on the workout's heart-rate graph. */
+  doneAt?: number;
 }
 
 export interface ExerciseBlock {

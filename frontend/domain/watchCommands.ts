@@ -49,7 +49,9 @@ export function applyWorkoutCommand(a: ActiveWorkout, c: WatchCommand, ctx: Watc
       const previous = findPrevious(ctx.history, b.exerciseId, draft.type, ordinalWithinType(b.sets, b.sets.indexOf(s)));
       const logged = logSetValues(draft, b.tracking, previous);
       if (!logged) return false;
-      Object.assign(s, logged);
+      // Logged at the watch's time (the phone may get it later), within the workout.
+      const at = typeof c.at === 'number' && c.at >= a.startedAt && c.at <= ctx.now ? c.at : ctx.now;
+      Object.assign(s, logged, { doneAt: at });
       if (b.restSec > 0) a.timers[b.id] = startTimer({ ...timerFor(a, b), durationSec: b.restSec }, ctx.now);
       return true;
     }
@@ -62,6 +64,7 @@ export function applyWorkoutCommand(a: ActiveWorkout, c: WatchCommand, ctx: Watc
     case 'unlogSet':
       if (!s?.done) return false;
       s.done = false;
+      delete s.doneAt;
       return true;
     case 'setType': {
       const t = c.setType as SetType;

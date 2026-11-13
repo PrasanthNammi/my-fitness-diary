@@ -1872,3 +1872,30 @@ button.social-person { cursor: pointer; border-left: 0; border-right: 0; }
 .vital-chip.normal { background: var(--success-soft); color: var(--success-text); }
 .sparkline { flex: none; }
 .vitals-note { margin: 2px 0 0; font-size: 11px; font-weight: 600; color: var(--muted); }
+/* Workout heart rate (MFD 2.0) */
+:root { --hr-z1: #8e9aa6; --hr-z2: #2f9cf0; --hr-z3: #16a34a; --hr-z4: #ff8a3d; --hr-z5: #e5484d; }
+.hr-card { display: block; width: 100%; text-align: left; margin: 12px 0 12px; color: inherit; font: inherit; cursor: pointer; }
+.hr-head { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; }
+.hr-head b { flex: 1; }
+.hr-head svg { width: 16px; height: 16px; }
+.hr-icon { color: var(--failure); }
+.hr-stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin-bottom: 14px; }
+.hr-stats .k { font-size: 11px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: var(--muted); }
+.hr-stats .v { font-size: 18px; font-weight: 800; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.hr-stats small { font-size: 11px; font-weight: 700; color: var(--muted); }
+.hr-zonebar { display: flex; gap: 2px; height: 10px; border-radius: 999px; overflow: hidden; background: var(--surface-2); }
+.hr-zones { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 4px; margin-top: 8px; font-size: 11px; }
+.hr-zones > div { display: flex; flex-direction: column; min-width: 0; }
+.hr-zones b { display: flex; align-items: center; gap: 4px; }
+.hr-card .dot, .hr-page .dot { width: 8px; height: 8px; border-radius: 50%; flex: none; }
+.hr-source { display: flex; align-items: center; gap: 4px; margin: 12px 0 0; font-size: 11px; font-weight: 600; color: var(--muted); }
+.hr-source svg { width: 12px; height: 12px; }
+.hr-page { display: flex; flex-direction: column; gap: 10px; padding-top: 12px; }
+.hr-page .card + .card { margin-top: 0; }
+.hr-graph { width: 100%; height: auto; display: block; }
+.hr-legend { display: flex; justify-content: space-between; margin-top: 6px; }
+.hr-eyebrow { margin: 0 0 10px; font-size: 12px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--ink-3); }
+.hr-ex { display: flex; align-items: center; gap: 10px; min-height: 52px; border-bottom: 1px solid var(--line); }
+.hr-ex:last-child { border-bottom: 0; }
+.hr-ex .ellipsis { flex: 1; min-width: 0; font-weight: 600; font-size: 14px; }
+.hr-ex b { font-size: 16px; }
