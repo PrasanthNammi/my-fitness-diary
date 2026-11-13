@@ -202,6 +202,7 @@ class MainActivity : ComponentActivity() {
             }
             "restOver" -> Notify.restOver(this, m.optString("id").takeIf { REST_ID.matches(it) } ?: return, m.optString("label").take(80))
             "restClear" -> Notify.clearRest(this, m.optBoolean("all"))
+            "vibrate" -> if (m.optString("kind") == "record") RestTimer.celebrate(this)
             "appUpdateCheck" -> Thread {
                 val info = try { Updater.check() } catch (e: Exception) { null }
                 runOnUiThread { answer(JSONObject().put("available", info != null).put("version", info?.version ?: JSONObject.NULL)) }
