@@ -1930,3 +1930,43 @@ button.social-person { cursor: pointer; border-left: 0; border-right: 0; }
 .hd-danger { margin-top: 6px; color: var(--danger); }
 .hd-page .spin { animation: spin 1s linear infinite; }
 .hd-page .btn svg { width: 16px; height: 16px; }
+
+/* Recovery page, tiles and Overview card (MFD 2.0) */
+.metric-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.metric-tile { display: flex; flex-direction: column; gap: 4px; padding: 12px; border-radius: var(--r); background: var(--surface-2); min-width: 0; }
+.metric-head { display: flex; align-items: center; gap: 6px; }
+.metric-icon svg { width: 15px; height: 15px; display: block; }
+.metric-label { font-size: 12px; font-weight: 700; color: var(--muted); }
+.metric-value { font-size: 22px; font-weight: 800; line-height: 1.15; white-space: nowrap; }
+.metric-value small { font-size: 12px; font-weight: 700; color: var(--muted); }
+.metric-foot { display: flex; align-items: center; justify-content: space-between; gap: 6px; min-height: 22px; flex-wrap: wrap; }
+.metric-grid.compact .metric-value { font-size: 19px; }
+.usual-chip { display: inline-flex; align-items: center; height: 20px; padding: 0 7px; border-radius: 999px; font-size: 10.5px; font-weight: 700; white-space: nowrap; background: var(--warmup-soft); color: var(--warmup-text); }
+.usual-chip.normal, .usual-chip.good { background: var(--success-soft); color: var(--success-text); }
+.recovery-page { display: flex; flex-direction: column; gap: 12px; padding-top: 12px; }
+.recovery-page .card + .card { margin-top: 0; }
+.rp-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+.rp-title { display: flex; align-items: center; gap: 6px; margin: 0 0 8px; font-weight: 800; }
+.rp-title svg { width: 16px; height: 16px; color: var(--muted); }
+.rp-title .muted { font-weight: 600; font-size: 12px; }
+.felt-row { display: flex; gap: 16px; margin-top: 12px; font-size: 14px; color: var(--muted); }
+.felt-row span { display: inline-flex; align-items: center; gap: 5px; }
+.felt-row svg { width: 14px; height: 14px; }
+.felt-row b { color: var(--ink); }
+.rp-note { margin: 8px 0 0; font-size: 14px; font-style: italic; color: var(--ink-2); }
+.sleep-chart .sleep-legend { margin-top: 4px; }
+.felt-chart text { font-size: 11px; font-weight: 700; fill: var(--muted); }
+.rp-day { padding: 12px 0; border-top: 1px solid var(--line-2); display: flex; flex-direction: column; gap: 8px; }
+.rp-day:first-of-type { border-top: 0; padding-top: 4px; }
+.rp-day-head { display: flex; align-items: center; justify-content: space-between; }
+.rp-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.rp-chips span { display: inline-flex; align-items: center; gap: 4px; height: 26px; padding: 0 9px; border-radius: 999px; background: var(--surface-2); font-size: 12.5px; font-weight: 700; }
+.rp-chips svg { width: 13px; height: 13px; color: var(--muted); }
+.recovery-today .overview-card-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+.recovery-today .eyebrow { display: inline-flex; align-items: center; gap: 6px; }
+.recovery-icon { width: 15px; height: 15px; color: var(--protein); }
+.recovery-body, .recovery-empty { display: block; width: 100%; padding: 0; border: 0; background: none; text-align: left; color: inherit; font: inherit; cursor: pointer; }
+.recovery-empty { display: flex; align-items: center; gap: 12px; }
+.recovery-empty .grow { display: flex; flex-direction: column; gap: 2px; }
+.recovery-felt { margin: 10px 2px 0; color: var(--muted); font-weight: 600; }
+.progress-more svg { width: 16px; height: 16px; vertical-align: -3px; }

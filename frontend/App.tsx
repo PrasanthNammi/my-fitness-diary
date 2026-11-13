@@ -27,6 +27,7 @@ import { ActiveWorkoutScreen } from './screens/training/ActiveWorkout';
 import { FoodScreen } from './screens/food/FoodScreen';
 import { SessionDetail } from './screens/progress/SessionDetail';
 import { HeartRatePage } from './screens/progress/HeartRate';
+import { RecoveryPage } from './screens/progress/RecoveryPage';
 import { ProgressHome } from './screens/progress/ProgressHome';
 import { WorkoutEditor } from './screens/progress/WorkoutEditor';
 import { CoachScreen } from './screens/coach/CoachScreen';
@@ -92,6 +93,7 @@ function Routes({ route }: { route: string[] }) {
       return <FoodScreen />;
     case 'progress':
       if (b === 'muscles') return <ProgressHome tab="muscles" view={c} />;
+      if (b === 'recovery') return <RecoveryPage />;
       // Old links: workout history now lives under Training.
       if (b === 'session' && c && d === 'edit') return <WorkoutEditor key={c} id={c} />;
       if (b === 'session' && c) return <SessionDetail id={c} />;
