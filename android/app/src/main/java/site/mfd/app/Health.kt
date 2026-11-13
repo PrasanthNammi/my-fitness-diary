@@ -4,6 +4,14 @@ import android.content.Context
 import androidx.health.connect.client.HealthConnectClient
 import androidx.health.connect.client.permission.HealthPermission
 import androidx.health.connect.client.records.BodyFatRecord
+import androidx.health.connect.client.records.ExerciseSessionRecord
+import androidx.health.connect.client.records.MealType
+import androidx.health.connect.client.records.NutritionRecord
+import androidx.health.connect.client.records.metadata.Device
+import androidx.health.connect.client.records.metadata.Metadata
+import androidx.health.connect.client.units.Energy
+import androidx.health.connect.client.units.Mass
+import site.mfd.shared.HealthWrite
 import androidx.health.connect.client.records.HeartRateRecord
 import androidx.health.connect.client.records.HeartRateVariabilityRmssdRecord
 import androidx.health.connect.client.records.Record
@@ -24,7 +32,10 @@ import java.time.ZoneId
  * Health data from Android Health Connect (where Samsung Health, Fitbit, Google Fit… share it), read only while MFD
  * is open and only with the person's permission (each kind can be allowed alone): sleep, steps, heart rate during
  * workouts, resting heart rate, heart-rate variability, weight and body fat. They fill the recovery check-ins,
- * weigh-ins and workout heart rate in the diary (frontend/lib/health.ts). Nothing is written to Health Connect.
+ * weigh-ins and workout heart rate in the diary (frontend/lib/health.ts).
+ *
+ * From 2.0, when the person turns it on (separately for workouts and food), MFD also saves its finished workouts
+ * (with the MFD watch's heart rate) and food diary to Health Connect, so Samsung Health shows them ([write]).
  */
 object Health {
     val PERMISSIONS = setOf(
@@ -36,6 +47,14 @@ object Health {
         HealthPermission.getReadPermission(WeightRecord::class),
         HealthPermission.getReadPermission(BodyFatRecord::class),
     )
+    /** Saving to Health Connect, by what the person turned on. */
+    val WRITE = mapOf(
+        "workouts" to setOf(HealthPermission.getWritePermission(ExerciseSessionRecord::class), HealthPermission.getWritePermission(HeartRateRecord::class)),
+        "food" to setOf(HealthPermission.getWritePermission(NutritionRecord::class)),
+    )
+    private val WRITE_EXERCISE = HealthPermission.getWritePermission(ExerciseSessionRecord::class)
+    private val WRITE_HEART = HealthPermission.getWritePermission(HeartRateRecord::class)
+    private val WRITE_FOOD = HealthPermission.getWritePermission(NutritionRecord::class)
     const val PROVIDER = "com.google.android.apps.healthdata"
     /** At most this many days per read. */
     const val MAX_DAYS = 31L
@@ -71,6 +90,13 @@ object Health {
     suspend fun allowed(ctx: Context): Set<String> =
         if (availability(ctx) != "ready") emptySet()
         else HealthConnectClient.getOrCreate(ctx).permissionController.getGrantedPermissions().intersect(PERMISSIONS)
+
+    /** Which kinds MFD may save ("workouts", "food"). */
+    suspend fun writable(ctx: Context): Set<String> {
+        if (availability(ctx) != "ready") return emptySet()
+        val granted = HealthConnectClient.getOrCreate(ctx).permissionController.getGrantedPermissions()
+        return WRITE.filterValues { granted.contains(it.first()) }.keys
+    }
 
     /** At least one of the two is allowed. */
     suspend fun granted(ctx: Context): Boolean = allowed(ctx).isNotEmpty()
@@ -215,5 +241,62 @@ object Health {
         val buckets = points.groupBy { Duration.between(start, it.time).seconds / 5 * 5 }.toSortedMap()
             .map { (t, l) -> t to Math.round(l.map { it.beatsPerMinute }.average()) }
         return HeartSeries(buckets, Math.round(points.map { it.beatsPerMinute }.average()), points.maxOf { it.beatsPerMinute })
+    }
+
+    data class Written(val workouts: Int, val meals: Int, val removed: Int)
+
+    private val MEAL_TYPES = mapOf("breakfast" to MealType.MEAL_TYPE_BREAKFAST, "lunch" to MealType.MEAL_TYPE_LUNCH, "dinner" to MealType.MEAL_TYPE_DINNER, "snacks" to MealType.MEAL_TYPE_SNACK)
+
+    /**
+     * Saves workouts and food to Health Connect and removes ones deleted in MFD. Each record's client id is its MFD id
+     * ("mfd-w-…", "mfd-hr-…", "mfd-f-…") with a newer version each time, so saving again updates it in place. Kinds the
+     * person didn't allow are skipped.
+     */
+    suspend fun write(ctx: Context, r: HealthWrite.Request): Written {
+        val client = HealthConnectClient.getOrCreate(ctx)
+        val granted = client.permissionController.getGrantedPermissions()
+        if (WRITE_EXERCISE !in granted && WRITE_FOOD !in granted) throw SecurityException("Saving to Health Connect not allowed")
+        val zone = ZoneId.systemDefault()
+        fun offset(ms: Long) = zone.rules.getOffset(Instant.ofEpochMilli(ms))
+        val records = mutableListOf<Record>()
+        var workouts = 0; var meals = 0; var removed = 0
+        if (WRITE_EXERCISE in granted) for (w in r.workouts) {
+            records += ExerciseSessionRecord(
+                startTime = Instant.ofEpochMilli(w.start), startZoneOffset = offset(w.start), endTime = Instant.ofEpochMilli(w.end), endZoneOffset = offset(w.end),
+                metadata = Metadata.manualEntry("mfd-w-${w.id}", w.version), exerciseType = ExerciseSessionRecord.EXERCISE_TYPE_STRENGTH_TRAINING,
+                title = w.title, notes = w.notes.ifEmpty { null },
+            )
+            // The MFD watch's readings: one sample per step, in the middle of it, within the workout.
+            val samples = w.bpm.mapIndexedNotNull { i, b ->
+                val t = w.start + (i * w.interval + w.interval / 2) * 1000L
+                if (b > 0 && t < w.end) HeartRateRecord.Sample(Instant.ofEpochMilli(t), b.toLong()) else null
+            }
+            if (WRITE_HEART in granted && samples.isNotEmpty()) records += HeartRateRecord(
+                startTime = Instant.ofEpochMilli(w.start), startZoneOffset = offset(w.start), endTime = Instant.ofEpochMilli(w.end), endZoneOffset = offset(w.end),
+                samples = samples, metadata = Metadata.activelyRecorded(Device(type = Device.TYPE_WATCH), "mfd-hr-${w.id}", w.version),
+            )
+            workouts++
+        }
+        if (WRITE_FOOD in granted) for (m in r.meals) {
+            records += NutritionRecord(
+                startTime = Instant.ofEpochMilli(m.start), startZoneOffset = offset(m.start), endTime = Instant.ofEpochMilli(m.start + 60_000), endZoneOffset = offset(m.start + 60_000),
+                metadata = Metadata.manualEntry("mfd-f-${m.id}", m.version), name = m.name, mealType = MEAL_TYPES[m.meal] ?: MealType.MEAL_TYPE_UNKNOWN,
+                energy = Energy.kilocalories(m.kcal), protein = Mass.grams(m.protein), totalCarbohydrate = Mass.grams(m.carbs), totalFat = Mass.grams(m.fat),
+                sugar = m.sugars?.let { Mass.grams(it) }, saturatedFat = m.saturates?.let { Mass.grams(it) }, dietaryFiber = m.fibre?.let { Mass.grams(it) },
+                sodium = m.salt?.let { Mass.grams(it / 2.5) }, // salt is 2.5 × sodium
+            )
+            meals++
+        }
+        for (part in records.chunked(100)) client.insertRecords(part)
+        if (WRITE_EXERCISE in granted && r.removeWorkouts.isNotEmpty()) {
+            client.deleteRecords(ExerciseSessionRecord::class, emptyList(), r.removeWorkouts.map { "mfd-w-$it" })
+            if (WRITE_HEART in granted) client.deleteRecords(HeartRateRecord::class, emptyList(), r.removeWorkouts.map { "mfd-hr-$it" })
+            removed += r.removeWorkouts.size
+        }
+        if (WRITE_FOOD in granted && r.removeMeals.isNotEmpty()) {
+            client.deleteRecords(NutritionRecord::class, emptyList(), r.removeMeals.map { "mfd-f-$it" })
+            removed += r.removeMeals.size
+        }
+        return Written(workouts, meals, removed)
     }
 }

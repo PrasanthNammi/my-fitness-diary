@@ -29,6 +29,7 @@ import androidx.core.content.edit
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
+import androidx.health.connect.client.HealthConnectClient
 import androidx.health.connect.client.PermissionController
 import androidx.lifecycle.lifecycleScope
 import kotlinx.coroutines.launch
@@ -59,11 +60,14 @@ class MainActivity : ComponentActivity() {
     }
 
     // Health Connect: Android's own permission screen for sleep and steps.
-    private var pendingHealth: Pair<Int, JavaScriptReplyProxy>? = null
+    private var pendingHealth: Triple<Int, JavaScriptReplyProxy, Set<String>>? = null
     private val healthPermission = registerForActivityResult(PermissionController.createRequestPermissionResultContract()) { granted ->
-        val (id, reply) = pendingHealth ?: return@registerForActivityResult
+        val (id, reply, wanted) = pendingHealth ?: return@registerForActivityResult
         pendingHealth = null
-        reply.postMessage(JSONObject().put("id", id).put("granted", granted.intersect(Health.PERMISSIONS).isNotEmpty()).toString())
+        // Asked to save too: granted only when every one asked for was allowed.
+        val ok = if (wanted.isEmpty()) granted.intersect(Health.PERMISSIONS).isNotEmpty() else granted.containsAll(wanted)
+        val writable = Health.WRITE.filterValues { granted.contains(it.first()) }.keys
+        reply.postMessage(JSONObject().put("id", id).put("granted", ok).put("writable", org.json.JSONArray(writable.toList())).toString())
     }
 
     private var pendingEnable: Pair<Int, JavaScriptReplyProxy>? = null
@@ -216,9 +220,24 @@ class MainActivity : ComponentActivity() {
             "healthStatus" -> lifecycleScope.launch {
                 val availability = Health.availability(this@MainActivity)
                 val granted = try { Health.granted(this@MainActivity) } catch (e: Exception) { false }
-                answer(JSONObject().put("availability", availability).put("granted", granted))
+                val writable = try { Health.writable(this@MainActivity) } catch (e: Exception) { emptySet() }
+                answer(JSONObject().put("availability", availability).put("granted", granted).put("writable", org.json.JSONArray(writable.toList())))
             }
-            "healthConnect" -> lifecycleScope.launch { connectHealth(id, reply) }
+            "healthConnect" -> {
+                // Optionally also asks to save "workouts" and/or "food" to Health Connect.
+                val write = m.optJSONArray("write")?.let { a -> (0 until a.length()).map { a.optString(it) }.filter { it in Health.WRITE }.toSet() } ?: emptySet()
+                lifecycleScope.launch { connectHealth(id, reply, write) }
+            }
+            "healthWrite" -> {
+                val request = site.mfd.shared.HealthWrite.parse(m, System.currentTimeMillis())
+                lifecycleScope.launch {
+                    val result = try {
+                        val w = Health.write(this@MainActivity, request)
+                        JSONObject().put("workouts", w.workouts).put("meals", w.meals).put("removed", w.removed)
+                    } catch (e: SecurityException) { JSONObject().put("error", "permission") } catch (e: Exception) { JSONObject().put("error", "write") }
+                    answer(result)
+                }
+            }
             "healthRead" -> {
                 val from = parseDay(m.optString("from")); val to = parseDay(m.optString("to"))
                 if (from == null || to == null) return answer(JSONObject().put("error", "invalid"))
@@ -267,7 +286,7 @@ class MainActivity : ComponentActivity() {
         LocalDate.parse(s).takeIf { !it.isAfter(LocalDate.now().plusDays(1)) && it.isAfter(LocalDate.now().minusYears(1)) }
     } catch (e: Exception) { null }
 
-    private suspend fun connectHealth(id: Int, reply: JavaScriptReplyProxy) {
+    private suspend fun connectHealth(id: Int, reply: JavaScriptReplyProxy, write: Set<String> = emptySet()) {
         fun answer(o: JSONObject) = reply.postMessage(o.put("id", id).toString())
         when (Health.availability(this)) {
             "unsupported" -> answer(JSONObject().put("granted", false).put("state", "unsupported"))
@@ -276,9 +295,15 @@ class MainActivity : ComponentActivity() {
                 try { startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("market://details?id=${Health.PROVIDER}&url=healthconnect://onboarding")).setPackage("com.android.vending")) } catch (e: ActivityNotFoundException) {}
                 answer(JSONObject().put("granted", false).put("state", "install"))
             }
-            else -> if (try { Health.granted(this) } catch (e: Exception) { false }) answer(JSONObject().put("granted", true)) else {
-                pendingHealth = id to reply
-                try { healthPermission.launch(Health.PERMISSIONS) } catch (e: Exception) { pendingHealth = null; answer(JSONObject().put("granted", false)) }
+            else -> {
+                val wanted = write.flatMap { Health.WRITE[it].orEmpty() }.toSet()
+                val have = try { HealthConnectClient.getOrCreate(this).permissionController.getGrantedPermissions() } catch (e: Exception) { emptySet() }
+                val readOk = have.intersect(Health.PERMISSIONS).isNotEmpty()
+                if (readOk && have.containsAll(wanted)) answer(JSONObject().put("granted", true).put("writable", org.json.JSONArray(Health.writable(this).toList())))
+                else {
+                    pendingHealth = Triple(id, reply, wanted)
+                    try { healthPermission.launch(Health.PERMISSIONS + wanted) } catch (e: Exception) { pendingHealth = null; answer(JSONObject().put("granted", false)) }
+                }
             }
         }
     }
