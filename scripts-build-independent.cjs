@@ -10,7 +10,7 @@ for(const [entry,name] of [['edge','edge.js'],['auth-worker','auth-worker.js'],[
 }
 
 // Production connector: same code, deployment profile fixed at build time (see hosting/independent/config.ts).
-const production={env:'production',supabase:'https://djyozltkmbzhwuvemxuy.supabase.co',origin:'https://mfd-connect.shanustylish777.workers.dev'};
+const production={env:'production',supabase:'https://djyozltkmbzhwuvemxuy.supabase.co',origin:'https://mfd-connect.shanustylish777.workers.dev',app:'https://prasanth-nammi-portfolio.shanustylish777.chatgpt.site'};
 {
  const result=buildSync({entryPoints:['hosting/independent/colocated-worker.ts'],bundle:true,format:'esm',platform:'neutral',mainFields:['module','main'],target:'es2022',external:['cloudflare:workers'],define:{__MFD_DEPLOYMENT__:JSON.stringify(production)},write:false});
  const text=result.outputFiles[0].text;

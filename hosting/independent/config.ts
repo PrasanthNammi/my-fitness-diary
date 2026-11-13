@@ -2,9 +2,11 @@
 // The deployment profile is fixed at build time: staging by default; the production bundle
 // is built with __MFD_DEPLOYMENT__ defined (scripts-build-independent.cjs), so neither
 // artifact can be pointed at the other project by changing runtime variables.
-declare const __MFD_DEPLOYMENT__: {env: string; supabase: string; origin?: string} | undefined;
-const DEPLOYMENT = typeof __MFD_DEPLOYMENT__ === 'object' ? __MFD_DEPLOYMENT__ : {env: 'staging', supabase: 'https://gngnrmzeghjzqsmzuktl.supabase.co'};
+declare const __MFD_DEPLOYMENT__: {env: string; supabase: string; origin?: string; app?: string} | undefined;
+const DEPLOYMENT = typeof __MFD_DEPLOYMENT__ === 'object' ? __MFD_DEPLOYMENT__ : {env: 'staging', supabase: 'https://gngnrmzeghjzqsmzuktl.supabase.co', app: 'https://mfd-oauth-testing.paleriver512.chatgpt.site'};
 export const SUPABASE = DEPLOYMENT.supabase;
+/** The diary app people sign up in (linked from the connector's sign-in page). */
+export const APP_ORIGIN = DEPLOYMENT.app ?? null;
 export const RESOURCE = SUPABASE + '/functions/v1/mfd-mcp/mcp';
 export type IntegrationConfig = {supabase: string; issuer: string; resource: string; authOrigin: string; key: string; clients: string[]; redirects: Record<string, string[]>; aiClients?: string[]};
 // AI apps allowed to connect, by client metadata document origin. Without it (sandbox only) any app may self-register.
