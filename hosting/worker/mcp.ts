@@ -2,7 +2,7 @@ import type {AuthUser, AuthClaims} from './auth-types';
 import {environment} from '../../src/environment';
 // Stateless Streamable HTTP MCP. Supabase validates bearer signatures; the RPC
 // independently enforces live sessions, consent, ownership and revisions.
-export const SECTIONS = ['workouts', 'routines', 'nutrition', 'progress', 'profile'];
+export const SECTIONS = ['workouts', 'routines', 'nutrition', 'progress', 'recovery', 'profile'];
 const versions = ['2025-03-26', '2025-06-18', '2025-11-25'];
 // Write permissions are separate consent ticks; each only ever adds new entries.
 export const WRITE_SECTIONS = ['log_workouts', 'log_routines', 'log_nutrition', 'log_progress'];
@@ -17,10 +17,11 @@ const add = {readOnlyHint: false, destructiveHint: false, idempotentHint: false,
 const object = (properties: Record<string, Schema>, required: string[] = []) => ({type: 'object', properties, ...(required.length ? {required} : {}), additionalProperties: false});
 const requestId: Schema = {type: 'string', maxLength: 64, pattern: '^[A-Za-z0-9_-]+$', description: 'Optional unique id for this entry; repeating it never creates a duplicate'};
 const TOOLS: Tool[] = [
- {name: 'get_workouts', section: 'workouts', description: 'List completed workouts (each with its sets), optionally within a date range.', inputSchema: object({...range, ...page}), annotations: read},
+ {name: 'get_workouts', section: 'workouts', description: 'List completed workouts (each with its sets, and average and maximum heart rate when it was recorded), optionally within a date range.', inputSchema: object({...range, ...page}), annotations: read},
  {name: 'get_routines', section: 'routines', description: 'List saved workout routines.', inputSchema: object({limit: page.limit, offset: page.offset}), annotations: read},
  {name: 'get_nutrition', section: 'nutrition', description: 'List food diary entries (kcal, macros, and fibre/sugar/saturates/salt where known, per entry), optionally within a date range.', inputSchema: object({...range, ...page}), annotations: read},
  {name: 'get_progress', section: 'progress', description: 'List body-weight entries, optionally within a date range.', inputSchema: object({...range, ...page}), annotations: read},
+ {name: 'get_recovery', section: 'recovery', description: 'Recovery per day (default the last 14 days, at most 92): sleep hours and stages with bed and wake time, steps, resting heart rate, heart-rate variability (HRV), and the user\'s energy and soreness check-ins (1-5) and notes, with averages. Sleep, steps, resting heart rate and HRV come from Samsung Health when the user connected it. Use it to judge readiness and recovery alongside training.', inputSchema: object(range), annotations: read},
  {name: 'get_profile', section: 'profile', description: 'Read fitness profile fields (name, age, height, weight, goals) and daily nutrition targets (cal, protein, carbs, fat). The reply includes today\'s date for the user.', inputSchema: object({}), annotations: read},
  {name: 'summarize_training', section: 'workouts', description: 'Training totals per week or month: sessions, working sets, reps, volume (kg x reps) and minutes. Warm-up sets are excluded.', inputSchema: object({...range, group: {type: 'string', enum: ['week', 'month']}}), annotations: read},
  {name: 'list_exercises', section: 'workouts', description: 'Exercises performed, with muscle group, session and set counts and the last date. Use the names with exercise_progress.', inputSchema: object(range), annotations: read},
@@ -137,8 +138,8 @@ export async function serveMcp(request: Request, {origin, writes, sections, call
   if (msg.id === undefined) return msg.method==='notifications/initialized'?new Response(null,{status:202}):error(-32600,'Request id required');
   if (msg.method==='initialize') return reply({protocolVersion:versions.includes(msg.params?.protocolVersion ?? '')?msg.params!.protocolVersion:'2025-03-26',capabilities:{tools:{},prompts:{}},serverInfo:{name:'my-fitness-diary',title:'My Fitness Diary',version:'1.0.0',icons:[{src:origin+'/icon.png',mimeType:'image/png',sizes:['256x256']},{src:origin+'/icon.svg',mimeType:'image/svg+xml',sizes:['any']}]}});
   if (msg.method==='ping') return reply({});
-  // Without `sections` (direct Supabase-token path) only the original read tools exist.
-  const definitions=TOOLS.filter(t=>t.section==='profile-write'?writes&&(!sections||sections.includes('profile')):sections?sections.includes(t.section):t.name.startsWith('get_')).map(({section,...tool})=>(void section,tool));
+  // Without `sections` (direct Supabase-token path) only the original read tools exist (recovery needs a connection's consent).
+  const definitions=TOOLS.filter(t=>t.section==='profile-write'?writes&&(!sections||sections.includes('profile')):sections?sections.includes(t.section):t.name.startsWith('get_')&&t.section!=='recovery').map(({section,...tool})=>(void section,tool));
   if (msg.method==='tools/list') return reply({tools:definitions});
   if (msg.method==='prompts/list') return reply({prompts:PROMPTS.map(({text,...p})=>(void text,p))});
   if (msg.method==='prompts/get') {const p=PROMPTS.find(x=>x.name===msg.params?.name);return p?reply({description:p.description,messages:[{role:'user',content:{type:'text',text:p.text}}]}):error(-32602,'Unknown prompt');}
