@@ -2,6 +2,7 @@ import {CallbackFailure, callbackFailure, callbackStep, type CallbackCode} from 
 import {type GoogleTransactions, validTransactionId} from './google-transactions';
 import {handleMcpConsent} from '../worker/mcp-consent';
 import type {IntegrationConfig} from './config';
+import {APP_ORIGIN} from './config';
 import type {RateGate} from './limits';
 import {integrationUpstream, privateJson} from './service';
 import {GOOGLE_BROWSER, random, GOOGLE_FLOW, GOOGLE_START, GOOGLE_CALLBACK, startGoogle, googleContext, firstPartyIdentity, sessionFingerprint} from './google';
@@ -122,7 +123,7 @@ export function createAuthService(config: IntegrationConfig, fetcher: typeof fet
 <form class="fields" method="post" action="/login"><input type="hidden" name="csrf" value="${csrf}"><input type="hidden" name="return_to" value="${escape(next)}"><label>Email <input type="email" name="email" autocomplete="username" required></label><label>Password <input type="password" name="password" autocomplete="current-password" required></label><button class="btn primary">Sign in</button></form>
 <div class="or">or</div>
 <form method="post" action="/auth/google"><input type="hidden" name="csrf" value="${csrf}"><input type="hidden" name="return_to" value="${escape(next)}"><button class="btn"><span class="g" aria-hidden="true">G</span>Continue with Google</button></form>
-</div></section><p class="fine">MFD never shares your password with assistants.</p>`);
+</div></section>${APP_ORIGIN ? `<p class="fine">No account yet? <a href="${escape(APP_ORIGIN)}/" target="_blank" rel="noopener">Create one in My Fitness Diary</a>, then come back here.</p>` : ''}<p class="fine">MFD never shares your password with assistants.</p>`);
         } else {
           if (!request.headers.get('content-type')?.startsWith('application/x-www-form-urlencoded')) throw Error('Form required');
           const reader = request.body?.getReader(); let body = '', size = 0; const decoder = new TextDecoder();
