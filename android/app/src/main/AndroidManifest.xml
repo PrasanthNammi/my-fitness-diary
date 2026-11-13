@@ -7,6 +7,14 @@
     <uses-feature android:name="android.hardware.camera" android:required="false" />
     <!-- Rest timer, friends and AI notifications (Android 13+ asks when they are turned on in Settings). -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- MFD 2.0 rest timer: ends each rest on the second (exact alarm, also locked), redraws its notification
+         every second while it runs (a short foreground service with a wake lock), and vibrates at the end. -->
+    <uses-permission android:name="android.permission.USE_EXACT_ALARM" />
+    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" android:maxSdkVersion="32" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <uses-permission android:name="android.permission.VIBRATE" />
     <!-- Updating itself from MFD's download site (Android asks the person to allow it once, and to confirm each
          update). -->
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
@@ -87,6 +95,14 @@
         </activity-alias>
 
         <!-- Notifications from the MFD push service (Firebase), shown by the app itself. -->
+        <!-- The running rest timer's notification (only while a rest runs). -->
+        <service
+            android:name=".RestService"
+            android:exported="false"
+            android:foregroundServiceType="specialUse">
+            <property android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE" android:value="Rest timer between sets: a live countdown that ends on the second" />
+        </service>
+        <receiver android:name=".RestAlarmReceiver" android:exported="false" />
         <service
             android:name=".PushService"
             android:exported="false">

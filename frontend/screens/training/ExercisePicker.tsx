@@ -58,6 +58,8 @@ const GROUPS: [string, Muscle[], string][] = [
 const groupMuscles = (g: string | null) => GROUPS.find(([name]) => name === g)?.[1] || null;
 const groupOf = (m: Muscle) => GROUPS.find(([, list]) => list.includes(m))?.[0] || null;
 const thumbnail = (ex: Exercise) => (ex.entry ? exerciseThumbnail(ex.entry, MEDIA) : ex.mediaUrl);
+/** The exercise's picture on MFD's own site (absolute), or null (none, or hosted elsewhere). */
+export const exerciseImageUrl = (ex: Exercise | undefined) => { const p = ex ? thumbnail(ex) : null; if (!p) return null; try { const u = new URL(p, location.origin); return u.origin === location.origin ? u.href : null; } catch { return null; } };
 
 /** "Today", "Yesterday", "3 days ago", or a date for older ones. */
 function lastDoneLabel(t: number): string {

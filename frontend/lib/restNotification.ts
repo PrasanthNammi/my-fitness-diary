@@ -22,10 +22,13 @@ let appShown = '';
 /** `background`: MFD is hidden (and may be paused), so the notification's buttons go to the server, which
  * holds the rest while MFD is away, instead of to the paused window. In the app, `ends` drives the native
  * countdown and the app itself knows whether it is in the background. */
-export async function showResting(id: string, label: string, body: string, background = false, ends?: number) {
+/** For the Android app's notification: what comes next, the exercise's picture, the rest's full length, and
+ *  whether to vibrate when it ends. */
+export type RestExtra = { next: string | null; image: string | null; duration: number; vibrate: boolean };
+export async function showResting(id: string, label: string, body: string, background = false, ends?: number, extra?: RestExtra) {
   if (inApp()) {
-    const key = `${id}:${ends}:${label}`;
-    if (ends != null && key !== appShown) { appShown = key; tell('rest', { id, label, ends }); }
+    const key = `${id}:${ends}:${label}:${extra?.next}:${extra?.image}`;
+    if (ends != null && key !== appShown) { appShown = key; tell('rest', { id, label, ends, ...extra }); }
     return;
   }
   await (await ready())?.showNotification(`Resting · ${label}`, {

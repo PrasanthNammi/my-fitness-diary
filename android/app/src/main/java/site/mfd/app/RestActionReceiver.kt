@@ -10,7 +10,7 @@ import java.net.URL
 import kotlin.concurrent.thread
 
 /**
- * −15s / +15s on the rest notification. With MFD on screen the page moves the rest itself. Otherwise the
+ * Skip / −15s / +15s on the rest notification. With MFD on screen the page moves the rest itself. Otherwise the
  * push service holds the rest (the page handed it over when MFD went to the background), so the change goes
  * there, with the signed-in session's cookie, and the notification's countdown moves at once.
  */
@@ -18,6 +18,13 @@ class RestActionReceiver : BroadcastReceiver() {
     override fun onReceive(ctx: Context, intent: Intent) {
         val id = intent.getStringExtra(EXTRA_ID) ?: return
         val sec = intent.getIntExtra(EXTRA_SEC, 0)
+        if (sec == 0) {
+            // Skip: the page moves the rest itself when it is on screen; otherwise it hears about it when it wakes.
+            if (MainActivity.sendToPage(JSONObject().put("event", "restSkip").put("id", id))) return
+            Notify.skip(ctx, id)
+            MainActivity.sendToOpenPage(JSONObject().put("event", "restSkip").put("id", id))
+            return
+        }
         if (sec != 15 && sec != -15) return
         if (MainActivity.sendToPage(JSONObject().put("event", "restAdjust").put("id", id).put("sec", sec))) return
 
@@ -25,7 +32,7 @@ class RestActionReceiver : BroadcastReceiver() {
         if (rest != null) {
             val now = System.currentTimeMillis()
             val ends = if (rest.over) now + sec * 1000L else maxOf(now, rest.ends + sec * 1000L)
-            if (ends > now + 1000) Notify.resting(ctx, id, rest.label, ends) else Notify.cancel(ctx)
+            if (ends > now + 1000) Notify.resting(ctx, id, rest.label, ends, rest.next, rest.image, 0, rest.vibrate) else Notify.cancel(ctx)
         }
         val done = goAsync()
         thread {

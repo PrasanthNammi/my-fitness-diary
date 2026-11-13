@@ -56,7 +56,7 @@ function Review({ s }: { s: AiSuggestion }) {
       </> : <button className="btn btn-secondary" onClick={close}>Dismiss</button>}>
       <div className="ai-review-meta">
         <span className="ai-suggest-meta"><Sparkles aria-hidden="true" />{suggestionSource(s)} · {ago(s.createdAt)}</span>
-        <span className={`ai-review-count${s.status === 'used' && live ? ' on' : ''}`}>{!live ? 'Expired' : s.status === 'used' ? `${acceptedCount(s)} Accepted` : `${s.exercises.length} exercises`}</span>
+        <span className={`ai-review-count${s.status === 'used' && live ? ' on' : ''}`}>{!live ? 'Expired' : s.status === 'used' ? <span className="accepted" aria-label={`${acceptedCount(s)} accepted`}>{acceptedCount(s)}<Check aria-hidden="true" /></span> : `${s.exercises.length} exercises`}</span>
       </div>
       <div className="ai-suggest-list">
         {s.exercises.map((ex) => {
