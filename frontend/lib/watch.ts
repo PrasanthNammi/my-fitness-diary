@@ -1,6 +1,7 @@
 // The MFD Galaxy Watch app (Android app 2.0+). The phone app relays (android/.../WatchLink.kt): this page publishes a
 // small snapshot for the watch whenever the diary changes (routines, the running workout, settings), and takes the
 // watch's commands from the phone app's queue, applying each one once. Protocol: android/shared/.../Sync.kt.
+import { useEffect, useState } from 'react';
 import { getDB, subscribe, type DB } from '../data/store';
 import { body, diary, exercises, workouts } from '../data/repositories';
 import type { Exercise, Food, PortionUnit, SetEntry, SetType, TrackingMode } from '../domain/types';
@@ -226,4 +227,20 @@ export function installWatchSync() {
   const visible = () => { if (!document.hidden) { drain(); publish(); } };
   document.addEventListener('visibilitychange', visible);
   return () => { offStore(); offNative(); document.removeEventListener('visibilitychange', visible); clearTimeout(timer); clearInterval(retry); };
+}
+
+/** The watch's live heart rate during a workout (Android app 2.0+), or null when none arrived in the last 20 s. */
+export function useWatchHeart(): number | null {
+  const [bpm, setBpm] = useState<number | null>(null);
+  useEffect(() => {
+    let stale: ReturnType<typeof setTimeout> | undefined;
+    const off = onNative((e) => {
+      if (e.event !== 'watchHeart' || typeof e.bpm !== 'number' || e.bpm < 30 || e.bpm > 250) return;
+      setBpm(Math.round(e.bpm));
+      clearTimeout(stale);
+      stale = setTimeout(() => setBpm(null), 20_000);
+    });
+    return () => { off(); clearTimeout(stale); };
+  }, []);
+  return bpm;
 }

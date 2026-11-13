@@ -1848,3 +1848,6 @@ button.social-person { cursor: pointer; border-left: 0; border-right: 0; }
 .ai-notice-review{flex:none;font-size:14px;font-weight:700;color:var(--ai-text);padding:8px 12px;border-radius:999px;background:color-mix(in srgb,var(--ai-text) 12%,transparent)}
 .ai-notice-x{flex:none;color:var(--ai-text)}
 .ai-hub-list li .ai-hub-hide{flex:none;margin-left:-4px;color:var(--muted)}
+.live-heart { display: inline-flex; align-items: center; gap: 3px; margin-left: 8px; font-size: 14px; font-weight: 800; color: var(--failure); vertical-align: middle; }
+.live-heart svg { width: 12px; height: 12px; animation: live-pulse 1.6s ease-in-out infinite; }
+@media (prefers-reduced-motion: reduce) { .live-heart svg { animation: none; } }

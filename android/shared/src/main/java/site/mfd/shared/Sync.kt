@@ -10,11 +10,14 @@ import org.json.JSONObject
  *   workout and settings. The watch always shows the newest one, even after being away from the phone.
  * - Watch → phone: messages at [COMMAND], one JSON command each (log a set, start a routine…), with an id so the
  *   phone applies each command once.
+ * - Watch → phone during a workout: the live heart rate at [HEART] (the bpm as text, about every 5 s), only shown,
+ *   never stored (the workout's full readings come with its heartRate command after it is saved).
  */
 object Sync {
     const val VERSION = 1
     const val STATE = "/mfd/state"
     const val COMMAND = "/mfd/command"
+    const val HEART = "/mfd/heart"
     const val KEY_JSON = "json"
     const val KEY_AT = "at"
     /** Capability names (res/values/wear.xml in each app). */
@@ -32,6 +35,9 @@ object Sync {
         val o = try { JSONObject(String(bytes, Charsets.UTF_8)) } catch (e: Exception) { return null }
         return o.takeIf { it.optInt("v") == VERSION && ID.matches(it.optString("id")) && TYPE.matches(it.optString("type")) }
     }
+
+    /** A live heart-rate reading (30–250 bpm), else null. */
+    fun heart(bytes: ByteArray): Int? = if (bytes.size > 3) null else String(bytes, Charsets.US_ASCII).toIntOrNull()?.takeIf { it in 30..250 }
 
     /** A phone snapshot if it is well-formed and within the size limit, else null. */
     fun state(json: String): JSONObject? {

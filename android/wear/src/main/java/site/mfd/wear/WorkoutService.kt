@@ -24,19 +24,24 @@ import androidx.lifecycle.LifecycleService
 import androidx.lifecycle.lifecycleScope
 import androidx.wear.ongoing.OngoingActivity
 import androidx.wear.ongoing.Status
+import com.google.android.gms.wearable.CapabilityClient
+import com.google.android.gms.wearable.Wearable
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.guava.await
+import kotlinx.coroutines.tasks.await
 import kotlinx.coroutines.launch
 import org.json.JSONArray
 import org.json.JSONObject
 import java.time.Instant
+import site.mfd.shared.Sync
 
 /**
  * The workout session on the watch, running while a workout is in progress (started and stopped by WatchActivity):
  * - Health Services exercise: heart rate from the watch's sensor, recorded for the workout;
  * - an ongoing activity, so raising the wrist shows MFD instead of the watch face;
- * - the rest timer's buzz, also with the screen off (a short wake lock covers each rest).
+ * - the rest timer's buzz, also with the screen off (a short wake lock covers each rest);
+ * - the live heart rate to the phone's workout screen.
  * Without heart-rate permission it still runs, without heart rate.
  */
 class WorkoutService : LifecycleService() {
@@ -86,11 +91,30 @@ class WorkoutService : LifecycleService() {
                 synchronized(samples) { samples += p.getTimeInstant(boot).toEpochMilli() to v; if (samples.size > 40_000) samples.removeAt(0) }
                 bpm.intValue = v
             }
+            if (bpm.intValue > 0) sendLive(bpm.intValue)
         }
         override fun onLapSummaryReceived(lapSummary: ExerciseLapSummary) {}
         override fun onRegistered() {}
         override fun onRegistrationFailed(throwable: Throwable) {}
         override fun onAvailabilityChanged(dataType: DataType<*, *>, availability: Availability) {}
+    }
+
+    private var lastLive = 0L
+    private var phone: Pair<String, Long>? = null // node id, when it was looked up
+
+    /** The live reading to the phone, at most every 5 s (shown on its workout screen; best effort). */
+    private fun sendLive(v: Int) {
+        val now = SystemClock.elapsedRealtime()
+        if (now - lastLive < 5_000) return
+        lastLive = now
+        lifecycleScope.launch {
+            try {
+                val node = phone?.takeIf { now - it.second < 60_000 }?.first
+                    ?: Wearable.getCapabilityClient(this@WorkoutService).getCapability(Sync.PHONE, CapabilityClient.FILTER_REACHABLE).await().nodes.firstOrNull()?.id?.also { phone = it to now }
+                    ?: return@launch
+                Wearable.getMessageClient(this@WorkoutService).sendMessage(node, Sync.HEART, v.toString().toByteArray()).await()
+            } catch (e: Exception) { phone = null }
+        }
     }
 
     override fun onCreate() {

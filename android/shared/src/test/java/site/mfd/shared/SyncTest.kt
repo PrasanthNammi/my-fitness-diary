@@ -24,4 +24,9 @@ class SyncTest {
         assertNull(Sync.state("""{"v":1}"""))
         assertNull(Sync.state("""{"v":1,"routines":["${"x".repeat(Sync.MAX_STATE_BYTES)}"]}"""))
     }
+
+    @Test fun checksLiveHeartRate() {
+        assertEquals(128, Sync.heart("128".toByteArray()))
+        for (bad in listOf("", "29", "251", "1280", "12a", "-90")) assertNull(bad, Sync.heart(bad.toByteArray()))
+    }
 }
