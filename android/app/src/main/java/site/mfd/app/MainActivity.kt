@@ -220,8 +220,9 @@ class MainActivity : ComponentActivity() {
             "healthStatus" -> lifecycleScope.launch {
                 val availability = Health.availability(this@MainActivity)
                 val granted = try { Health.granted(this@MainActivity) } catch (e: Exception) { false }
+                val reads = try { Health.readable(this@MainActivity) } catch (e: Exception) { emptyList() }
                 val writable = try { Health.writable(this@MainActivity) } catch (e: Exception) { emptySet() }
-                answer(JSONObject().put("availability", availability).put("granted", granted).put("writable", org.json.JSONArray(writable.toList())))
+                answer(JSONObject().put("availability", availability).put("granted", granted).put("reads", org.json.JSONArray(reads)).put("writable", org.json.JSONArray(writable.toList())))
             }
             "healthConnect" -> {
                 // Optionally also asks to save "workouts" and/or "food" to Health Connect.
@@ -237,6 +238,17 @@ class MainActivity : ComponentActivity() {
                     } catch (e: SecurityException) { JSONObject().put("error", "permission") } catch (e: Exception) { JSONObject().put("error", "write") }
                     answer(result)
                 }
+            }
+            "healthManage" -> {
+                // Health Connect's page for MFD's permissions (Android 14+), else Health Connect's settings.
+                val intents = listOfNotNull(
+                    if (Build.VERSION.SDK_INT >= 34) Intent("android.health.connect.action.MANAGE_HEALTH_PERMISSIONS").putExtra(Intent.EXTRA_PACKAGE_NAME, packageName) else null,
+                    Intent("androidx.health.ACTION_HEALTH_CONNECT_SETTINGS"),
+                )
+                answer(JSONObject().put("opened", intents.any { i -> try { startActivity(i); true } catch (e: Exception) { false } }))
+            }
+            "healthDisconnect" -> lifecycleScope.launch {
+                answer(JSONObject().put("ok", try { Health.disconnect(this@MainActivity); true } catch (e: Exception) { false }))
             }
             "healthRead" -> {
                 val from = parseDay(m.optString("from")); val to = parseDay(m.optString("to"))

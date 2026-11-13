@@ -1902,3 +1902,31 @@ button.social-person { cursor: pointer; border-left: 0; border-right: 0; }
 .hr-ex:last-child { border-bottom: 0; }
 .hr-ex .ellipsis { flex: 1; min-width: 0; font-weight: 600; font-size: 14px; }
 .hr-ex b { font-size: 16px; }
+
+/* Settings → Health & devices (MFD 2.0) */
+.hd-page { display: flex; flex-direction: column; gap: 12px; padding-top: 12px; }
+.hd-page .card + .card { margin-top: 0; }
+.hd-head { display: flex; align-items: center; gap: 12px; }
+.hd-head .grow { display: flex; flex-direction: column; min-width: 0; }
+.hd-head .sub, .hd-switch .sub { font-size: 13px; color: var(--muted); }
+.hd-icon { flex: none; display: grid; place-items: center; width: 40px; height: 40px; border-radius: 50%; background: var(--surface-2); color: var(--ink-2); }
+.hd-icon svg { width: 18px; height: 18px; }
+.hd-icon.health { background: var(--water-soft); color: var(--water-text); }
+.hd-icon.watch { background: var(--accent-soft); color: var(--accent); }
+.hd-status { flex: none; display: inline-flex; align-items: center; height: 24px; padding: 0 9px; border-radius: 999px; font-size: 12px; font-weight: 700; background: var(--surface-2); color: var(--muted); }
+.hd-status.on { background: var(--success-soft); color: var(--success-text); }
+.hd-status.reconnect, .hd-status.away { background: var(--warn-soft); color: var(--warn); }
+.hd-text { margin: 12px 0; }
+.hd-gap { margin-top: 12px; }
+.hd-eyebrow { margin: 16px 0 6px; font-size: 12px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--ink-3); }
+.hd-reads { list-style: none; margin: 0; padding: 0; }
+.hd-reads li { display: flex; align-items: center; gap: 10px; min-height: 36px; font-size: 14px; font-weight: 600; color: var(--muted); }
+.hd-reads li.on { color: var(--ink); }
+.hd-reads svg { width: 16px; height: 16px; color: var(--success); flex: none; }
+.hd-off { width: 16px; height: 16px; flex: none; border-radius: 50%; border: 1.5px solid var(--faint); }
+.hd-switch { display: flex; align-items: center; gap: 12px; min-height: 56px; border-top: 1px solid var(--line-2); cursor: pointer; }
+.hd-switch .grow { display: flex; flex-direction: column; }
+.hd-switch input { width: 22px; height: 22px; accent-color: var(--accent); flex: none; }
+.hd-danger { margin-top: 6px; color: var(--danger); }
+.hd-page .spin { animation: spin 1s linear infinite; }
+.hd-page .btn svg { width: 16px; height: 16px; }
