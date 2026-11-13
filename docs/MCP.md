@@ -9,10 +9,11 @@ frontend screens, workspace format, imports, exports and Hevy access remain inta
 
 | Tool | Consented section | Response |
 | --- | --- | --- |
-| `get_workouts` | workouts | Completed workout/session records |
+| `get_workouts` | workouts | Completed workout/session records (heart rate as average, maximum and source; MFD 2.0) |
 | `get_routines` | routines | Saved routine records |
 | `get_nutrition` | nutrition | Food diary entries |
 | `get_progress` | progress | Weight history |
+| `get_recovery` | recovery | Per day: sleep hours and stages, bed/wake time, steps, resting heart rate, HRV, energy, soreness, note; averages (MFD 2.0, `database/mcp-recovery.sql`) |
 | `get_profile` | profile | Allowlisted fitness profile fields |
 
 List tools accept `limit` (1–100, default 25) and `offset` (0–100000,
