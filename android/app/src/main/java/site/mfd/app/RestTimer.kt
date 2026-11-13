@@ -49,27 +49,64 @@ import kotlin.math.sin
  */
 object RestTimer {
     const val NOTIFICATION_ID = 4201
-    private const val ACCENT = 0xFFFF5A1F.toInt()
 
-    // ── The wavy bar ─────────────────────────────────────────────────────────────────────────────
-    /** Time left as a wave (it moves along each second), the time gone as a flat track, and a dot where they meet. */
-    fun bar(left: Float, phase: Float): Bitmap {
-        val w = 720; val h = 48; val mid = h / 2f; val r = 9f
-        val b = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
+    // ── The wave bar (Lovable design: rnr-reference src/components/restbar, ported 1:1 at 2×) ─────────────
+    private const val S = 2f // pixels per design unit (design strip: 320 × 20)
+    private const val W = 320f; private const val H = 20f; private const val CY = 12f
+    private const val TRACK = 3f; private const val THUMB_R = 6f; private const val MAX_H = 8f
+
+    /** Wave height above the centre line at `x` (0..w), time `t` s: three slow sines under an envelope that
+     *  tapers to 0 at both ends, so the wave meets the track and the thumb smoothly. */
+    fun waveHeight(x: Float, w: Float, t: Float, maxH: Float): Float {
+        if (w <= 0f) return 0f
+        val u = (x / w).coerceIn(0f, 1f)
+        val envelope = Math.pow(sin(PI * u), 0.8).toFloat()
+        val a = sin(x * 0.045 - t * 1.6).toFloat() * 0.5f + 0.5f
+        val b = sin(x * 0.11 + t * 1.1 + 1.3).toFloat() * 0.5f + 0.5f
+        val c = sin(x * 0.023 - t * 0.7 + 2.1).toFloat() * 0.5f + 0.5f
+        return maxH * envelope * (0.15f + 0.5f * a * c + 0.35f * b * b)
+    }
+
+    private fun wavePath(w: Float, t: Float, scale: Float, left: Float): Path = Path().apply {
+        moveTo(left * S, CY * S)
+        var x = 0f
+        while (x <= w) { lineTo((left + x) * S, (CY - waveHeight(x, w, t, MAX_H) * scale) * S); x += 2f }
+        lineTo((left + w) * S, CY * S); close()
+    }
+
+    /** `left`: share of the rest still to go (0–1); `t`: seconds (the wave flows with it); `dark`: dark notifications. */
+    fun bar(left: Float, t: Float, dark: Boolean): Bitmap {
+        val accent = 0xFFFF5A1F.toInt(); val accentHi = if (dark) 0xFFFFA060.toInt() else 0xFFFF8A3D.toInt()
+        val track = if (dark) Color.argb(56, 244, 242, 238) else Color.argb(41, 26, 21, 18)
+        val core = if (dark) 0xFFFFF3EC.toInt() else Color.WHITE
+        val glow = if (dark) 0.45f else 0.30f
+        fun alpha(color: Int, a: Float) = Color.argb((a * 255).toInt().coerceIn(0, 255), Color.red(color), Color.green(color), Color.blue(color))
+
+        val b = Bitmap.createBitmap((W * S).toInt(), (H * S).toInt(), Bitmap.Config.ARGB_8888)
         val c = Canvas(b)
-        val x = r + (w - 2 * r) * left.coerceIn(0f, 1f)
-        val track = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE; strokeWidth = 7f; strokeCap = Paint.Cap.ROUND; color = Color.argb(90, 150, 150, 150) }
-        if (x < w - r) c.drawLine(x, mid, w - r, mid, track)
-        if (x > r) {
-            val wave = Path().apply {
-                moveTo(r, mid)
-                var px = r
-                while (px <= x) { lineTo(px, mid + 6f * sin((px / 46f) * 2 * PI.toFloat() - phase)); px += 2f }
-            }
-            c.drawPath(wave, Paint(track).apply { color = ACCENT; strokeWidth = 8f })
+        val p = left.coerceIn(0f, 1f); val pad = THUMB_R + 2; val fw = p * (W - pad * 2); val tx = pad + fw
+        val line = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE; strokeWidth = TRACK * S; strokeCap = Paint.Cap.ROUND }
+        // Thin track for the time gone.
+        if (tx < W - pad) c.drawLine(tx * S, CY * S, (W - pad) * S, CY * S, Paint(line).apply { color = track })
+        if (fw > 1f) {
+            val fill = { opacity: Float -> Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                shader = android.graphics.LinearGradient(pad * S, 0f, (pad + fw) * S, 0f, alpha(accent, 0.55f), accentHi, Shader.TileMode.CLAMP)
+                this.alpha = (opacity * 255).toInt()
+            } }
+            // Soft glow: a taller copy of the wave fading upwards (no blur, as in the design).
+            c.drawPath(wavePath(fw, t, 1.35f, pad), Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                shader = android.graphics.LinearGradient(0f, (CY - MAX_H * 1.35f) * S, 0f, CY * S, alpha(accent, 0f), alpha(accent, glow), Shader.TileMode.CLAMP)
+            })
+            c.drawPath(wavePath(fw, t * 0.8f + 3f, 0.75f, pad), fill(0.45f))
+            c.drawPath(wavePath(fw, t, 1f, pad), fill(0.85f))
+            c.drawLine(pad * S, CY * S, (pad + fw) * S, CY * S, Paint(line).apply { color = accent })
         }
-        c.drawCircle(x, mid, r + 2, Paint(Paint.ANTI_ALIAS_FLAG).apply { color = ACCENT })
-        c.drawCircle(x, mid, r - 3, Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.WHITE })
+        // Thumb with a soft halo and a light core.
+        c.drawCircle(tx * S, CY * S, (THUMB_R + 4) * S, Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            shader = android.graphics.RadialGradient(tx * S, CY * S, (THUMB_R + 4) * S, alpha(accent, glow), alpha(accent, 0f), Shader.TileMode.CLAMP)
+        })
+        c.drawCircle(tx * S, CY * S, THUMB_R * S, Paint(Paint.ANTI_ALIAS_FLAG).apply { color = accent })
+        c.drawCircle(tx * S, CY * S, (THUMB_R - 2.5f) * S, Paint(Paint.ANTI_ALIAS_FLAG).apply { color = core; alpha = 230 })
         return b
     }
 
@@ -110,7 +147,8 @@ object RestTimer {
     fun build(ctx: Context, rest: Notify.Rest, now: Long = System.currentTimeMillis()): Notification {
         val left = max(0L, rest.ends - now)
         val total = max(1L, rest.ends - rest.start)
-        val bar = bar(left.toFloat() / total, (now / 1000 % 60) * 1.3f)
+        val dark = (ctx.resources.configuration.uiMode and android.content.res.Configuration.UI_MODE_NIGHT_MASK) == android.content.res.Configuration.UI_MODE_NIGHT_YES
+        val bar = bar(left.toFloat() / total, (now % 600_000) / 1000f, dark)
         val img = image(ctx, rest.image)
         fun views(layout: Int) = RemoteViews(ctx.packageName, layout).apply {
             setChronometer(R.id.rest_time, SystemClock.elapsedRealtime() + left, "Rest %s", true)
@@ -189,7 +227,7 @@ class RestService : Service() {
             val now = System.currentTimeMillis()
             if (now >= rest.ends) { RestTimer.finish(this@RestService); return } // the alarm's backup
             getSystemService(NotificationManager::class.java).notify(RestTimer.NOTIFICATION_ID, RestTimer.build(this@RestService, rest, now))
-            handler.postDelayed(this, 1000 - now % 1000)
+            handler.postDelayed(this, 500 - now % 500) // twice a second: the wave flows; the countdown ticks by itself
         }
     }
 
