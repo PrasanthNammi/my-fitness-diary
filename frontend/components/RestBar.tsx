@@ -4,7 +4,7 @@ import type { ActiveWorkout } from '../domain/types';
 import { resetTimer, timerRemaining, timerState } from '../domain/training';
 import { getDB, useDB } from '../data/store';
 import { reclaimRests, refreshAppPush, restsHandedOff, scheduleRests, type PendingRest } from '../lib/push';
-import { onNative } from '../lib/native';
+import { inApp, onNative } from '../lib/native';
 import { closeRestNotification, closeRestingNotification, restNotificationsOn, restingText, showRestOver, showResting, type RestExtra } from '../lib/restNotification';
 import { restNext } from '../domain/restDetails';
 import { exerciseImageUrl } from '../screens/training/ExercisePicker';
@@ -26,9 +26,11 @@ function useRestAlerts(a: ActiveWorkout | null, now: number) {
       const key = `${b.id}:${t.endsAt}`;
       if (timerState(t, now) === 'done' && !fired.current.has(key) && now - t.endsAt < 5000) {
         fired.current.add(key);
+        toast(`Rest over · ${exerciseName(b.exerciseId)}`);
+        // The Android app ends its own rest (sound, and vibration also in silent mode); this only makes sure it knows.
+        if (inApp() && restNotificationsOn()) { void showRestOver(b.id, exerciseName(b.exerciseId)); continue; }
         chime();
         if (getDB().settings.vibrate !== false) navigator.vibrate?.([120, 60, 120]);
-        toast(`Rest over · ${exerciseName(b.exerciseId)}`);
         // In the background, "Rest over" goes to the notification bar; on screen the chime is enough. Once the
         // rests are with the push service, it sends "Rest over" (its end time may have moved by ±15 s there).
         const hidden = document.visibilityState === 'hidden';

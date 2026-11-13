@@ -145,6 +145,8 @@ object Notify {
             .setContentIntent(open(ctx, null))
             .addAction(button(ctx, id, 15))
             .build())
+        // Whoever ends the rest (the alarm, the page, the server), it buzzes once, like an alarm (also in silent mode).
+        if (rest.vibrate && NotificationManagerCompat.from(ctx).areNotificationsEnabled()) RestTimer.vibrate(ctx)
     }
 
     /** Skip on the notification: the rest ends now, quietly, and a late "Rest over" for it is ignored. */

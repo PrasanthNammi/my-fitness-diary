@@ -154,16 +154,15 @@ object RestTimer {
         ctx.stopService(Intent(ctx, RestService::class.java))
     }
 
-    /** The rest's end: "Rest over" once, and the vibration (when MFD isn't on screen; the page buzzes itself there). */
+    /** The rest's end: "Rest over" (once; it vibrates). */
     fun finish(ctx: Context) {
         val rest = Notify.current(ctx) ?: return
         if (rest.over) return
         stop(ctx)
         Notify.restOver(ctx, rest.id, rest.label)
-        if (rest.vibrate && !MainActivity.onScreenNow()) vibrate(ctx)
     }
 
-    private fun vibrate(ctx: Context) {
+    fun vibrate(ctx: Context) {
         val v: Vibrator = if (Build.VERSION.SDK_INT >= 31) ctx.getSystemService(VibratorManager::class.java).defaultVibrator
             else @Suppress("DEPRECATION") ctx.getSystemService(Vibrator::class.java)
         val effect = VibrationEffect.createWaveform(longArrayOf(0, 260, 140, 260, 140, 420), -1)
