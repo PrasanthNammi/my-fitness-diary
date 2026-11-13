@@ -26,6 +26,7 @@ import { RoutineEditor } from './screens/training/RoutineEditor';
 import { ActiveWorkoutScreen } from './screens/training/ActiveWorkout';
 import { FoodScreen } from './screens/food/FoodScreen';
 import { SessionDetail } from './screens/progress/SessionDetail';
+import { HeartRatePage } from './screens/progress/HeartRate';
 import { ProgressHome } from './screens/progress/ProgressHome';
 import { WorkoutEditor } from './screens/progress/WorkoutEditor';
 import { CoachScreen } from './screens/coach/CoachScreen';
@@ -82,6 +83,7 @@ function Routes({ route }: { route: string[] }) {
       if (b === 'routine' && c === 'edit' && d) return <RoutineEditor key={d} routineId={d} folderId={null} />;
       if (b === 'routine' && c === 'view' && d) return <RoutineOverview key={d} routineId={d} />;
       if (b === 'history' && c && d === 'edit') return <WorkoutEditor key={c} id={c} />;
+      if (b === 'history' && c && d === 'heart') return <HeartRatePage id={c} />;
       if (b === 'history' && c) return <SessionDetail id={c} />;
       return <TrainingHome tab={b === 'history' ? 'history' : 'routines'} />;
     case 'workout':

@@ -160,12 +160,12 @@ export const workouts = {
       const b = a.exercises.find((x) => x.id === blockId);
       const s = b?.sets.find((x) => x.id === setId);
       if (!b || !s) return;
-      if (s.done) s.done = false;
+      if (s.done) { s.done = false; delete s.doneAt; }
       else {
         const previous = findPrevious(d.workouts, b.exerciseId, s.type, ordinalWithinType(b.sets, b.sets.indexOf(s)));
         const logged = logSetValues(s, b.tracking, previous);
         if (!logged) { toast('Enter the missing set values before logging'); return; }
-        Object.assign(s, logged);
+        Object.assign(s, logged, { doneAt: Date.now() });
       }
       if (s.done && b.restSec > 0) {
         const t = a.timers[b.id] ?? { durationSec: b.restSec, endsAt: null, pausedRemainingSec: null };
