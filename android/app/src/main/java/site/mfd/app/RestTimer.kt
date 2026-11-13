@@ -148,8 +148,8 @@ object RestTimer {
         val left = max(0L, rest.ends - now)
         val total = max(1L, rest.ends - rest.start)
         val dark = (ctx.resources.configuration.uiMode and android.content.res.Configuration.UI_MODE_NIGHT_MASK) == android.content.res.Configuration.UI_MODE_NIGHT_YES
-        // Half speed: at 4 redraws a second each step moves the wave only a little, so it reads as flowing.
-        val bar = bar(left.toFloat() / total, (now % 1_200_000) / 2000f, dark)
+        // A quarter speed: redrawn once a second, each step moves the wave only a little.
+        val bar = bar(left.toFloat() / total, (now % 2_400_000) / 4000f, dark)
         val img = image(ctx, rest.image)
         fun views(layout: Int) = RemoteViews(ctx.packageName, layout).apply {
             setChronometer(R.id.rest_time, SystemClock.elapsedRealtime() + left, "Rest %s", true)
@@ -231,8 +231,9 @@ class RestService : Service() {
             val now = System.currentTimeMillis()
             if (now >= rest.ends) { RestTimer.finish(this@RestService); return } // the alarm's backup
             getSystemService(NotificationManager::class.java).notify(RestTimer.NOTIFICATION_ID, RestTimer.build(this@RestService, rest, now))
-            // 4 times a second, under Android's limit of about 5 updates a second (the countdown ticks by itself).
-            handler.postDelayed(this, 250 - now % 250)
+            // Once a second, with the countdown. Every redraw replaces the notification's buttons, and a tap that
+            // spans one is lost: at 4 a second Skip / ±15s often did nothing. (The in-app dock animates smoothly.)
+            handler.postDelayed(this, 1000 - now % 1000)
         }
     }
 

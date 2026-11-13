@@ -1973,3 +1973,11 @@ button.social-person { cursor: pointer; border-left: 0; border-right: 0; }
 /* "3/3 ✓" instead of "3/3 Accepted" on AI suggestions */
 .accepted { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
 .accepted svg { width: 15px; height: 15px; stroke-width: 3; }
+
+/* Rest dock with the wave (MFD 2.0): the dock is dark in the light theme and light in the dark theme. */
+.rest-dock { flex-direction: column; align-items: stretch; gap: 8px; padding: 12px 12px 10px 16px;
+  --rw-accent: #ff5a1f; --rw-accent-hi: #ffa060; --rw-track: rgba(244, 242, 238, 0.22); --rw-core: #fff3ec; --rw-glow: 0.45; }
+:root[data-theme="dark"] .rest-dock { --rw-accent-hi: #ff8a3d; --rw-track: rgba(26, 21, 18, 0.16); --rw-core: #ffffff; --rw-glow: 0.30; }
+.rest-dock-row { display: flex; align-items: center; gap: 10px; }
+.rest-wave { width: 100%; height: 20px; overflow: hidden; }
+.rest-wave svg { display: block; }
