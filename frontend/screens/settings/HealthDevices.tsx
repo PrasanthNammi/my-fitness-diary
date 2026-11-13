@@ -9,8 +9,8 @@ import { ask, tell } from '../../lib/native';
 const READS: [string, string][] = [['sleep', 'Sleep'], ['steps', 'Steps'], ['heart', 'Heart rate in workouts'], ['restingHr', 'Resting heart rate'], ['hrv', 'Heart-rate variability'], ['weight', 'Weight'], ['bodyFat', 'Body fat']];
 const WRITES: [WriteKind, string, string][] = [['workouts', 'Workouts', 'With the heart rate from your watch'], ['food', 'Food', 'Meals with calories and macros']];
 
-function Status({ state }: { state: 'on' | 'off' | 'reconnect' | 'away' }) {
-  const label = { on: 'Connected', off: 'Not connected', reconnect: 'Reconnect', away: 'Not nearby' }[state];
+function Status({ state }: { state: 'on' | 'off' | 'reconnect' | 'away' | 'none' }) {
+  const label = { on: 'Connected', off: 'Not connected', reconnect: 'Reconnect', away: 'Not nearby', none: 'Not found' }[state];
   return <span className={`hd-status ${state}`}>{label}</span>;
 }
 
@@ -112,7 +112,7 @@ export function HealthDevices() {
             <div className="hd-head">
               <span className="hd-icon watch"><Watch /></span>
               <span className="grow"><b>Galaxy Watch</b><span className="sub">{watch ? watch.name : 'MFD watch app'}</span></span>
-              {watches !== null && <Status state={watch ? (watch.nearby ? 'on' : 'away') : 'off'} />}
+              {watches !== null && <Status state={watch ? (watch.nearby ? 'on' : 'away') : 'none'} />}
             </div>
             <p className="small muted hd-text">{watches === null ? 'Looking for your watch…' : watch ? (watch.nearby ? 'Start routines, log sets and quick logs on your wrist; heart rate comes with each workout.' : 'Your watch is paired but not nearby. What you log on it arrives when it’s back.') : 'No watch with the MFD app found. Live heart rate in workouts needs the MFD watch app.'}</p>
           </section>
