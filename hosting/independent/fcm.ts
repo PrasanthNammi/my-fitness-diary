@@ -32,14 +32,19 @@ export async function serviceJwt(account: FcmAccount, now = Date.now()) {
 /** Access tokens last an hour; one is reused until five minutes before it ends. */
 export class FcmSender {
   private token: {value: string; until: number} | null = null;
+  /** Why the last send failed: Google's HTTP status and error code only (never tokens, keys or content). */
+  lastError = '';
   constructor(private account: FcmAccount, private fetcher: typeof fetch) {}
 
   private async accessToken() {
     if (this.token && this.token.until > Date.now()) return this.token.value;
     const r = await this.fetcher('https://oauth2.googleapis.com/token', {method: 'POST', headers: {'Content-Type': 'application/x-www-form-urlencoded'},
       body: 'grant_type=urn%3Aietf%3Aparams%3Aoauth%3Agrant-type%3Ajwt-bearer&assertion=' + await serviceJwt(this.account), signal: AbortSignal.timeout(10000)});
-    const data = await r.json() as {access_token?: string; expires_in?: number};
-    if (!r.ok || typeof data.access_token !== 'string') throw Error('FCM sign-in failed');
+    const data = await r.json().catch(() => ({})) as {access_token?: string; expires_in?: number; error?: string};
+    if (!r.ok || typeof data.access_token !== 'string') {
+      this.lastError = `sign-in ${r.status} ${typeof data.error === 'string' ? data.error.slice(0, 40) : ''}`.trim();
+      throw Error('FCM sign-in failed');
+    }
     this.token = {value: data.access_token, until: Date.now() + Math.max(60, (data.expires_in ?? 3600) - 300) * 1000};
     return data.access_token;
   }
@@ -53,7 +58,9 @@ export class FcmSender {
       body: JSON.stringify({message: {token, data, android: {priority: 'HIGH', ttl: `${ttl}s`, collapse_key: collapse}}}), signal: AbortSignal.timeout(10000)});
     if (r.ok) return 'sent';
     if (r.status === 401) this.token = null;
-    const error = await r.json().catch(() => null) as {error?: {details?: {errorCode?: string}[]}} | null;
-    return r.status === 404 || error?.error?.details?.some(d => d.errorCode === 'UNREGISTERED') ? 'gone' : 'failed';
+    const error = await r.json().catch(() => null) as {error?: {status?: string; details?: {errorCode?: string}[]}} | null;
+    const code = error?.error?.details?.find(d => d.errorCode)?.errorCode ?? error?.error?.status ?? '';
+    this.lastError = `send ${r.status} ${String(code).slice(0, 40)}`.trim();
+    return r.status === 404 || code === 'UNREGISTERED' ? 'gone' : 'failed';
   }
 }
