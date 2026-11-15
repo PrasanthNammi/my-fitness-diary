@@ -56,7 +56,10 @@ export class PushHub extends DurableObject<Record<string, unknown>> {
         const result = await fcm.send(token, message, ttl, topic);
         if (result === 'gone') this.sql.exec('DELETE FROM apps WHERE token=?', token);
         return result === 'failed' ? `failed: ${fcm.lastError}` : result;
-      } catch {return `failed: ${fcm.lastError || 'error'}`;}
+      } catch (e) {
+        // Thrown before Google answered (building the sign-in, or the connection): its type and message, no secrets.
+        return `failed: ${fcm.lastError || (e instanceof Error ? `${e.name} ${e.message}` : 'error').slice(0, 80)}`;
+      }
     }));
     // Counts, push-service status codes and FCM error codes only (no endpoints, tokens, users or content): visible in
     // `wrangler tail`.
