@@ -17,7 +17,7 @@ import { uid } from '../lib/format';
 import { resolveExercise } from '../catalogue/runtime';
 import { activeSuggestion, applyTargets, extraTargets, fits, matchBlock, removeTargets, targetSets, type AiSuggestion } from '../domain/aiSuggestions';
 import { getDB, update } from './store';
-import { isRecoveryRow, mergeHealthDays, mergeHealthWeights, type HealthDay } from '../domain/progressStats';
+import { checkinNumber, isRecoveryRow, mergeHealthDays, mergeHealthWeights, type HealthDay } from '../domain/progressStats';
 
 
 import { startTimer, prepareActiveBlock, logSetValues, findPrevious, ordinalWithinType } from '../domain/training';
@@ -321,8 +321,12 @@ export const body = {
   saveCheckIn(c: { date: ISODate; sleep: number | null; energy: number | null; soreness: number | null; note: string }) {
     update((d) => {
       const existing = d.checkins.find((x) => x.date === c.date && isRecoveryRow(x));
-      if (existing) Object.assign(existing, c);
-      else d.checkins.push({ id: uid(), ...c });
+      if (existing) {
+        // Sleep left as Health Connect gave it stays Health Connect's (it can still be corrected); changed, it is the person's.
+        const keep = existing.sleepSource === 'health' && checkinNumber(existing.sleep) === c.sleep;
+        Object.assign(existing, c);
+        if (!keep) delete existing.sleepSource;
+      } else d.checkins.push({ id: uid(), ...c });
       d.checkins.sort((a, b) => a.date.localeCompare(b.date));
     });
   },

@@ -215,6 +215,8 @@ export interface CheckIn {
   id: ID;
   date: ISODate;
   sleep?: number | string | null; // hours
+  /** 'health': the hours came from Health Connect and follow it; none: typed in MFD (never replaced). */
+  sleepSource?: 'health';
   steps?: number | string | null;
   energy?: number | null; // 1–5
   soreness?: number | null; // 1–5

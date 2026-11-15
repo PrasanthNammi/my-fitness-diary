@@ -97,25 +97,30 @@ export function sleepStages(v: unknown): SleepStages | null {
 const sameStages = (a: unknown, b: SleepStages) => !!a && typeof a === 'object' && (['deep', 'light', 'rem', 'awake', 'start', 'end'] as const).every((k) => (a as SleepStages)[k] === b[k]);
 /**
  * Applies Health Connect days to check-ins (mutating `rows`): steps, resting heart rate, HRV and sleep stages follow
- * Health Connect; sleep hours only fill a day that has none, so hours typed or adjusted by hand are never replaced.
+ * Health Connect; so do sleep hours that came from it (sleepSource 'health'), while hours typed or adjusted by hand
+ * are never replaced.
  * Invalid values are ignored. Returns the dates that changed (none: nothing was touched).
  */
 export function mergeHealthDays(rows: CheckIn[], days: HealthDay[], newId: () => string): ISODate[] {
   const changed: ISODate[] = [];
   for (const x of days) {
     if (typeof x?.date !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(x.date)) continue;
-    const sleep = typeof x.sleep === 'number' && x.sleep >= 0.5 && x.sleep <= 18 ? Math.round(x.sleep * 10) / 10 : null;
+    const sleep = typeof x.sleep === 'number' && x.sleep >= 0.5 && x.sleep <= 18 ? Math.round(x.sleep * 100) / 100 : null; // 36 s steps: Samsung Health's minutes
     const steps = typeof x.steps === 'number' && Number.isInteger(x.steps) && x.steps > 0 && x.steps <= 200_000 ? x.steps : null;
     const restingHr = inRangeNum(x.restingHr, 25, 150), hrvRaw = inRangeNum(x.hrv, 1, 300), hrv = hrvRaw === null ? null : Math.round(hrvRaw * 10) / 10;
     const stages = sleepStages(x.sleepStages);
     let row = rows.find((c) => c.date === x.date && isRecoveryRow(c));
-    const setSteps = steps !== null && num(row?.steps) !== steps, setSleep = sleep !== null && num(row?.sleep) === null;
+    const setSteps = steps !== null && num(row?.steps) !== steps;
+    // Sleep follows Health Connect unless the hours are the person's own: a day without sleep, sleep marked as from
+    // Health Connect, or (before 2.0 kept that mark) a row with no check-in of the person's (energy, soreness, note).
+    const fromHealth = row?.sleepSource === 'health' || (row !== undefined && row.sleepSource === undefined && num(row.energy) === null && num(row.soreness) === null && !row.note?.trim());
+    const setSleep = sleep !== null && (num(row?.sleep) === null || (fromHealth && num(row?.sleep) !== sleep));
     const setResting = restingHr !== null && num(row?.restingHr) !== restingHr, setHrv = hrv !== null && num(row?.hrv) !== hrv;
     const setStages = stages !== null && !sameStages(row?.sleepStages, stages);
     if (!setSteps && !setSleep && !setResting && !setHrv && !setStages) continue;
     if (!row) { row = { id: newId(), date: x.date, note: '' }; rows.push(row); }
     if (setSteps) row.steps = steps;
-    if (setSleep) row.sleep = sleep;
+    if (setSleep) { row.sleep = sleep; row.sleepSource = 'health'; }
     if (setResting) row.restingHr = restingHr;
     if (setHrv) row.hrv = hrv;
     if (setStages) row.sleepStages = stages;
