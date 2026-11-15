@@ -51,6 +51,7 @@ export class FcmSender {
 
   /** Returns 'sent', 'gone' (the app was uninstalled or the token replaced: forget it) or 'failed'. */
   async send(token: string, message: Record<string, unknown>, ttl: number, collapse: string): Promise<'sent' | 'gone' | 'failed'> {
+    this.lastError = '';
     const data: Record<string, string> = {};
     for (const [k, v] of Object.entries(message)) if (v !== undefined && v !== null) data[k] = Array.isArray(v) ? v.join(',') : String(v);
     const r = await this.fetcher(`https://fcm.googleapis.com/v1/projects/${this.account.project_id}/messages:send`, {
