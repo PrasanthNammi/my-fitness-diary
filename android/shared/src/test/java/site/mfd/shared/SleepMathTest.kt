@@ -24,20 +24,22 @@ class SleepMathTest {
         // 15 Nov: 00:27 → 03:41 and 03:58 → 08:43 (17 min awake between) = 3h14 + 4h45 = 7h59.
         val d = SleepMath.byDay(listOf(SleepMath.Session(sh, t(15, 0, 27), t(15, 3, 41)), SleepMath.Session(sh, t(15, 3, 58), t(15, 8, 43))), ::day)
         assertEquals(479L, d["2026-11-15"]!!.asleepMs / m)
-        assertEquals(2, d["2026-11-15"]!!.sessions.size)
+        assertEquals(2, d["2026-11-15"]!!.main.sessions.size)
     }
 
-    @Test fun aNapIsNotLastNight() {
-        // 8 Nov: night 02:28 → 09:33 (7h05) and a nap 15:17 → 16:43.
+    @Test fun aNapCountsInTheDayButIsNotTheMainNight() {
+        // 8 Nov: night 02:28 → 09:33 (7h05) and a nap 15:17 → 16:43 (1h26): the day's sleep is 8h31, as Samsung Health.
         val d = SleepMath.byDay(listOf(SleepMath.Session(sh, t(8, 2, 28), t(8, 9, 33)), SleepMath.Session(sh, t(8, 15, 17), t(8, 16, 43))), ::day)
-        assertEquals(425L, d["2026-11-08"]!!.asleepMs / m)
+        assertEquals(511L, d["2026-11-08"]!!.asleepMs / m)
+        assertEquals(425L, d["2026-11-08"]!!.main.asleepMs / m)
     }
 
     @Test fun anEveningStartAndALateMorningPiece() {
-        // 9 → 10 Nov: 21:56 → 23:35, 23:57 → 04:57 (one night, 6h39), then 06:57 → 08:51 after 2 h awake (separate).
+        // 9 → 10 Nov: 21:56 → 23:35, 23:57 → 04:57 (one night, 6h39), then 06:57 → 08:51 after 2 h awake: 8h33 that day.
         val d = SleepMath.byDay(listOf(SleepMath.Session(sh, t(9, 21, 56), t(9, 23, 35)), SleepMath.Session(sh, t(9, 23, 57), t(10, 4, 57)),
             SleepMath.Session(sh, t(10, 6, 57), t(10, 8, 51))), ::day)
-        assertEquals(399L, d["2026-11-10"]!!.asleepMs / m)
+        assertEquals(513L, d["2026-11-10"]!!.asleepMs / m)
+        assertEquals(399L, d["2026-11-10"]!!.main.asleepMs / m)
     }
 
     @Test fun twoAppsRecordingTheSameNightAreNotAdded() {

@@ -5,8 +5,9 @@ package site.mfd.shared
  * - Samsung's sleep time is each sleep session from falling asleep to waking, short awake moments included;
  * - a night it splits into pieces (awake for a while in between) is one night: sessions of the same app less
  *   than [GAP] apart are joined, and their lengths added (the time between them is not sleep);
- * - the night belongs to the day you wake up; the longest night that day counts (an afternoon nap doesn't);
- * - when two apps recorded the same night, the app with the longest night that day is used (never mixed).
+ * - sleep belongs to the day you wake up, and a day's sleep is all of it (the night, a second sleep, a nap), as
+ *   Samsung Health's daily total; the longest night is the day's main night (its stages, bed and wake time);
+ * - when two apps recorded the same day, the app with the most sleep that day is used (never mixed).
  * Times are added in milliseconds and rounded once.
  */
 object SleepMath {
@@ -31,9 +32,14 @@ object SleepMath {
         }
     }
 
-    /** The night that counts for each day (by the day it ends): the longest of any app. */
-    fun byDay(sessions: List<Session>, day: (Long) -> String): Map<String, Night> =
-        nights(sessions).groupBy { day(it.end) }.mapValues { (_, l) -> l.maxBy { it.asleepMs } }
+    /** A day's sleep: everything one app recorded ending that day, and its longest (main) night. */
+    data class Day(val source: String, val asleepMs: Long, val main: Night)
+
+    /** Each day's sleep (by the day you wake up), from the app with the most sleep that day. */
+    fun byDay(sessions: List<Session>, day: (Long) -> String): Map<String, Day> =
+        nights(sessions).groupBy { day(it.end) }.mapValues { (_, l) ->
+            l.groupBy { it.source }.map { (source, ns) -> Day(source, ns.sumOf { it.asleepMs }, ns.maxBy { it.asleepMs }) }.maxBy { it.asleepMs }
+        }
 
     /** Hours with two decimals (36 s: the minutes Samsung Health shows survive), or null for under 30 minutes (a stray
      *  record) or over 18 h. */

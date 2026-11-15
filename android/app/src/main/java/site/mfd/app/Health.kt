@@ -162,15 +162,15 @@ object Health {
             page = response.pageToken
         } while (SLEEP in allowed && page != null && sessions.size < 1000)
 
-        // Sleep as Samsung Health counts it (site.mfd.shared.SleepMath): each night from falling asleep to waking,
-        // its pieces joined, on the day you wake up; the longest night that day (not a nap); one app, never mixed.
+        // Sleep as Samsung Health counts it (site.mfd.shared.SleepMath): falling asleep to waking, a night's pieces
+        // joined, on the day you wake up; the day's total (a second sleep or a nap too); one app, never mixed.
         val awakeStages = setOf(SleepSessionRecord.STAGE_TYPE_AWAKE, SleepSessionRecord.STAGE_TYPE_AWAKE_IN_BED, SleepSessionRecord.STAGE_TYPE_OUT_OF_BED)
         val nights = SleepMath.byDay(sessions.map { SleepMath.Session(it.metadata.dataOrigin.packageName, it.startTime.toEpochMilli(), it.endTime.toEpochMilli()) }) {
             Instant.ofEpochMilli(it).atZone(zone).toLocalDate().toString()
         }
 
-        // Stages over the whole night (all its pieces); "Sleeping" without a stage counts as light sleep.
-        val stagesByDay = nights.mapValues { (_, night) ->
+        // Stages of the day's main night (all its pieces); "Sleeping" without a stage counts as light sleep.
+        val stagesByDay = nights.mapValues { (_, sleep) -> sleep.main }.mapValues { (_, night) ->
             val stages = sessions.filter { it.metadata.dataOrigin.packageName == night.source && it.startTime.toEpochMilli() >= night.start && it.endTime.toEpochMilli() <= night.end }
                 .flatMap { it.stages }
             fun mins(vararg types: Int) = stages.filter { it.stage in types }.sumOf { Duration.between(it.startTime, it.endTime).toMillis() } / 60_000
@@ -222,7 +222,9 @@ object Health {
         val days = mutableListOf<Day>()
         var d = from
         while (!d.isAfter(to)) {
-            val steps = if (STEPS !in allowed) null else stepsByDay[d]?.takeIf { it > 0 } ?: bySource[d]
+            // Steps: the busiest single app's records (by start), which is exactly Samsung Health's own total; Health
+            // Connect's merged total can be a step short where two apps overlap. Merged total when no records.
+            val steps = if (STEPS !in allowed) null else bySource[d]?.takeIf { it > 0 } ?: stepsByDay[d]?.takeIf { it > 0 }
             // Under 30 minutes is a stray record, not a night's sleep; over 18 hours is an error.
             val hours = SleepMath.hours(nights[d.toString()]?.asleepMs)
             days += Day(d, hours, steps?.takeIf { it in 1..200_000 }, resting[d], hrv[d], weight[d], fat[d], stagesByDay[d.toString()])
@@ -316,6 +318,25 @@ object Health {
             out.put(org.json.JSONObject().put("app", s.metadata.dataOrigin.packageName).put("start", s.startTime.atZone(zone).toString()).put("end", s.endTime.atZone(zone).toString())
                 .put("min", Duration.between(s.startTime, s.endTime).toMinutes()).put("id", s.metadata.id.take(8))
                 .put("stages", org.json.JSONArray(s.stages.groupBy { it.stage }.map { (k, l) -> "$k:${l.sumOf { Duration.between(it.startTime, it.endTime).toMinutes() }}" })))
+        return out
+    }
+
+    /** Test builds only (WEB_DEBUG): steps per day counted several ways, to see which matches Samsung Health. */
+    suspend fun stepsDebug(ctx: Context, from: LocalDate, to: LocalDate): org.json.JSONArray {
+        val client = HealthConnectClient.getOrCreate(ctx); val zone = ZoneId.systemDefault()
+        val grouped = client.aggregateGroupByPeriod(AggregateGroupByPeriodRequest(setOf(StepsRecord.COUNT_TOTAL), TimeRangeFilter.between(from.atStartOfDay(), to.plusDays(1).atStartOfDay()), Period.ofDays(1)))
+            .associate { it.startTime.toLocalDate() to it.result[StepsRecord.COUNT_TOTAL] }
+        val records = readAll(client, StepsRecord::class, TimeRangeFilter.between(from.minusDays(1).atStartOfDay(zone).toInstant(), to.plusDays(2).atStartOfDay(zone).toInstant()), 50_000)
+        val out = org.json.JSONArray(); var d = from
+        while (!d.isAfter(to)) {
+            val s = d.atStartOfDay(zone).toInstant(); val e = d.plusDays(1).atStartOfDay(zone).toInstant()
+            val instant = client.aggregate(androidx.health.connect.client.request.AggregateRequest(setOf(StepsRecord.COUNT_TOTAL), TimeRangeFilter.between(s, e)))[StepsRecord.COUNT_TOTAL]
+            val byApp = records.filter { !it.startTime.isBefore(s) && it.startTime.isBefore(e) }.groupBy { it.metadata.dataOrigin.packageName.split('.').takeLast(2).joinToString(".") }
+                .mapValues { (_, l) -> l.sumOf { it.count } }
+            val crossing = records.filter { it.startTime.isBefore(e) && it.endTime.isAfter(e) }.map { "${it.metadata.dataOrigin.packageName.takeLast(10)} ${it.count} ${it.startTime.atZone(zone).toLocalTime()}-${it.endTime.atZone(zone).toLocalTime()}" }
+            out.put(org.json.JSONObject().put("day", d.toString()).put("grouped", grouped[d]).put("instant", instant).put("byApp", org.json.JSONObject(byApp as Map<*, *>)).put("crossMidnight", org.json.JSONArray(crossing)))
+            d = d.plusDays(1)
+        }
         return out
     }
 }

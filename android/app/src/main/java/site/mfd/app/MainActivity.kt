@@ -232,6 +232,9 @@ class MainActivity : ComponentActivity() {
                 val write = m.optJSONArray("write")?.let { a -> (0 until a.length()).map { a.optString(it) }.filter { it in Health.WRITE }.toSet() } ?: emptySet()
                 lifecycleScope.launch { connectHealth(id, reply, write) }
             }
+            "healthStepsDebug" -> if (BuildConfig.WEB_DEBUG) lifecycleScope.launch {
+                answer(JSONObject().put("days", try { Health.stepsDebug(this@MainActivity, java.time.LocalDate.now().minusDays(7), java.time.LocalDate.now()) } catch (e: Exception) { org.json.JSONArray().put(e.toString()) }))
+            }
             "healthSleepDebug" -> if (BuildConfig.WEB_DEBUG) lifecycleScope.launch {
                 answer(JSONObject().put("sessions", try { Health.sleepDebug(this@MainActivity, 8) } catch (e: Exception) { org.json.JSONArray().put(e.toString()) }))
             }
