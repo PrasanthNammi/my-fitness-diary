@@ -18,6 +18,7 @@ import { connectHealth, syncHealth, useHealth } from '../../lib/health';
 import { MuscleStats } from './MuscleStats';
 import { RecoveryVitals, SourceBadge } from './RecoveryHealth';
 import { takeCheckInRequest } from './RecoveryPage';
+import { hm } from '../../domain/recoveryStats';
 import { History } from 'lucide-react';
 import { averageSeries } from '../../domain/weeklyRecap';
 import { ExerciseThumb } from '../training/ExercisePicker';
@@ -400,7 +401,7 @@ function RecoveryCard({ from }: { from: string | null }) {
       <button type="button" className="btn btn-primary btn-block" onClick={save}>{existing ? 'Update check-in' : 'Save check-in'}</button>
       {recent.length > 0 && <div className="progress-history">
         {recent.map((c) => {
-          const parts = [checkinNumber(c.sleep) !== null && `Sleep ${fmtNum(checkinNumber(c.sleep)!, 1)}h`, checkinNumber(c.soreness) !== null && `Sore ${checkinNumber(c.soreness)}/5`, checkinNumber(c.energy) !== null && `Energy ${checkinNumber(c.energy)}/5`, checkinNumber(c.steps) !== null && `${fmtInt(checkinNumber(c.steps)!)} steps`, checkinNumber(c.restingHr) !== null && `Resting ${checkinNumber(c.restingHr)} bpm`, checkinNumber(c.hrv) !== null && `HRV ${fmtNum(checkinNumber(c.hrv)!, 0)} ms`].filter(Boolean);
+          const parts = [checkinNumber(c.sleep) !== null && `Sleep ${hm(checkinNumber(c.sleep)!)}`, checkinNumber(c.soreness) !== null && `Sore ${checkinNumber(c.soreness)}/5`, checkinNumber(c.energy) !== null && `Energy ${checkinNumber(c.energy)}/5`, checkinNumber(c.steps) !== null && `${fmtInt(checkinNumber(c.steps)!)} steps`, checkinNumber(c.restingHr) !== null && `Resting ${checkinNumber(c.restingHr)} bpm`, checkinNumber(c.hrv) !== null && `HRV ${fmtNum(checkinNumber(c.hrv)!, 0)} ms`].filter(Boolean);
           return (
             <div key={c.id} className="progress-checkin">
               <span className="grow"><span className="name">{shortDay(c.date)}</span><span className="sub tnum">{parts.join(' · ') || '—'}</span>{c.note?.trim() && <span className="note">{c.note}</span>}</span>

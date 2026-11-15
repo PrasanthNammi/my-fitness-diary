@@ -105,7 +105,7 @@ export function mergeHealthDays(rows: CheckIn[], days: HealthDay[], newId: () =>
   const changed: ISODate[] = [];
   for (const x of days) {
     if (typeof x?.date !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(x.date)) continue;
-    const sleep = typeof x.sleep === 'number' && x.sleep >= 0.5 && x.sleep <= 18 ? Math.round(x.sleep * 10) / 10 : null;
+    const sleep = typeof x.sleep === 'number' && x.sleep >= 0.5 && x.sleep <= 18 ? Math.round(x.sleep * 100) / 100 : null; // 36 s steps: Samsung Health's minutes
     const steps = typeof x.steps === 'number' && Number.isInteger(x.steps) && x.steps > 0 && x.steps <= 200_000 ? x.steps : null;
     const restingHr = inRangeNum(x.restingHr, 25, 150), hrvRaw = inRangeNum(x.hrv, 1, 300), hrv = hrvRaw === null ? null : Math.round(hrvRaw * 10) / 10;
     const stages = sleepStages(x.sleepStages);

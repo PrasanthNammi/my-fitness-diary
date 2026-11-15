@@ -23,7 +23,7 @@ const changed=P.mergeHealthDays(rows,[
 assert.deepEqual(changed,['2026-11-06','2026-11-07','2026-11-08']);
 assert.deepEqual(rows.find(r=>r.id==='a'),{id:'a',date:'2026-11-06',sleep:6.5,energy:4,soreness:2,note:'typed by hand',steps:10234});
 assert.deepEqual(rows.find(r=>r.id==='m'),{id:'m',date:'2026-11-07',waist:82,note:''},'measurement row untouched');
-assert.deepEqual(rows.find(r=>r.id==='new-1'),{id:'new-1',date:'2026-11-07',note:'',sleep:7.2,sleepSource:'health'});
+assert.deepEqual(rows.find(r=>r.id==='new-1'),{id:'new-1',date:'2026-11-07',note:'',sleep:7.24,sleepSource:'health'});
 assert.equal(rows.find(r=>r.id==='b').steps,8800);
 assert.equal(rows.length,4,'no rows for empty or invalid days');
 assert.deepEqual(rows.map(r=>r.date),[...rows.map(r=>r.date)].sort(),'kept in date order');

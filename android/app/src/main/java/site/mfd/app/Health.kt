@@ -162,23 +162,21 @@ object Health {
             page = response.pageToken
         } while (SLEEP in allowed && page != null && sessions.size < 1000)
 
-        // Sleep as Samsung Health counts it (site.mfd.shared.SleepMath): each session whole on the day it ends,
-        // minus its awake stages; the app with the most sleep that day when two recorded the same night.
+        // Sleep as Samsung Health counts it (site.mfd.shared.SleepMath): each night from falling asleep to waking,
+        // its pieces joined, on the day you wake up; the longest night that day (not a nap); one app, never mixed.
         val awakeStages = setOf(SleepSessionRecord.STAGE_TYPE_AWAKE, SleepSessionRecord.STAGE_TYPE_AWAKE_IN_BED, SleepSessionRecord.STAGE_TYPE_OUT_OF_BED)
-        val sleepByDay = SleepMath.byDay(sessions.map { s ->
-            SleepMath.Session(s.endTime.atZone(zone).toLocalDate().toString(), s.metadata.dataOrigin.packageName, s.startTime.toEpochMilli(), s.endTime.toEpochMilli(),
-                s.stages.map { SleepMath.Stage(if (it.stage in awakeStages) SleepMath.AWAKE else SleepMath.SLEEPING, it.startTime.toEpochMilli(), it.endTime.toEpochMilli()) })
-        })
+        val nights = SleepMath.byDay(sessions.map { SleepMath.Session(it.metadata.dataOrigin.packageName, it.startTime.toEpochMilli(), it.endTime.toEpochMilli()) }) {
+            Instant.ofEpochMilli(it).atZone(zone).toLocalDate().toString()
+        }
 
-        // Stages: the longest session ending that day that has them (a second app's copy of the same night is not
-        // added). "Sleeping" without a stage counts as light sleep.
-        val stagesByDay = sessions.filter { it.stages.isNotEmpty() }.groupBy { it.endTime.atZone(zone).toLocalDate() }
-            .mapValues { (_, l) ->
-                val s = l.maxBy { Duration.between(it.startTime, it.endTime) }
-                fun mins(vararg types: Int) = s.stages.filter { it.stage in types }.sumOf { Duration.between(it.startTime, it.endTime).toMinutes() }
-                Stages(mins(SleepSessionRecord.STAGE_TYPE_DEEP), mins(SleepSessionRecord.STAGE_TYPE_LIGHT, SleepSessionRecord.STAGE_TYPE_SLEEPING, SleepSessionRecord.STAGE_TYPE_UNKNOWN),
-                    mins(SleepSessionRecord.STAGE_TYPE_REM), mins(*awakeStages.toIntArray()), s.startTime, s.endTime)
-            }.filterValues { it.deep + it.light + it.rem >= 30 }
+        // Stages over the whole night (all its pieces); "Sleeping" without a stage counts as light sleep.
+        val stagesByDay = nights.mapValues { (_, night) ->
+            val stages = sessions.filter { it.metadata.dataOrigin.packageName == night.source && it.startTime.toEpochMilli() >= night.start && it.endTime.toEpochMilli() <= night.end }
+                .flatMap { it.stages }
+            fun mins(vararg types: Int) = stages.filter { it.stage in types }.sumOf { Duration.between(it.startTime, it.endTime).toMillis() } / 60_000
+            Stages(mins(SleepSessionRecord.STAGE_TYPE_DEEP), mins(SleepSessionRecord.STAGE_TYPE_LIGHT, SleepSessionRecord.STAGE_TYPE_SLEEPING, SleepSessionRecord.STAGE_TYPE_UNKNOWN),
+                mins(SleepSessionRecord.STAGE_TYPE_REM), mins(*awakeStages.toIntArray()), Instant.ofEpochMilli(night.start), Instant.ofEpochMilli(night.end))
+        }.filterValues { it.deep + it.light + it.rem >= 30 }
 
         // Steps: Health Connect's own daily total (it combines sources by the person's priority list). When that
         // is empty (a source not on the list), the busiest single source, so a phone and a watch counting the same
@@ -226,8 +224,8 @@ object Health {
         while (!d.isAfter(to)) {
             val steps = if (STEPS !in allowed) null else stepsByDay[d]?.takeIf { it > 0 } ?: bySource[d]
             // Under 30 minutes is a stray record, not a night's sleep; over 18 hours is an error.
-            val hours = SleepMath.hours(sleepByDay[d.toString()])
-            days += Day(d, hours, steps?.takeIf { it in 1..200_000 }, resting[d], hrv[d], weight[d], fat[d], stagesByDay[d])
+            val hours = SleepMath.hours(nights[d.toString()]?.asleepMs)
+            days += Day(d, hours, steps?.takeIf { it in 1..200_000 }, resting[d], hrv[d], weight[d], fat[d], stagesByDay[d.toString()])
             d = d.plusDays(1)
         }
         return days
@@ -308,5 +306,16 @@ object Health {
             removed += r.removeMeals.size
         }
         return Written(workouts, meals, removed)
+    }
+
+    /** Test builds only (WEB_DEBUG): the raw sleep sessions of the last days, to compare with Samsung Health. */
+    suspend fun sleepDebug(ctx: Context, days: Long): org.json.JSONArray {
+        val zone = ZoneId.systemDefault(); val now = Instant.now()
+        val out = org.json.JSONArray()
+        for (s in readAll(HealthConnectClient.getOrCreate(ctx), SleepSessionRecord::class, TimeRangeFilter.between(now.minus(Duration.ofDays(days)), now), 500))
+            out.put(org.json.JSONObject().put("app", s.metadata.dataOrigin.packageName).put("start", s.startTime.atZone(zone).toString()).put("end", s.endTime.atZone(zone).toString())
+                .put("min", Duration.between(s.startTime, s.endTime).toMinutes()).put("id", s.metadata.id.take(8))
+                .put("stages", org.json.JSONArray(s.stages.groupBy { it.stage }.map { (k, l) -> "$k:${l.sumOf { Duration.between(it.startTime, it.endTime).toMinutes() }}" })))
+        return out
     }
 }

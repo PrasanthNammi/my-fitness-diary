@@ -4,39 +4,45 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
 
+/** Cases from real Samsung Health records (Health Connect, November 2026). */
 class SleepMathTest {
     private val m = 60_000L
-    private fun t(h: Int, min: Int, day: Int = 13) = ((day - 13) * 24 * 60 + h * 60 + min) * m // minutes from 13 Nov 00:00
+    /** Minutes from 13 Nov 00:00 local (UTC here). */
+    private fun t(day: Int, h: Int, min: Int) = ((day - 13) * 24 * 60 + h * 60 + min) * m
+    private fun day(ms: Long) = "2026-11-%02d".format(13 + Math.floorDiv(ms, 86_400_000L))
+    private val sh = "com.sec.android.app.shealth"
 
-    @Test fun aNightCrossingMidnightCountsWholeOnTheDayItEnds() {
-        // 22:55 → 06:40 with awake moments at 23:50 and 03:10: 7h45 in bed minus 26 min awake = 7h19.
-        val start = t(22, 55, 12); val end = t(6, 40)
-        val stages = listOf(
-            SleepMath.Stage(SleepMath.LIGHT, start, t(23, 50, 12)), SleepMath.Stage(SleepMath.AWAKE, t(23, 50, 12), t(0, 4)),
-            SleepMath.Stage(SleepMath.DEEP, t(0, 4), t(3, 10)), SleepMath.Stage(SleepMath.AWAKE, t(3, 10), t(3, 22)),
-            SleepMath.Stage(SleepMath.REM, t(3, 22), end))
-        val days = SleepMath.byDay(listOf(SleepMath.Session("2026-11-13", "com.sec.android.app.shealth", start, end, stages)))
-        assertEquals(setOf("2026-11-13"), days.keys) // none of it on the 12th
-        assertEquals(7 * 60 + 19L, days["2026-11-13"]!! / m)
-        assertEquals(7.3, SleepMath.hours(days["2026-11-13"])!!, 0.0)
+    @Test fun aNightCountsWholeOnTheDayYouWakeUp() {
+        // 12 Nov 22:31 → 13 Nov 05:20 = 6h49, Samsung Health's number (awake moments included).
+        val d = SleepMath.byDay(listOf(SleepMath.Session(sh, t(12, 22, 31), t(13, 5, 20))), ::day)
+        assertEquals(setOf("2026-11-13"), d.keys)
+        assertEquals(409L, d["2026-11-13"]!!.asleepMs / m)
+        assertEquals(6.82, SleepMath.hours(d["2026-11-13"]!!.asleepMs)!!, 0.0) // shows as 6h49
     }
 
-    @Test fun shortStagesAreNotRoundedDownOneByOne() {
-        // 120 stages of 3 min 30 s each = 7 h exactly (minute rounding per stage would lose an hour).
-        val stages = (0 until 120).map { SleepMath.Stage(SleepMath.LIGHT, it * 210_000L, (it + 1) * 210_000L) }
-        assertEquals(7 * 3_600_000L, SleepMath.asleepMs(SleepMath.Session("d", "s", 0, 120 * 210_000L, stages)))
+    @Test fun aNightInPiecesIsOneNight() {
+        // 15 Nov: 00:27 → 03:41 and 03:58 → 08:43 (17 min awake between) = 3h14 + 4h45 = 7h59.
+        val d = SleepMath.byDay(listOf(SleepMath.Session(sh, t(15, 0, 27), t(15, 3, 41)), SleepMath.Session(sh, t(15, 3, 58), t(15, 8, 43))), ::day)
+        assertEquals(479L, d["2026-11-15"]!!.asleepMs / m)
+        assertEquals(2, d["2026-11-15"]!!.sessions.size)
+    }
+
+    @Test fun aNapIsNotLastNight() {
+        // 8 Nov: night 02:28 → 09:33 (7h05) and a nap 15:17 → 16:43.
+        val d = SleepMath.byDay(listOf(SleepMath.Session(sh, t(8, 2, 28), t(8, 9, 33)), SleepMath.Session(sh, t(8, 15, 17), t(8, 16, 43))), ::day)
+        assertEquals(425L, d["2026-11-08"]!!.asleepMs / m)
+    }
+
+    @Test fun anEveningStartAndALateMorningPiece() {
+        // 9 → 10 Nov: 21:56 → 23:35, 23:57 → 04:57 (one night, 6h39), then 06:57 → 08:51 after 2 h awake (separate).
+        val d = SleepMath.byDay(listOf(SleepMath.Session(sh, t(9, 21, 56), t(9, 23, 35)), SleepMath.Session(sh, t(9, 23, 57), t(10, 4, 57)),
+            SleepMath.Session(sh, t(10, 6, 57), t(10, 8, 51))), ::day)
+        assertEquals(399L, d["2026-11-10"]!!.asleepMs / m)
     }
 
     @Test fun twoAppsRecordingTheSameNightAreNotAdded() {
-        val watch = SleepMath.Session("2026-11-13", "shealth", t(23, 0, 12), t(6, 49), emptyList())
-        val phone = SleepMath.Session("2026-11-13", "other", t(23, 30, 12), t(6, 0), emptyList())
-        assertEquals(7 * 60 + 49L, SleepMath.byDay(listOf(watch, phone))["2026-11-13"]!! / m)
-    }
-
-    @Test fun napsFromTheSameAppAreAdded() {
-        val night = SleepMath.Session("2026-11-13", "shealth", t(0, 0), t(6, 0), emptyList())
-        val nap = SleepMath.Session("2026-11-13", "shealth", t(14, 0), t(14, 40), emptyList())
-        assertEquals(6 * 60 + 40L, SleepMath.byDay(listOf(night, nap))["2026-11-13"]!! / m)
+        val d = SleepMath.byDay(listOf(SleepMath.Session(sh, t(12, 23, 0), t(13, 6, 49)), SleepMath.Session("other", t(12, 23, 30), t(13, 6, 0))), ::day)
+        assertEquals(469L, d["2026-11-13"]!!.asleepMs / m)
     }
 
     @Test fun strayRecordsAreIgnored() {
