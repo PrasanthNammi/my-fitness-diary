@@ -55,10 +55,11 @@ export class PushHub extends DurableObject<Record<string, unknown>> {
       try {
         const result = await fcm.send(token, message, ttl, topic);
         if (result === 'gone') this.sql.exec('DELETE FROM apps WHERE token=?', token);
-        return result;
-      } catch {return 'failed';}
+        return result === 'failed' ? `failed: ${fcm.lastError}` : result;
+      } catch {return `failed: ${fcm.lastError || 'error'}`;}
     }));
-    // Counts and push-service status codes only (no endpoints, tokens, users or content): visible in `wrangler tail`.
+    // Counts, push-service status codes and FCM error codes only (no endpoints, tokens, users or content): visible in
+    // `wrangler tail`.
     console.log(JSON.stringify({push: topic, devices: statuses.length, statuses, apps}));
   }
 
@@ -149,11 +150,15 @@ export class PushHub extends DurableObject<Record<string, unknown>> {
 
 // ── Friends: what a like, comment, message or friend request says (from the database's signed request) ──
 export type SocialMessage = {kind: 'like' | 'comment' | 'message' | 'request' | 'accepted'; recipient: string; title: string; body: string; tag: string; url: string};
+/** Friend-request notifications are off until switched on (the owner's decision, 2026-11-15). */
+export const FRIEND_REQUESTS = false;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 const text = (v: unknown, max: number) => (typeof v === 'string' ? v.replace(/\s+/g, ' ').trim().slice(0, max) : '');
 export function socialMessage(b: Record<string, unknown>): SocialMessage | null {
   const kind = b.kind, recipient = b.recipient, actor = text(b.actor_name, 80);
   if ((kind !== 'like' && kind !== 'comment' && kind !== 'message' && kind !== 'request' && kind !== 'accepted') || typeof recipient !== 'string' || !UUID.test(recipient) || !actor) return null;
+  // Friend requests: ready (database/social-push-friends.sql), switched on later by FRIEND_REQUESTS.
+  if ((kind === 'request' || kind === 'accepted') && !FRIEND_REQUESTS) return null;
   if (kind === 'request' || kind === 'accepted') {
     const user = typeof b.actor_username === 'string' && /^[a-z0-9._]{3,24}$/.test(b.actor_username) ? b.actor_username : null;
     if (!user) return null;

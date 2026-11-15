@@ -41,7 +41,11 @@ const out=path.join(os.tmpdir(),'mfd-connector-fcm.cjs');
  reply=()=>new Response(JSON.stringify({error:{details:[{errorCode:'UNREGISTERED'}]}}),{status:400});assert.equal(await sender.send(TOKEN,{title:'x'},60,'ai'),'gone');
  reply=()=>new Response(JSON.stringify({error:{details:[{errorCode:'INVALID_ARGUMENT'}]}}),{status:400});assert.equal(await sender.send(TOKEN,{title:'x'},60,'ai'),'failed','our mistake never drops a device');
  reply=()=>new Response('',{status:503});assert.equal(await sender.send(TOKEN,{title:'x'},60,'ai'),'failed');
- console.log('PASS FCM send: one access token, data-only high-priority messages, uninstalled apps reported as gone, other errors kept');
+ reply=()=>new Response(JSON.stringify({error:{status:'PERMISSION_DENIED',details:[{errorCode:'SENDER_ID_MISMATCH'}]}}),{status:403});
+ assert.equal(await sender.send(TOKEN,{title:'x'},60,'ai'),'failed');assert.equal(sender.lastError,'send 403 SENDER_ID_MISMATCH','the reason, codes only');
+ const refused=new F.FcmSender(F.fcmAccountOf(env),async()=>new Response(JSON.stringify({error:'invalid_grant',error_description:'Invalid JWT Signature.'}),{status:400}));
+ await assert.rejects(refused.send(TOKEN,{title:'x'},60,'ai'));assert.equal(refused.lastError,'sign-in 400 invalid_grant','a disabled or deleted key');
+ console.log('PASS FCM send: one access token, data-only high-priority messages, uninstalled apps reported as gone, other errors kept with Google\'s error code for the log');
 
  // Endpoints: the app registers and removes its token through the same /push/devices routes.
  const jwk=await subtle.exportKey('jwk',(await subtle.generateKey({name:'ECDSA',namedCurve:'P-256'},true,['sign'])).privateKey);

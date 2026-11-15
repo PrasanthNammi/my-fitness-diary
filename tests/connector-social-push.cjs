@@ -13,9 +13,10 @@ const A='11111111-1111-4111-8111-111111111111';
  assert.deepEqual(like,{kind:'like',recipient:A,title:'Riya liked your Upper 1',body:'Tap to see your workout',tag:'like:w-1',url:`/#/friends/w/${A}/w-1`});
  assert.equal(P.socialMessage({kind:'like',recipient:A,actor_name:'Riya',title:'Upper 1',workout:'w-1',count:3}).title,'Riya and 2 others liked your Upper 1');
  assert.equal(P.socialMessage({kind:'like',recipient:A,actor_name:'Riya',title:'Upper 1',workout:'w-1',count:2}).title,'Riya and 1 other liked your Upper 1');
- // Friend requests (MFD 2.0): sent, and accepted.
- assert.deepEqual(P.socialMessage({kind:'request',recipient:A,actor_name:'Riya',actor_username:'riya'}),{kind:'request',recipient:A,title:'Riya sent you a friend request',body:'Tap to accept or decline',tag:'friend:riya',url:'/#/friends/activity'});
- assert.deepEqual(P.socialMessage({kind:'accepted',recipient:A,actor_name:'Riya',actor_username:'riya'}).url,'/#/friends/u/riya');
+ // Friend requests (MFD 2.0): switched off for now; nothing is sent until FRIEND_REQUESTS is on.
+ assert.equal(P.FRIEND_REQUESTS,false);
+ assert.equal(P.socialMessage({kind:'request',recipient:A,actor_name:'Riya',actor_username:'riya'}),null,'off for now');
+ assert.equal(P.socialMessage({kind:'accepted',recipient:A,actor_name:'Riya',actor_username:'riya'}),null);
  assert.equal(P.socialMessage({kind:'request',recipient:A,actor_name:'Riya'}),null,'needs the username');
  assert.equal(P.socialMessage({kind:'request',recipient:A,actor_name:'Riya',actor_username:'Bad Name!'}),null);
  const com=P.socialMessage({kind:'comment',recipient:A,actor_name:'Ben',title:'Leg Day',workout:'abc:1',text:'  New\n PR? '+'x'.repeat(300)});
