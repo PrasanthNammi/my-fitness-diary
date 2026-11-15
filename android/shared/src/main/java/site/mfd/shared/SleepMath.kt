@@ -8,7 +8,7 @@ package site.mfd.shared
  * - sleep belongs to the day you wake up, and a day's sleep is all of it (the night, a second sleep, a nap), as
  *   Samsung Health's daily total; the longest night is the day's main night (its stages, bed and wake time);
  * - when two apps recorded the same day, the app with the most sleep that day is used (never mixed).
- * Times are added in milliseconds and rounded once.
+ * Each piece counts in whole minutes, rounded down, as Samsung Health shows it.
  */
 object SleepMath {
     const val GAP = 90 * 60_000L
@@ -25,9 +25,10 @@ object SleepMath {
             if (last != null && s.start - last.maxOf { it.end } < GAP) last += s else out += mutableListOf(s)
         }
         out.map { l ->
-            // Overlapping pieces (rare) count once.
+            // Each piece in whole minutes, rounded down, as Samsung Health shows them (7h05 + 1h26 = 8h31); overlapping
+            // pieces (rare) count once.
             var asleep = 0L; var reach = Long.MIN_VALUE
-            for (s in l.sortedBy { it.start }) { val from = maxOf(s.start, reach); if (s.end > from) asleep += s.end - from; reach = maxOf(reach, s.end) }
+            for (s in l.sortedBy { it.start }) { val from = maxOf(s.start, reach); if (s.end > from) asleep += (s.end - from) / 60_000 * 60_000; reach = maxOf(reach, s.end) }
             Night(source, l.minOf { it.start }, l.maxOf { it.end }, asleep, l)
         }
     }

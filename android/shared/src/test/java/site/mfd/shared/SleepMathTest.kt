@@ -47,6 +47,12 @@ class SleepMathTest {
         assertEquals(469L, d["2026-11-13"]!!.asleepMs / m)
     }
 
+    @Test fun piecesAreWholeMinutesRoundedDown() {
+        // 8 Nov from Samsung Health: 7h05m40s and 1h26m40s → Samsung shows 8h31 (not 8h32).
+        val d = SleepMath.byDay(listOf(SleepMath.Session(sh, t(8, 2, 28), t(8, 9, 33) + 40_000), SleepMath.Session(sh, t(8, 15, 17), t(8, 16, 43) + 40_000)), ::day)
+        assertEquals(511L * m, d["2026-11-08"]!!.asleepMs)
+    }
+
     @Test fun strayRecordsAreIgnored() {
         assertNull(SleepMath.hours(20 * m)); assertNull(SleepMath.hours(19 * 3_600_000L)); assertNull(SleepMath.hours(null))
     }
