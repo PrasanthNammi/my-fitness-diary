@@ -45,6 +45,9 @@ const out=path.join(os.tmpdir(),'mfd-connector-fcm.cjs');
  assert.equal(await sender.send(TOKEN,{title:'x'},60,'ai'),'failed');assert.equal(sender.lastError,'send 403 SENDER_ID_MISMATCH','the reason, codes only');
  const refused=new F.FcmSender(F.fcmAccountOf(env),async()=>new Response(JSON.stringify({error:'invalid_grant',error_description:'Invalid JWT Signature.'}),{status:400}));
  await assert.rejects(refused.send(TOKEN,{title:'x'},60,'ai'));assert.equal(refused.lastError,'sign-in 400 invalid_grant','a disabled or deleted key');
+ // Like Cloudflare's fetch: refuses to run as another object's method ("Illegal invocation").
+ const strict=function(url){if(this!==undefined&&this!==globalThis)throw new TypeError('Illegal invocation');return String(url).startsWith('https://oauth2.googleapis.com/')?Promise.resolve(new Response(JSON.stringify({access_token:'ya29.t',expires_in:3599}))):Promise.resolve(new Response('{}'))};
+ assert.equal(await new F.FcmSender(F.fcmAccountOf(env),strict).send(TOKEN,{title:'x'},60,'ai'),'sent','works with a fetch that must be called on its own');
  console.log('PASS FCM send: one access token, data-only high-priority messages, uninstalled apps reported as gone, other errors kept with Google\'s error code for the log');
 
  // Endpoints: the app registers and removes its token through the same /push/devices routes.

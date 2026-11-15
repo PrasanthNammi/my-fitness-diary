@@ -34,7 +34,10 @@ export class FcmSender {
   private token: {value: string; until: number} | null = null;
   /** Why the last send failed: Google's HTTP status and error code only (never tokens, keys or content). */
   lastError = '';
-  constructor(private account: FcmAccount, private fetcher: typeof fetch) {}
+  private fetcher: typeof fetch;
+  // Called as a plain function: Cloudflare's fetch refuses to run as another object's method ("Illegal invocation"),
+  // which silently stopped every push to the app.
+  constructor(private account: FcmAccount, fetcher: typeof fetch) { this.fetcher = (input, init) => fetcher(input, init); }
 
   private async accessToken() {
     if (this.token && this.token.until > Date.now()) return this.token.value;
