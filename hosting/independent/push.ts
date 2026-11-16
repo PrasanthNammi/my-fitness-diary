@@ -205,6 +205,11 @@ export function aiMessage(connection: string, operation: string, args: Record<st
   if (operation === 'create_routine') return {title: `${app} created a routine`, body: s(args.name), url: '/#/training'};
   if (operation === 'log_weight') return {title: `${app} logged your weight`, body: typeof args.kg === 'number' ? `${args.kg} kg` : '', url: '/#/progress/body'};
   if (operation === 'start_workout') return {title: `${app} started a workout`, body: [s(args.name) || s(args.routine) || 'Workout', count(args.exercises) ? `${count(args.exercises)} exercises` : '', 'open the app to begin'].filter(Boolean).join(' · '), url: '/#/workout'};
+  if (operation === 'log_water') return {title: `${app} logged water`, body: typeof args.ml === 'number' ? `${args.ml} ml` : '', url: '/'};
+  if (operation === 'log_measurements') return {title: `${app} logged measurements`, body: (['waist', 'chest', 'hips', 'arms'] as const).filter((k) => typeof args[k + '_cm'] === 'number').map((k) => `${k[0].toUpperCase() + k.slice(1)} ${args[k + '_cm']} cm`).join(' · '), url: '/#/progress/body'};
+  if (operation === 'move_routine') return {title: `${app} moved a routine`, body: [s(args.routine), s(args.folder)].filter(Boolean).join(' → '), url: '/#/training'};
+  // Only the confirmed second step changes anything.
+  if (operation === 'change_settings') return typeof args.confirm_token === 'string' ? {title: `${app} changed your settings`, body: 'Tap to review or undo', url: '/'} : null;
   if (operation === 'suggest_workout_targets') return {title: `${app} suggested targets`, body: [s(args.routine), `${count(args.exercises)} exercises · review in the app`].filter(Boolean).join(' · '), url: '/#/training'};
   return null;
 }

@@ -23,6 +23,7 @@ export const emptyDB = (): DB => ({
   diary: [],
   water: {},
   aiSuggestions: [],
+  aiChanges: [],
   weights: [],
   checkins: [],
   coachThread: [],
