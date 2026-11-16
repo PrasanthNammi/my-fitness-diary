@@ -76,7 +76,7 @@ fun MuscleScreen(name: String, list: List<LibExercise>, onPick: (LibExercise) ->
 fun FinishScreen(w: Workout, units: Units, heart: Pair<Long?, Long?>, onSave: () -> Unit, onDiscard: () -> Unit) = Scroll {
     val done = w.blocks.flatMap { b -> b.sets.filter { it.done }.map { b to it } }
     val volume = done.filter { it.second.type != "warmup" }.sumOf { (_, s) -> (s.v.weightKg ?: 0.0) * (s.v.reps ?: 0) }
-    item { ListHeader { Text("Finish workout") } }
+    item { ListHeader { Text("Finish or discard") } }
     item { Text(clock((System.currentTimeMillis() - w.startedAt) / 1000), color = C.accent, fontSize = 28.sp, fontWeight = FontWeight.ExtraBold) }
     item { Text("${done.size} sets · ${num((units.toShown(volume)).let { Math.round(it).toDouble() })} ${units.unit} volume", color = C.muted, textAlign = TextAlign.Center) }
     if (heart.first != null) item { Text("♥ avg ${heart.first} · max ${heart.second} bpm", color = C.failure, fontWeight = FontWeight.Bold) }
