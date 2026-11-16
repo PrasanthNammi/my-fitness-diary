@@ -258,7 +258,6 @@ export function useWatchHeart(): number | null {
 // The watch's "here" and live heart rate, kept for the whole page so the strip shows the right state at once when the
 // workout page opens again.
 let lastHere: number | null = null, lastBpm: number | null = null, lastBpmAt = 0, tracking = false;
-const opened = new Set<string>();
 function track() {
   if (tracking) return;
   tracking = true;
@@ -269,8 +268,8 @@ function track() {
 }
 
 /**
- * The watch strip for the running workout (phone app 2.0.2+ with a paired MFD watch, else null): opens MFD on the
- * watch once per workout (unless the watch already answered, e.g. the workout started there) and on "Try again".
+ * The watch strip for the running workout (phone app 2.0.2+ with a paired MFD watch, else null). The phone app opens
+ * MFD on the watch by itself when a workout starts (WatchLink.openForNewWorkout); "Try again" asks it again.
  */
 export function useWatchLink(workoutId: string | null): { state: WatchLinkState; bpm: number | null; retry: () => void } | null {
   const [paired, setPaired] = useState(false);
@@ -284,13 +283,6 @@ export function useWatchLink(workoutId: string | null): { state: WatchLinkState;
     const tick = setInterval(() => setNow(Date.now()), 1000);
     return () => { live = false; clearInterval(tick); };
   }, []);
-  useEffect(() => {
-    if (!paired || !workoutId || opened.has(workoutId)) return;
-    opened.add(workoutId);
-    // A moment first: a workout started on the watch answers by itself, and needn't be opened again.
-    const t = setTimeout(() => { if (lastHere === null || Date.now() - lastHere >= WATCH_STALE_MS) void ask('watchOpen', {}, 15_000).catch(() => undefined); }, 1500);
-    return () => clearTimeout(t);
-  }, [paired, workoutId]);
   if (!paired || !workoutId) return null;
   const state = watchLinkState(now, attemptAt, lastHere);
   return {

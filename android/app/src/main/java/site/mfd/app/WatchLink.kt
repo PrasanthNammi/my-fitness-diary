@@ -11,6 +11,9 @@ import com.google.android.gms.wearable.MessageEvent
 import com.google.android.gms.wearable.PutDataMapRequest
 import com.google.android.gms.wearable.Wearable
 import com.google.android.gms.wearable.WearableListenerService
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
 import org.json.JSONArray
 import org.json.JSONObject
@@ -25,15 +28,32 @@ object WatchLink {
     private const val PREFS = "watch"
     private const val QUEUE = "queue"
     private const val MAX_QUEUE = 500
+    private const val OPENED = "openedWorkout"
 
     fun publish(ctx: Context, json: String): Boolean {
-        if (Sync.state(json) == null) return false
+        val state = Sync.state(json) ?: return false
         val request = PutDataMapRequest.create(Sync.STATE).apply {
             dataMap.putString(Sync.KEY_JSON, json)
             dataMap.putLong(Sync.KEY_AT, System.currentTimeMillis())
         }.asPutDataRequest().setUrgent()
         Wearable.getDataClient(ctx).putDataItem(request)
+        openForNewWorkout(ctx, state)
         return true
+    }
+
+    /**
+     * A workout that just started (on the phone, or by ChatGPT or Claude) opens MFD on the watch, once per workout.
+     * A workout running for over 2 minutes (e.g. the app restarted mid-workout) is left alone.
+     */
+    private fun openForNewWorkout(ctx: Context, state: JSONObject) {
+        val w = state.optJSONObject("workout") ?: return
+        val id = w.optString("id").takeIf { it.isNotEmpty() } ?: return
+        val prefs = ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        if (prefs.getString(OPENED, null) == id) return
+        prefs.edit { putString(OPENED, id) }
+        if (System.currentTimeMillis() - w.optLong("startedAt", 0) > 120_000) return
+        val app = ctx.applicationContext
+        CoroutineScope(Dispatchers.IO).launch { try { open(app) } catch (e: Exception) {} }
     }
 
     /**
