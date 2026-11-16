@@ -12,12 +12,18 @@ import org.json.JSONObject
  *   phone applies each command once.
  * - Watch → phone during a workout: the live heart rate at [HEART] (the bpm as text, about every 5 s), only shown,
  *   never stored (the workout's full readings come with its heartRate command after it is saved).
+ * - Watch → phone during a workout: [HERE] (empty) about every 8 s while MFD's workout session runs on the watch, so the
+ *   phone's workout screen can say "Watch connected" (also without heart rate).
+ * - Phone → watch: opening MFD's workout on the watch is a remote activity start of [OPEN_URI] (no message).
  */
 object Sync {
     const val VERSION = 1
     const val STATE = "/mfd/state"
     const val COMMAND = "/mfd/command"
     const val HEART = "/mfd/heart"
+    const val HERE = "/mfd/here"
+    /** Opens the watch app on its running workout (WatchActivity's VIEW filter). */
+    const val OPEN_URI = "mfd-watch://workout"
     const val KEY_JSON = "json"
     const val KEY_AT = "at"
     /** Capability names (res/values/wear.xml in each app). */

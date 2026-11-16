@@ -140,14 +140,14 @@ export class PushHub extends DurableObject<Record<string, unknown>> {
   }
 
   /** One message per AI addition; repeats of the same request are ignored. */
-  async aiAdded(requestId: string | null, message: {title: string; body: string}) {
+  async aiAdded(requestId: string | null, message: {title: string; body: string; url?: string}) {
     if (this.get('ai') === 'off' || !this.hasDevices()) return;
     if (requestId) {
       this.sql.exec('DELETE FROM seen WHERE at < ?', Date.now() - 86400_000);
       if (this.sql.exec('SELECT 1 FROM seen WHERE id=?', requestId).toArray().length) return;
       this.sql.exec('INSERT INTO seen (id, at) VALUES (?, ?)', requestId, Date.now());
     }
-    await this.broadcast({...message, tag: 'ai', url: '/'}, 'ai', 3600);
+    await this.broadcast({title: message.title, body: message.body, tag: 'ai', url: message.url ?? '/'}, 'ai', 3600);
   }
 }
 
@@ -195,15 +195,17 @@ export function hookAllowed(header: string | null, env: Record<string, unknown>)
 // ── What the AI added, in one line ────────────────────────────────
 const appName = (connection: string) => {try {const h = new URL(connection).hostname; return h === 'chatgpt.com' || h.endsWith('.openai.com') ? 'ChatGPT' : h === 'claude.ai' || h === 'claude.com' ? 'Claude' : 'Your AI assistant';} catch {return 'Your AI assistant';}};
 const MEAL: Record<string, string> = {breakfast: 'Breakfast', lunch: 'Lunch', dinner: 'Dinner', snack: 'Snacks'};
-export function aiMessage(connection: string, operation: string, args: Record<string, unknown>): {title: string; body: string} | null {
+export function aiMessage(connection: string, operation: string, args: Record<string, unknown>): {title: string; body: string; url: string} | null {
   const app = appName(connection), s = (v: unknown) => (typeof v === 'string' ? v.slice(0, 80) : '');
   const count = (v: unknown) => (Array.isArray(v) ? v.length : 0);
-  if (operation === 'log_meal') return {title: `${app} added to ${MEAL[s(args.meal)] ?? 'your food diary'}`, body: [s(args.name) || 'A saved food', typeof args.amount === 'number' ? `${args.amount} ${s(args.unit)}` : ''].filter(Boolean).join(' · ')};
-  if (operation === 'log_workout') return {title: `${app} logged a workout`, body: s(args.name) || `${count(args.exercises)} exercises`};
-  if (operation === 'create_routine') return {title: `${app} created a routine`, body: s(args.name)};
-  if (operation === 'log_weight') return {title: `${app} logged your weight`, body: typeof args.kg === 'number' ? `${args.kg} kg` : ''};
-  if (operation === 'start_workout') return {title: `${app} started a workout`, body: [s(args.name) || s(args.routine) || 'Workout', count(args.exercises) ? `${count(args.exercises)} exercises` : '', 'open the app to begin'].filter(Boolean).join(' · ')};
-  if (operation === 'suggest_workout_targets') return {title: `${app} suggested targets`, body: [s(args.routine), `${count(args.exercises)} exercises · review in the app`].filter(Boolean).join(' · ')};
+  // Tapping the notification opens the page the addition is on.
+  const day = typeof args.date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(args.date) ? '/' + args.date : '';
+  if (operation === 'log_meal') return {title: `${app} added to ${MEAL[s(args.meal)] ?? 'your food diary'}`, body: [s(args.name) || 'A saved food', typeof args.amount === 'number' ? `${args.amount} ${s(args.unit)}` : ''].filter(Boolean).join(' · '), url: '/#/food' + day};
+  if (operation === 'log_workout') return {title: `${app} logged a workout`, body: s(args.name) || `${count(args.exercises)} exercises`, url: '/#/training/history'};
+  if (operation === 'create_routine') return {title: `${app} created a routine`, body: s(args.name), url: '/#/training'};
+  if (operation === 'log_weight') return {title: `${app} logged your weight`, body: typeof args.kg === 'number' ? `${args.kg} kg` : '', url: '/#/progress/body'};
+  if (operation === 'start_workout') return {title: `${app} started a workout`, body: [s(args.name) || s(args.routine) || 'Workout', count(args.exercises) ? `${count(args.exercises)} exercises` : '', 'open the app to begin'].filter(Boolean).join(' · '), url: '/#/workout'};
+  if (operation === 'suggest_workout_targets') return {title: `${app} suggested targets`, body: [s(args.routine), `${count(args.exercises)} exercises · review in the app`].filter(Boolean).join(' · '), url: '/#/training'};
   return null;
 }
 

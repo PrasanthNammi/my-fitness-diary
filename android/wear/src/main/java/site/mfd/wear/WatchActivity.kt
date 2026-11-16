@@ -83,6 +83,7 @@ class WatchActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         WatchStore.load(this)
+        wakeIfFromPhone(intent)
         openRoutine.value = intent?.getStringExtra(EXTRA_ROUTINE)
         setContent { App() }
     }
@@ -90,6 +91,15 @@ class WatchActivity : ComponentActivity() {
     override fun onNewIntent(intent: android.content.Intent) {
         super.onNewIntent(intent)
         intent.getStringExtra(EXTRA_ROUTINE)?.let { openRoutine.value = it }
+        wakeIfFromPhone(intent)
+    }
+
+    /** Opened by the phone for a workout it started: turn the screen on and show it (the snapshot follows). */
+    private fun wakeIfFromPhone(intent: android.content.Intent?) {
+        if (intent?.data?.toString() != Sync.OPEN_URI) return
+        setShowWhenLocked(true)
+        setTurnScreenOn(true)
+        lifecycleScope.launch { WatchStore.refresh(this@WatchActivity) }
     }
 
     companion object { const val EXTRA_ROUTINE = "routine" }

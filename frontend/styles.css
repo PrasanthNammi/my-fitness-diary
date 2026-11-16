@@ -1851,6 +1851,19 @@ button.social-person { cursor: pointer; border-left: 0; border-right: 0; }
 .live-heart { display: inline-flex; align-items: center; gap: 3px; margin-left: 8px; font-size: 14px; font-weight: 800; color: var(--failure); vertical-align: middle; }
 .live-heart svg { width: 12px; height: 12px; animation: live-pulse 1.6s ease-in-out infinite; }
 @media (prefers-reduced-motion: reduce) { .live-heart svg { animation: none; } }
+/* Watch connection strip under the running workout's top bar (phone app 2.0.2+). */
+.watch-strip { display: flex; align-items: center; gap: 10px; width: 100%; min-height: 40px; padding: 8px 16px; border: 0; border-bottom: 1px solid var(--line); background: var(--surface); color: var(--text); font: inherit; font-size: 13px; font-weight: 600; text-align: left; }
+.watch-strip .grow { flex: 1; min-width: 0; }
+button.watch-strip { cursor: pointer; }
+.watch-retry { color: var(--accent); font-weight: 700; }
+.watch-ring { flex: none; width: 14px; height: 14px; border-radius: 50%; border: 2px solid color-mix(in srgb, var(--success) 25%, transparent); border-top-color: var(--success); animation: watch-spin .8s linear infinite; }
+.watch-dot { flex: none; width: 10px; height: 10px; margin: 2px; border-radius: 50%; background: var(--success); box-shadow: 0 0 0 4px color-mix(in srgb, var(--success) 20%, transparent); animation: watch-pop .35s ease-out; }
+.watch-dot.off { background: var(--muted); box-shadow: none; animation: none; }
+.watch-bpm { display: inline-flex; align-items: center; gap: 4px; color: var(--failure); font-weight: 800; }
+.watch-bpm svg { width: 13px; height: 13px; animation: live-pulse 1.6s ease-in-out infinite; }
+@keyframes watch-spin { to { transform: rotate(360deg); } }
+@keyframes watch-pop { from { transform: scale(.2); } to { transform: scale(1); } }
+@media (prefers-reduced-motion: reduce) { .watch-ring, .watch-dot, .watch-bpm svg { animation: none; } }
 
 /* Samsung Health recovery data (MFD 2.0) */
 .health-badge { display: inline-flex; align-items: center; height: 20px; padding: 0 8px; border-radius: 999px; font-size: 11px; font-weight: 700; background: var(--water-soft); color: var(--water-text); white-space: nowrap; }

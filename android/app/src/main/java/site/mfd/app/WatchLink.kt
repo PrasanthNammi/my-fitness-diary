@@ -1,6 +1,10 @@
 package site.mfd.app
 
 import android.content.Context
+import android.content.Intent
+import android.net.Uri
+import androidx.wear.remote.interactions.RemoteActivityHelper
+import kotlinx.coroutines.guava.await
 import androidx.core.content.edit
 import com.google.android.gms.wearable.CapabilityClient
 import com.google.android.gms.wearable.MessageEvent
@@ -30,6 +34,19 @@ object WatchLink {
         }.asPutDataRequest().setUrgent()
         Wearable.getDataClient(ctx).putDataItem(request)
         return true
+    }
+
+    /**
+     * Opens MFD's running workout on every nearby watch with the MFD app (a workout just started on the phone).
+     * Returns how many watches were asked; the watch then says it is there with Sync.HERE.
+     */
+    suspend fun open(ctx: Context): Int {
+        val nodes = Wearable.getCapabilityClient(ctx).getCapability(Sync.WATCH, CapabilityClient.FILTER_REACHABLE).await().nodes
+        val helper = RemoteActivityHelper(ctx)
+        val intent = Intent(Intent.ACTION_VIEW, Uri.parse(Sync.OPEN_URI)).addCategory(Intent.CATEGORY_BROWSABLE)
+        var asked = 0
+        for (n in nodes) try { helper.startRemoteActivity(intent, n.id).await(); asked++ } catch (e: Exception) {}
+        return asked
     }
 
     /** Watches with the MFD app installed: name and whether it is connected now. */
@@ -64,6 +81,8 @@ class WatchListener : WearableListenerService() {
             Sync.heart(event.data)?.let { MainActivity.sendToOpenPage(JSONObject().put("event", "watchHeart").put("bpm", it)) }
             return
         }
+        // The watch's workout session is running: only to an open MFD page ("Watch connected").
+        if (event.path == Sync.HERE) { MainActivity.sendToOpenPage(JSONObject().put("event", "watchHere")); return }
         if (event.path != Sync.COMMAND) return
         val command = Sync.command(event.data) ?: return
         WatchLink.enqueue(this, command)

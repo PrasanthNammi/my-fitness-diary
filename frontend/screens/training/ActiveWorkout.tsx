@@ -2,7 +2,7 @@ import {WorkoutClock} from './WorkoutClock';
 import { prepareActiveBlock, replaceExerciseBlock } from '../../domain/training';
 import { useEffect, useMemo, useState } from 'react';
 import { Check, ChevronDown, Dumbbell, Heart, Pencil, Plus, Trash2, Sparkles, X } from 'lucide-react';
-import { useWatchHeart } from '../../lib/watch';
+import { useWatchHeart, useWatchLink } from '../../lib/watch';
 import type { ExerciseBlock, RestTimer, Workout } from '../../domain/types';
 import { countSets, pauseTimer, resetTimer, startTimer, workingVolume } from '../../domain/training';
 import { ConfirmSheet, Empty, Field, InfoButton, Notice, Sheet, toast } from '../../components/ui';
@@ -43,6 +43,7 @@ export function ActiveWorkoutScreen() {
   const [saved, setSaved] = useState<Workout | null>(null);
 
   const letters = useMemo(() => supersetLetters(a?.exercises ?? []), [a?.exercises]);
+  const link = useWatchLink(a?.id ?? null);
 
   if (saved) return <SaveAsRoutine workout={saved} folders={folders} />;
 
@@ -93,6 +94,7 @@ export function ActiveWorkoutScreen() {
         <WorkoutClock />
         <button className="btn btn-primary btn-sm wo-finish" onClick={() => setFinishOpen(true)}>Finish</button>
       </header>
+      <WatchStrip link={link} />
       <div className="screen wo-screen">
         {liveSuggestion && (
           <div className="ai-suggest-bar">
@@ -101,7 +103,7 @@ export function ActiveWorkoutScreen() {
           </div>
         )}
         <div className="wo-summary" aria-label="Workout summary">
-          <div><div className="k">Duration</div><div className="v accent-text">{duration(elapsed)}<LiveHeart /></div></div>
+          <div><div className="k">Duration</div><div className="v accent-text">{duration(elapsed)}{!link && <LiveHeart />}</div></div>
           <div><div className="k">Volume</div><div className="v">{volumeParts(fmtVolume(workingVolume(a.exercises), weightUnit))}</div></div>
           <div><div className="k">Sets</div><div className="v">{done}<span className="muted">/{total}</span></div></div>
           <InfoButton title="Logging sets" label="How logging works" lines={[
@@ -282,6 +284,20 @@ function SaveAsRoutine({ workout, folders }: { workout: Workout; folders: import
 export function volumeParts(text: string) {
   const i = text.lastIndexOf(' ');
   return i < 0 ? text : <>{text.slice(0, i)}<span className="u">{text.slice(i)}</span></>;
+}
+
+/** Under the top bar while a watch is paired: connecting to it, connected (with its live heart rate), or not reached. */
+function WatchStrip({ link }: { link: ReturnType<typeof useWatchLink> }) {
+  if (!link) return null;
+  const { state, bpm, retry } = link;
+  const inner = <>
+    <span className={state === 'connecting' ? 'watch-ring' : state === 'connected' ? 'watch-dot' : 'watch-dot off'} aria-hidden="true" />
+    <span className="grow">{state === 'connecting' ? 'Connecting to your watch…' : state === 'connected' ? 'Watch connected' : <>Watch not reached · <span className="watch-retry">Try again</span></>}</span>
+    {bpm !== null && <span className="watch-bpm tnum" aria-label={`Heart rate ${bpm} bpm from your watch`}><Heart aria-hidden="true" fill="currentColor" />{bpm} bpm</span>}
+  </>;
+  return state === 'lost'
+    ? <button type="button" className="watch-strip" onClick={retry}>{inner}</button>
+    : <div className="watch-strip" role="status">{inner}</div>;
 }
 
 /** The watch's live heart rate, next to the workout's duration (only while the MFD watch app sends it). */

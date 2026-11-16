@@ -90,7 +90,7 @@ function Routes({ route }: { route: string[] }) {
     case 'workout':
       return <ActiveWorkoutScreen />;
     case 'food':
-      return <FoodScreen />;
+      return <FoodScreen day={b} />;
     case 'progress':
       if (b === 'muscles') return <ProgressHome tab="muscles" view={c} />;
       if (b === 'recovery') return <RecoveryPage />;

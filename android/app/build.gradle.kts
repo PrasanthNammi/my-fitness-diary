@@ -22,8 +22,8 @@ android {
         applicationId = "site.mfd.app"
         minSdk = 26
         targetSdk = 36
-        versionCode = 8
-        versionName = "2.0.1"
+        versionCode = 9
+        versionName = "2.0.2"
         // MFD's download site: where the app finds and downloads its own updates. Test builds can point
         // elsewhere with -PmfdDownloads=https://...
         val downloads = (project.findProperty("mfdDownloads") as String?) ?: "https://mfd-downloads.shanustylish777.workers.dev"
@@ -65,6 +65,8 @@ kotlin {
 dependencies {
     implementation(project(":shared"))
     implementation("com.google.android.gms:play-services-wearable:19.0.0")
+    implementation("androidx.wear:wear-remote-interactions:1.1.0")
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-guava:1.10.2")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-play-services:1.10.2")
     implementation("androidx.core:core-ktx:1.17.0")
     implementation("androidx.activity:activity-ktx:1.12.2")
