@@ -22,6 +22,7 @@ import { checkinNumber, isRecoveryRow, mergeHealthDays, mergeHealthWeights, type
 
 import { startTimer, prepareActiveBlock, logSetValues, findPrevious, ordinalWithinType } from '../domain/training';
 import { celebrate } from '../lib/haptics';
+import { undoAiChange } from '../domain/aiChanges';
 
 export const newSet = (type: SetType = 'normal', from?: Partial<SetEntry>): SetEntry => ({
   id: uid(),
@@ -394,6 +395,11 @@ export const body = {
 };
 
 // ── Profile & settings ────────────────────────────────────────────
+/** Undo one change from ChatGPT or Claude (domain/aiChanges.ts). */
+export const aiChanges = {
+  undo(id: ID) { update((d) => undoAiChange(d, id)); },
+};
+
 export const profileRepo = {
   async save(p: Profile) {
     await saveIdentity(p);

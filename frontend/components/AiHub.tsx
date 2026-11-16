@@ -1,9 +1,9 @@
 import { useState } from 'react';
-import { Bot, Dumbbell, ExternalLink, Link2, ListChecks, Scale, Sparkles, Undo2, Utensils, X } from 'lucide-react';
+import { Bot, Droplet, Dumbbell, ExternalLink, Folder, FolderInput, Link2, ListChecks, Ruler, Scale, SlidersHorizontal, Sparkles, Undo2, Utensils, X } from 'lucide-react';
 import { activeSuggestions, type AiSuggestion } from '../domain/aiSuggestions';
 import { openSuggestion, suggestionSource } from '../screens/training/SuggestionReview';
 import { useDB } from '../data/store';
-import { body, diary as diaryRepo, training, workouts as workoutRepo } from '../data/repositories';
+import { aiChanges, body, diary as diaryRepo, training, workouts as workoutRepo } from '../data/repositories';
 import { aiAgo, aiLastAdded, type AiAdded } from '../domain/aiActivity';
 import { aiKey, hideAiActivity, useAiActivity } from '../lib/aiRecent';
 import { navigate } from '../lib/router';
@@ -27,13 +27,15 @@ export function AiHub({ open, onClose }: { open: boolean; onClose: () => void })
   const suggested = activeSuggestions(suggestionList, workoutList, now).filter((x) => routineList.some((r) => r.id === x.routineId));
   const routineName = (x: AiSuggestion) => routineList.find((r) => r.id === x.routineId)?.name ?? x.routineName ?? 'Routine';
   const last = (name: string) => aiLastAdded(all, name);
-  const Icon = { food: Utensils, workout: Dumbbell, weight: Scale, routine: ListChecks };
+  const Icon = { food: Utensils, workout: Dumbbell, weight: Scale, routine: ListChecks, measurement: Ruler, water: Droplet, settings: SlidersHorizontal, folder: Folder, move: FolderInput };
   const undo = (a: AiAdded) => {
     if (a.kind === 'food') diaryRepo.remove(a.id);
     else if (a.kind === 'workout') workoutRepo.deleteWorkout(a.id);
     else if (a.kind === 'weight') body.deleteWeight(a.id);
-    else training.deleteRoutine(a.id);
-    toast(`Removed what ${a.by} added`);
+    else if (a.kind === 'routine') training.deleteRoutine(a.id);
+    else if (a.kind === 'measurement') body.removeMeasurements(a.id);
+    else aiChanges.undo(a.id);
+    toast(`Undone: ${a.label}`);
   };
   return (
     <>
@@ -64,7 +66,7 @@ export function AiHub({ open, onClose }: { open: boolean; onClose: () => void })
               ))}
             </ul>
           </>}
-          <div className="eyebrow">Added in the last 24 hours</div>
+          <div className="eyebrow">Added or changed in the last 24 hours</div>
           {recent.length ? (
             <ul className="ai-hub-list">
               {recent.map((a) => {
@@ -86,8 +88,8 @@ export function AiHub({ open, onClose }: { open: boolean; onClose: () => void })
           <a className="btn btn-soft btn-block" href={CONNECTIONS} target="_blank" rel="noopener noreferrer"><ExternalLink aria-hidden="true" />Manage connections</a>
         </div>
       </Sheet>
-      <ConfirmSheet open={!!confirm} onClose={() => setConfirm(null)} danger title={confirm ? `Remove what ${confirm.by} added?` : ''}
-        body={confirm?.label} confirmLabel="Remove" onConfirm={() => { if (confirm) undo(confirm); setConfirm(null); }} />
+      <ConfirmSheet open={!!confirm} onClose={() => setConfirm(null)} danger title={confirm ? `Undo what ${confirm.by} did?` : ''}
+        body={confirm?.label} confirmLabel="Undo" onConfirm={() => { if (confirm) undo(confirm); setConfirm(null); }} />
     </>
   );
 }

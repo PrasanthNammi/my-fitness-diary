@@ -229,6 +229,8 @@ export interface CheckIn {
   restingHr?: number | null;
   hrv?: number | null;
   sleepStages?: SleepStages | null;
+  /** Measurements added by ChatGPT or Claude. */
+  addedBy?: AddedBy;
 }
 
 /** The night's main sleep by stage (minutes), with when it started and ended (epoch ms). */

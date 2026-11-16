@@ -75,10 +75,11 @@ const LABELS: Record<string, [string, string]> = {
   recovery: ['Recovery', 'Sleep, steps, resting heart rate, HRV and check-ins'],
   profile: ['Profile', 'Name, age, height and goals'],
   log_workouts: ['Add workouts', 'Log a finished session'], log_routines: ['Add routines', 'Create a new workout plan'],
-  log_nutrition: ['Add meals', 'Log food to your diary'], log_progress: ['Add weigh-ins', 'Record a body-weight entry'],
+  log_nutrition: ['Add meals and water', 'Log food and water to your diary'], log_progress: ['Add weigh-ins and measurements', 'Record body weight, waist, chest, hips and arms'],
+  log_settings: ['Change goals and settings', 'Goal, activity, target weight, water goal, units, rest time. Always asks you first; undo in the app'],
 };
 // Permissions added in the latest release, marked on the consent page.
-const NEW = ['recovery'];
+const NEW = ['log_settings'];
 const tickbox = (attrs: string) => `<input type="checkbox" ${attrs}><span class="box"></span>`;
 function permissionGroup(group: 'read' | 'add', title: string, pill: string, list: readonly string[]) {
   return `<section class="card group"><fieldset><div class="ghead"><h2>${title} <span class="pill${group === 'add' ? ' add' : ''}">${pill}</span></h2>
@@ -94,8 +95,8 @@ function consentPage(details: Awaited<ReturnType<OAuthHelpers['describeConsent']
 <span class="chip">Signed in as ${escape(who.email || who.userId)}</span>
 <p class="muted">${origin} · access goes to <b>${escape(details.redirectHost)}</b></p></div>
 ${details.redirectIsLoopback ? `<div class="note warn" role="note">${icons.shield}<div><p><strong>This sends access to an app on your computer.</strong> Continue only if you just started connecting from it.</p></div></div>` : ''}
-${permissionGroup('read', 'See your data', 'Read', SECTIONS)}${permissionGroup('add', 'Add new entries', 'Add only', WRITE_SECTIONS)}
-<div class="card note">${icons.shield}<div><p>It <strong>can never edit or delete</strong> entries, see your password or change your account.</p><p>Up to 30 new entries a day.</p><p>Remove access any time from your connections page.</p></div></div>
+${permissionGroup('read', 'See your data', 'Read', SECTIONS)}${permissionGroup('add', 'Add and change', 'You approve', WRITE_SECTIONS)}
+<div class="card note">${icons.shield}<div><p>It <strong>can never edit or delete</strong> entries, see your password or change your account. Goal and settings changes need your yes in the chat, and you can undo them in the app.</p><p>Up to 30 new entries a day.</p><p>Remove access any time from your connections page.</p></div></div>
 <div class="bar"><p class="summary" aria-live="polite"></p><div class="btns"><button class="btn primary" name="decision" value="approve">Allow access</button><button class="btn" name="decision" value="deny">Cancel</button></div></div>
 </form></section>`;
 }

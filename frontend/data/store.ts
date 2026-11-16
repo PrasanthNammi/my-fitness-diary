@@ -29,10 +29,13 @@ export interface DB {
   selectedDate: ISODate | null;
   /** Workout suggestions from ChatGPT or Claude (stored as the connector wrote them). */
   aiSuggestions: AiSuggestion[];
+  /** Other changes from ChatGPT or Claude (water, goals and settings, folders), listed in the AI list with Undo. */
+  aiChanges: AiChange[];
 }
 
 
 import type {AiSuggestion} from '../domain/aiSuggestions';
+import type {AiChange} from '../domain/aiChanges';
 export {defaultSettings,emptyDB} from './defaults';
 import {emptyDB} from './defaults';
 import {engine} from '../adapters/engine';
