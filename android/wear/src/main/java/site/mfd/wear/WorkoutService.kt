@@ -107,14 +107,18 @@ class WorkoutService : LifecycleService() {
         val now = SystemClock.elapsedRealtime()
         if (now - lastLive < 5_000) return
         lastLive = now
-        lifecycleScope.launch {
-            try {
-                val node = phone?.takeIf { now - it.second < 60_000 }?.first
-                    ?: Wearable.getCapabilityClient(this@WorkoutService).getCapability(Sync.PHONE, CapabilityClient.FILTER_REACHABLE).await().nodes.firstOrNull()?.id?.also { phone = it to now }
-                    ?: return@launch
-                Wearable.getMessageClient(this@WorkoutService).sendMessage(node, Sync.HEART, v.toString().toByteArray()).await()
-            } catch (e: Exception) { phone = null }
-        }
+        lifecycleScope.launch { sendToPhone(Sync.HEART, v.toString().toByteArray()) }
+    }
+
+    /** A message to the phone (best effort; the phone's node is looked up at most once a minute). */
+    private suspend fun sendToPhone(path: String, data: ByteArray) {
+        val now = SystemClock.elapsedRealtime()
+        try {
+            val node = phone?.takeIf { now - it.second < 60_000 }?.first
+                ?: Wearable.getCapabilityClient(this).getCapability(Sync.PHONE, CapabilityClient.FILTER_REACHABLE).await().nodes.firstOrNull()?.id?.also { phone = it to now }
+                ?: return
+            Wearable.getMessageClient(this).sendMessage(node, path, data).await()
+        } catch (e: Exception) { phone = null }
     }
 
     override fun onCreate() {
@@ -131,6 +135,7 @@ class WorkoutService : LifecycleService() {
             ServiceCompat.startForeground(this, 1, builder.build(), ServiceInfo.FOREGROUND_SERVICE_TYPE_HEALTH)
         } catch (e: Exception) { running = false; stopSelf(); return } // no health permission at all
         lifecycleScope.launch { startHeartRate() }
+        lifecycleScope.launch { while (true) { sendToPhone(Sync.HERE, ByteArray(0)); delay(8_000) } }
         lifecycleScope.launch { buzzAtRestEnd() }
     }
 

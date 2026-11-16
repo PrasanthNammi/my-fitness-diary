@@ -34,6 +34,13 @@
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
+            <!-- A workout started on the phone opens MFD here (Sync.OPEN_URI, sent by the phone app). -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="mfd-watch" android:host="workout" />
+            </intent-filter>
         </activity>
         <!-- Phone snapshots while MFD isn't open (tiles and complications stay current). -->
         <service

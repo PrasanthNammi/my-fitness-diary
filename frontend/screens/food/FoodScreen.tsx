@@ -10,6 +10,8 @@ import type { DiaryEntry, Food, Meal, PortionUnit } from '../../domain/types';
 import { allowedUnits, withServingWeight, fibreTarget } from '../../domain/nutrition';
 import { AiBadge, ConfirmSheet, Empty, OverflowMenu, Segmented, Sheet, TopBar, toast } from '../../components/ui';
 import { DateStrip } from '../../components/DateStrip';
+import { selectDay } from '../../lib/daySelection';
+import { navigate } from '../../lib/router';
 import { useDB } from '../../data/store';
 import { entryNutrients, MEALS, useDay, useSelectedDate, useTargets } from '../../data/selectors';
 import { diary, foods } from '../../data/repositories';
@@ -30,7 +32,9 @@ function portionText(e: DiaryEntry) {
   return `${fmtNum(e.amount, 1)} ${e.unit}`;
 }
 
-export function FoodScreen() {
+/** `day` from a link such as "#/food/2026-11-16" (a notification about that day): show that day, then drop it from the address. */
+export function FoodScreen({ day }: { day?: string } = {}) {
+  useEffect(() => { if (day && /^\d{4}-\d{2}-\d{2}$/.test(day)) { selectDay(day); navigate('/food', { replace: true }); } }, [day]);
   const date = useSelectedDate();
   const { byMeal, total, fibre } = useDay(date);
   const t = useTargets()?.targets;

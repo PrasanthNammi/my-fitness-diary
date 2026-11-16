@@ -78,5 +78,16 @@ const out=path.join(os.tmpdir(),'mfd-connector-fcm.cjs');
  assert.equal(sentTo.length,2,'both apps');
  assert.deepEqual(sentTo.find(x=>x[0]===TOKEN).slice(1),['Claude added to Lunch',3600,'ai']);
  assert.deepEqual(deleted,['second:'+'y'.repeat(40)],'gone app forgotten');
+ // Tapping an AI notification opens the page the addition is on.
+ const url=(op,args)=>P.aiMessage('https://claude.ai/x',op,args).url;
+ assert.equal(url('log_meal',{meal:'lunch',name:'Dal',date:'2026-11-16'}),'/#/food/2026-11-16');
+ assert.equal(url('log_meal',{meal:'lunch',name:'Dal',date:'16 Nov'}),'/#/food','bad date: today');
+ assert.equal(url('log_weight',{kg:80}),'/#/progress/body');
+ assert.equal(url('log_workout',{name:'Push'}),'/#/training/history');
+ assert.equal(url('start_workout',{routine:'Push'}),'/#/workout');
+ assert.equal(url('create_routine',{name:'Legs'}),'/#/training');
+ const urls=[];hub.fcmSender={send:async(t,m)=>{urls.push(m.url);return 'sent'}};
+ await hub.aiAdded('req-2',{title:'Claude logged your weight',body:'80 kg',url:'/#/progress/body'});
+ assert.ok(urls.length&&urls.every(u=>u==='/#/progress/body'),'link reaches the app');
  console.log('PASS PushHub: apps get the same messages as browsers; apps FCM reports gone are forgotten');
 })().catch(e=>{console.error(e);process.exit(1)});

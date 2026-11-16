@@ -19,8 +19,8 @@ android {
         applicationId = "site.mfd.app"
         minSdk = 30 // Wear OS 3+ (Galaxy Watch 4 and newer)
         targetSdk = 36
-        versionCode = 1
-        versionName = "2.0"
+        versionCode = 2
+        versionName = "2.0.2"
     }
 
     signingConfigs {

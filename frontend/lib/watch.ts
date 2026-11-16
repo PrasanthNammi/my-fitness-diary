@@ -17,8 +17,12 @@ import { toast } from '../components/ui';
 import { appVersion, newer } from './appUpdate';
 import { ask, inApp, onNative, tell } from './native';
 import { engine } from '../adapters/engine';
+import { WATCH_STALE_MS, watchLinkState, type WatchLinkState } from '../domain/watchLink';
 
 export const WATCH_FROM = '2.0';
+/** The watch opening by itself and the connection strip (phone app 2.0.2+). */
+export const WATCH_OPEN_FROM = '2.0.2';
+export const watchOpenSupported = () => { const v = appVersion(); return inApp() && !!v && !newer(WATCH_OPEN_FROM, v); };
 export const watchSupported = () => { const v = appVersion(); return inApp() && !!v && !newer(WATCH_FROM, v); };
 
 /** The protocol version both sides speak (Sync.VERSION). */
@@ -249,4 +253,40 @@ export function useWatchHeart(): number | null {
     return () => { off(); clearTimeout(stale); };
   }, []);
   return bpm;
+}
+
+// The watch's "here" and live heart rate, kept for the whole page so the strip shows the right state at once when the
+// workout page opens again.
+let lastHere: number | null = null, lastBpm: number | null = null, lastBpmAt = 0, tracking = false;
+function track() {
+  if (tracking) return;
+  tracking = true;
+  onNative((e) => {
+    if (e.event === 'watchHere') lastHere = Date.now();
+    else if (e.event === 'watchHeart' && typeof e.bpm === 'number' && e.bpm >= 30 && e.bpm <= 250) { lastHere = lastBpmAt = Date.now(); lastBpm = Math.round(e.bpm); }
+  });
+}
+
+/**
+ * The watch strip for the running workout (phone app 2.0.2+ with a paired MFD watch, else null). The phone app opens
+ * MFD on the watch by itself when a workout starts (WatchLink.openForNewWorkout); "Try again" asks it again.
+ */
+export function useWatchLink(workoutId: string | null): { state: WatchLinkState; bpm: number | null; retry: () => void } | null {
+  const [paired, setPaired] = useState(false);
+  const [attemptAt, setAttemptAt] = useState(() => Date.now());
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    if (!watchOpenSupported()) return;
+    track();
+    let live = true;
+    void ask<{ watches?: unknown[] }>('watchStatus', {}, 10_000).then((r) => { if (live) setPaired((r.watches?.length ?? 0) > 0); }).catch(() => undefined);
+    const tick = setInterval(() => setNow(Date.now()), 1000);
+    return () => { live = false; clearInterval(tick); };
+  }, []);
+  if (!paired || !workoutId) return null;
+  const state = watchLinkState(now, attemptAt, lastHere);
+  return {
+    state, bpm: state === 'connected' && now - lastBpmAt < WATCH_STALE_MS ? lastBpm : null,
+    retry: () => { const t = Date.now(); setAttemptAt(t); setNow(t); void ask('watchOpen', {}, 15_000).catch(() => undefined); },
+  };
 }

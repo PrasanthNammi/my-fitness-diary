@@ -171,7 +171,7 @@ fun OverviewScreen(w: Workout, onExercise: (Block) -> Unit, onAdd: () -> Unit, o
     }
     if (w.blocks.isEmpty()) item { Text("No exercises yet", color = C.muted) }
     item { Row("Add exercise", icon = { Icon(Icons.Filled.Add, null) }, onClick = onAdd) }
-    item { Row("Finish", accent = true, icon = { Icon(Icons.Filled.Check, null) }, onClick = onFinish) }
+    item { Row("Finish or discard", accent = true, icon = { Icon(Icons.Filled.Check, null) }, onClick = onFinish) }
 }
 
 @Composable
