@@ -1,0 +1,8 @@
+title,start_time,end_time,description,exercise_title,superset_id,exercise_notes,set_index,set_type,weight_kg,weight_lbs,reps,distance_km,distance_miles,duration_seconds,rpe
+"Push A","9 May 2026, 08:14","9 May 2026, 09:20","Felt strong, slept 8h","Bench Press (Barbell)",,"Pause at chest",0,warmup,40,,10,,,,
+"Push A","9 May 2026, 08:14","9 May 2026, 09:20","Felt strong, slept 8h","Bench Press (Barbell)",,"Pause at chest",1,normal,80,,8,,,,8
+"Push A","9 May 2026, 08:14","9 May 2026, 09:20","Felt strong, slept 8h","Bench Press (Barbell)",,"Pause at chest",2,failure,80,,6,,,,10
+"Push A","9 May 2026, 08:14","9 May 2026, 09:20","Felt strong, slept 8h","Lateral Raise (Dumbbell)",0,,0,normal,,25,12,,,,
+"Push A","9 May 2026, 08:14","9 May 2026, 09:20","Felt strong, slept 8h","Triceps Pushdown",0,"He said ""slow""",0,dropset,30,,10,,,,
+"Cardio","2026-05-10T07:00:00+02:00","2026-05-10T07:45:00+02:00",,"Running",,,0,normal,,,,5.5,,1800,
+"Cardio","2026-05-10T07:00:00+02:00","2026-05-10T07:45:00+02:00",,"Cycling",,,0,normal,,,,,3,900,
