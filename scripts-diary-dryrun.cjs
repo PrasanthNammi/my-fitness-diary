@@ -29,11 +29,11 @@ begin
 
   create temporary table _r (k int, area text, item text, old_value numeric, new_value numeric);
   insert into _r
-  with w as (select payload p from public.forma_workspaces),
+  with w as (select user_id u, payload p from public.forma_workspaces),
   sess as (select s from w, jsonb_array_elements(case when jsonb_typeof(p->'sessions') = 'array' then p->'sessions' else '[]' end) s
            union all select p->'active' from w where jsonb_typeof(p->'active') = 'object'),
   sets as (select x from sess, jsonb_array_elements(case when jsonb_typeof(s->'sets') = 'array' then s->'sets' else '[]' end) x),
-  meals as (select x from w, jsonb_array_elements(case when jsonb_typeof(p->'meals') = 'array' then p->'meals' else '[]' end) x),
+  meals as (select u, x from w,jsonb_array_elements(case when jsonb_typeof(p->'meals') = 'array' then p->'meals' else '[]' end) x),
   wts as (select x from w, jsonb_array_elements(case when jsonb_typeof(p->'weights') = 'array' then p->'weights' else '[]' end) x),
   cis as (select x from w, jsonb_array_elements(case when jsonb_typeof(p->'checkins') = 'array' then p->'checkins' else '[]' end) x)
   select 1, 'Training', 'workouts', (select count(*) from sess), (select count(*) from diary.workouts where deleted_at is null)
@@ -49,7 +49,7 @@ begin
   union all select 10, 'Nutrition', 'food entries', (select count(*) from meals), (select count(*) from diary.food_entries where deleted_at is null)
   union all select 11, 'Nutrition', 'kcal (total)', (select round(coalesce(sum(diary.within(diary.num(x->'cal'), 0, 100000)), 0)) from meals), (select round(coalesce(sum(kcal), 0)) from diary.food_entries where deleted_at is null)
   union all select 12, 'Nutrition', 'protein g (total)', (select round(coalesce(sum(diary.within(diary.num(x->'p'), 0, 10000)), 0)) from meals), (select round(coalesce(sum(protein_g), 0)) from diary.food_entries where deleted_at is null)
-  union all select 13, 'Nutrition', 'foods (distinct labels)', (select count(distinct x->'labelFood'->>'id') from meals), (select count(*) from diary.foods f where f.user_id is not null and exists (select 1 from diary.food_entries e where e.food_id = f.id))
+  union all select 13, 'Nutrition', 'foods (labels per person)', (select count(*) from (select distinct u, x->'labelFood'->>'id' from meals where coalesce(x->'labelFood'->>'id', '') <> '') z), (select count(*) from diary.foods f where f.user_id is not null and exists (select 1 from diary.food_entries e where e.food_id = f.id))
   union all select 14, 'Nutrition', 'water ml (total)', (select coalesce(sum(round(diary.within(diary.num(v), 1, 10000))), 0) from w, jsonb_each(case when jsonb_typeof(p->'water') = 'object' then p->'water' else '{}' end) e(d, v) where diary.day(d) is not null), (select coalesce(sum(ml), 0) from diary.water_logs where deleted_at is null)
   union all select 15, 'Body', 'weigh-ins (days)', (select count(*) from (select distinct p, x->>'date' from w, jsonb_array_elements(case when jsonb_typeof(p->'weights') = 'array' then p->'weights' else '[]' end) x) z), (select count(*) from diary.weigh_ins where deleted_at is null)
   union all select 16, 'Body', 'recovery days', (select count(*) from (select distinct x->>'date' d, md5(x::text) from cis where coalesce(x->>'sleep', x->>'steps', x->>'energy', x->>'soreness', x->>'restingHr', x->>'hrv') is not null or jsonb_typeof(x->'sleepStages') = 'object' or nullif(btrim(coalesce(x->>'note', '')), '') is not null) z),
