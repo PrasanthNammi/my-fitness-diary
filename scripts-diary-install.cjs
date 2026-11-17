@@ -89,7 +89,27 @@ const chunks = (items, render, overhead) => {
   if (cur.length) out.push(render(cur));
   return out;
 };
-const ex = chunks(exRows, (rs) => `${exHead}\n${rs.join(',\n')}\n${exTail}`, exHead.length + exTail.length + 1000);
+// The texts travel as base64 JSON (only letters, digits, + / =, in short lines), because the Supabase SQL editor
+// mangled long plain-text values (quotes, semicolons and words like "from a" inside them) on the way in. The
+// database decodes them and writes exactly the same values as 04-catalogue.sql.
+const exJson = cat.exercises.map((e) => {
+  const img = e.media?.images?.[0];
+  const s = (v) => (v == null ? null : String(v));
+  const a = (v) => (Array.isArray(v) ? v.map(String) : []);
+  return JSON.stringify({ r: e.id, n: s(e.name), a: a(e.aliases), c: s(e.category), t: s(e.tracking), d: s(e.description), s: a(e.setup), st: a(e.steps),
+    cu: a(e.cues), m: a(e.mistakes), u: img ? '/catalogue/app_media/' + img.path : null, cr: s(img?.source_url ?? null), l: s(img?.license ?? null) });
+});
+const b64 = (items) => Buffer.from('[' + items.join(',') + ']', 'utf8').toString('base64').match(/.{1,100}/g).join('\n');
+const arrOf = (k) => `array(select jsonb_array_elements_text(e->'${k}'))`;
+const exSql = (items) => `insert into diary.exercises (id, source, source_ref, name, aliases, category, tracking, description, setup, steps, cues, mistakes, media_url, credit, licence)
+select md5('mfd:' || (e->>'r'))::uuid, 'mfd', e->>'r', e->>'n', ${arrOf('a')}, e->>'c', e->>'t', e->>'d',
+  ${arrOf('s')}, ${arrOf('st')}, ${arrOf('cu')}, ${arrOf('m')}, e->>'u', e->>'cr', e->>'l'
+from jsonb_array_elements(convert_from(decode(translate('
+${b64(items)}
+', E' \\n\\r', ''), 'base64'), 'UTF8')::jsonb) e
+${exTail}`;
+// base64 is 4/3 the size of the JSON, plus a newline every 100 characters.
+const ex = chunks(exJson.map((j) => ({ j, length: Math.ceil(Buffer.byteLength(j) * 1.37) })), (items) => exSql(items.map((x) => x.j)), 2000);
 const linkItems = links.flatMap(({ t, cols, rs }) => rs.map((r) => ({ t, cols, r, length: r.length })));
 const linkSql = (items) => {
   const byT = [];
