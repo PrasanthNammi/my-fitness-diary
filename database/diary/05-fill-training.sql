@@ -114,20 +114,24 @@ begin
         and legacy_id not in (select f->>'id' from jsonb_array_elements(case when jsonb_typeof(doc->'folders') = 'array' then doc->'folders' else '[]' end) f);
 
     -- ── Routines, their exercises and planned sets ──
+    -- Routines an assistant created: their ai_actions rows first, so the link below has something to point to.
+    perform diary.note_ai(u, 'create_routine', (select jsonb_agg(jsonb_build_object('key', r->>'id', 'by', r->'addedBy'))
+      from jsonb_array_elements(case when jsonb_typeof(doc->'routines') = 'array' then doc->'routines' else '[]' end) r where r ? 'addedBy'));
     -- MERGE runs the stamp trigger only for rows that are really added or changed, so sync numbers stay exact.
-  merge into diary.routines t
+    merge into diary.routines t
   using (
     select diary.legacy_uuid(u, 'routine', r->>'id'), u,
       case when exists (select 1 from diary.routine_folders f where f.id = diary.legacy_uuid(u, 'folder', r->>'folderId') and f.deleted_at is null) then diary.legacy_uuid(u, 'folder', r->>'folderId') end,
-      left(btrim(r->>'name'), 80), (n - 1)::int, r->>'id'
+      left(btrim(r->>'name'), 80), (n - 1)::int,
+      case when r ? 'addedBy' then diary.legacy_uuid(u, 'ai_action', 'create_routine:' || (r->>'id')) end, r->>'id'
     from jsonb_array_elements(case when jsonb_typeof(doc->'routines') = 'array' then doc->'routines' else '[]' end) with ordinality a(r, n)
     where coalesce(btrim(r->>'name'), '') <> ''
-  ) s(id, user_id, folder_id, name, position, legacy_id)
+  ) s(id, user_id, folder_id, name, position, ai_action_id, legacy_id)
   on t.id = s.id
-  when matched and (t.folder_id, t.name, t.position, t.deleted_at)
-      is distinct from (s.folder_id, s.name, s.position, null::timestamptz)
-    then update set folder_id = s.folder_id, name = s.name, position = s.position, deleted_at = null
-  when not matched then insert (id, user_id, folder_id, name, position, legacy_id) values (s.id, s.user_id, s.folder_id, s.name, s.position, s.legacy_id);
+  when matched and (t.folder_id, t.name, t.position, t.ai_action_id, t.deleted_at)
+      is distinct from (s.folder_id, s.name, s.position, s.ai_action_id, null::timestamptz)
+    then update set folder_id = s.folder_id, name = s.name, position = s.position, ai_action_id = s.ai_action_id, deleted_at = null
+  when not matched then insert (id, user_id, folder_id, name, position, ai_action_id, legacy_id) values (s.id, s.user_id, s.folder_id, s.name, s.position, s.ai_action_id, s.legacy_id);
     update diary.routines set deleted_at = now_ts
       where user_id = u and deleted_at is null and legacy_id is not null
         and legacy_id not in (select r->>'id' from jsonb_array_elements(case when jsonb_typeof(doc->'routines') = 'array' then doc->'routines' else '[]' end) r);
@@ -203,6 +207,7 @@ begin
     insert into _w values (doc->'active', true);
   end if;
 
+  perform diary.note_ai(u, 'log_workout', (select jsonb_agg(jsonb_build_object('key', w->>'id', 'by', w->'addedBy')) from _w where w ? 'addedBy'));
   -- MERGE runs the stamp trigger only for rows that are really added or changed, so sync numbers stay exact.
   merge into diary.workouts t
   using (
@@ -214,14 +219,15 @@ begin
     case when running then null else greatest(coalesce(diary.ms(w->'finished'), diary.ms(w->'started'), coalesce(diary.day(w->>'date'), now_ts::date)::timestamptz + interval '12 hours'), coalesce(diary.ms(w->'started'), coalesce(diary.day(w->>'date'), now_ts::date)::timestamptz + interval '12 hours')) end,
     nullif(left(w->>'importTimezone', 64), ''),
     case when w->>'source' = 'hevy' or w ? 'importKey' then 'hevy_import' when w ? 'addedBy' then 'ai' else 'app' end,
-    nullif(left(w->>'importKey', 200), ''), nullif(left(btrim(coalesce(w->>'notes', '')), 2000), ''), w->>'id'
+    nullif(left(w->>'importKey', 200), ''), nullif(left(btrim(coalesce(w->>'notes', '')), 2000), ''),
+    case when w ? 'addedBy' then diary.legacy_uuid(u, 'ai_action', 'log_workout:' || (w->>'id')) end, w->>'id'
   from _w
-  ) s(id, user_id, routine_id, name, local_date, started_at, ended_at, time_zone, source, import_key, notes, legacy_id)
+  ) s(id, user_id, routine_id, name, local_date, started_at, ended_at, time_zone, source, import_key, notes, ai_action_id, legacy_id)
   on t.id = s.id
-  when matched and (t.routine_id, t.name, t.local_date, t.started_at, t.ended_at, t.time_zone, t.source, t.import_key, t.notes, t.deleted_at)
-      is distinct from (s.routine_id, s.name, s.local_date, s.started_at, s.ended_at, s.time_zone, s.source, s.import_key, s.notes, null::timestamptz)
-    then update set routine_id = s.routine_id, name = s.name, local_date = s.local_date, started_at = s.started_at, ended_at = s.ended_at, time_zone = s.time_zone, source = s.source, import_key = s.import_key, notes = s.notes, deleted_at = null
-  when not matched then insert (id, user_id, routine_id, name, local_date, started_at, ended_at, time_zone, source, import_key, notes, legacy_id) values (s.id, s.user_id, s.routine_id, s.name, s.local_date, s.started_at, s.ended_at, s.time_zone, s.source, s.import_key, s.notes, s.legacy_id);
+  when matched and (t.routine_id, t.name, t.local_date, t.started_at, t.ended_at, t.time_zone, t.source, t.import_key, t.notes, t.ai_action_id, t.deleted_at)
+      is distinct from (s.routine_id, s.name, s.local_date, s.started_at, s.ended_at, s.time_zone, s.source, s.import_key, s.notes, s.ai_action_id, null::timestamptz)
+    then update set routine_id = s.routine_id, name = s.name, local_date = s.local_date, started_at = s.started_at, ended_at = s.ended_at, time_zone = s.time_zone, source = s.source, import_key = s.import_key, notes = s.notes, ai_action_id = s.ai_action_id, deleted_at = null
+  when not matched then insert (id, user_id, routine_id, name, local_date, started_at, ended_at, time_zone, source, import_key, notes, ai_action_id, legacy_id) values (s.id, s.user_id, s.routine_id, s.name, s.local_date, s.started_at, s.ended_at, s.time_zone, s.source, s.import_key, s.notes, s.ai_action_id, s.legacy_id);
 
   -- Workouts no longer in the envelope (deleted, or the running one finished under a new id).
   update diary.workouts set deleted_at = now_ts
@@ -356,8 +362,10 @@ begin
 end $$;
 revoke all on function diary.follow_workspace() from public, anon, authenticated;
 
+-- Triggers on one event run in name order: diary_1_training, diary_2_nutrition, diary_3_body, diary_4_account.
 drop trigger if exists follow_workspace on public.forma_workspaces;
-create trigger follow_workspace after insert or update of payload on public.forma_workspaces
+drop trigger if exists diary_1_training on public.forma_workspaces;
+create trigger diary_1_training after insert or update of payload on public.forma_workspaces
   for each row execute function diary.follow_workspace();
 
 commit;

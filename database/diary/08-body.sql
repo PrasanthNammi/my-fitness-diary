@@ -18,11 +18,13 @@ create table if not exists diary.weigh_ins (
   weight_kg    numeric(5,2) not null check (weight_kg between 20 and 400),
   body_fat_pct numeric(4,1) check (body_fat_pct between 2 and 70),
   source       text not null default 'manual' check (source in ('manual', 'health_connect', 'ai')),
+  ai_action_id uuid,                                    -- set when ChatGPT or Claude added it
   legacy_id    text check (char_length(legacy_id) <= 200),
   created_at   timestamptz not null default now(),
   updated_at   timestamptz not null default now(),
   version      bigint not null default 0,
-  deleted_at   timestamptz
+  deleted_at   timestamptz,
+  foreign key (ai_action_id, user_id) references diary.ai_actions (id, user_id) on delete set null (ai_action_id)
 );
 create unique index if not exists weigh_ins_one_per_day on diary.weigh_ins (user_id, local_date) where deleted_at is null;
 
@@ -32,13 +34,15 @@ create table if not exists diary.body_measurements (
   local_date date not null check (local_date >= date '1900-01-01'),
   site       text not null check (site in ('waist', 'chest', 'hips', 'arms')),   -- more sites later = a new value here
   cm         numeric(5,1) not null,
+  ai_action_id uuid,                                    -- set when ChatGPT or Claude added it
   legacy_id  text check (char_length(legacy_id) <= 200),
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
   version    bigint not null default 0,
   deleted_at timestamptz,
   -- Sensible ranges per site.
-  check (case site when 'arms' then cm between 15 and 80 when 'waist' then cm between 40 and 200 else cm between 50 and 200 end)
+  check (case site when 'arms' then cm between 15 and 80 when 'waist' then cm between 40 and 200 else cm between 50 and 200 end),
+  foreign key (ai_action_id, user_id) references diary.ai_actions (id, user_id) on delete set null (ai_action_id)
 );
 create index if not exists body_measurements_by_site on diary.body_measurements (user_id, site, local_date) where deleted_at is null;
 

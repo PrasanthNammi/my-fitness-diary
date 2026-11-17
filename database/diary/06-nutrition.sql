@@ -72,11 +72,13 @@ create table if not exists diary.food_entries (
   sugars_g        numeric(8,2) check (sugars_g between 0 and 10000),
   saturated_fat_g numeric(8,2) check (saturated_fat_g between 0 and 10000),
   salt_g          numeric(8,2) check (salt_g between 0 and 10000),
+  ai_action_id uuid,                                    -- set when ChatGPT or Claude added it
   legacy_id       text check (char_length(legacy_id) <= 200),
   created_at      timestamptz not null default now(),
   updated_at      timestamptz not null default now(),
   version         bigint not null default 0,
-  deleted_at      timestamptz
+  deleted_at      timestamptz,
+  foreign key (ai_action_id, user_id) references diary.ai_actions (id, user_id) on delete set null (ai_action_id)
 );
 -- The food diary of one day, the screen MFD opens most.
 create index if not exists food_entries_by_day on diary.food_entries (user_id, local_date) where deleted_at is null;
@@ -88,11 +90,13 @@ create table if not exists diary.water_logs (
   local_date date not null check (local_date >= date '2000-01-01'),
   ml         integer not null check (ml between 1 and 10000),
   logged_at  timestamptz not null default now(),
+  ai_action_id uuid,                                    -- set when ChatGPT or Claude added it
   legacy_id  text check (char_length(legacy_id) <= 200),
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
   version    bigint not null default 0,
-  deleted_at timestamptz
+  deleted_at timestamptz,
+  foreign key (ai_action_id, user_id) references diary.ai_actions (id, user_id) on delete set null (ai_action_id)
 );
 create index if not exists water_logs_by_day on diary.water_logs (user_id, local_date) where deleted_at is null;
 

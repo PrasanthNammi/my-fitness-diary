@@ -32,11 +32,13 @@ create table if not exists diary.routines (
   name       text not null check (char_length(btrim(name)) between 1 and 80),
   notes      text check (char_length(notes) <= 2000),
   position   integer not null default 0 check (position >= 0),
+  ai_action_id uuid,                                    -- set when ChatGPT or Claude added it
   legacy_id  text check (char_length(legacy_id) <= 200),
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
   version    bigint not null default 0,
   deleted_at timestamptz,
+  foreign key (ai_action_id, user_id) references diary.ai_actions (id, user_id) on delete set null (ai_action_id),
   unique (id, user_id),
   -- A removed folder leaves its routines unfiled (only folder_id is emptied, never the owner).
   foreign key (folder_id, user_id) references diary.routine_folders (id, user_id) on delete set null (folder_id)
@@ -92,11 +94,13 @@ create table if not exists diary.workouts (
   source      text not null default 'app' check (source in ('app', 'watch', 'ai', 'hevy_import')),
   import_key  text check (char_length(import_key) <= 200),
   notes       text check (char_length(notes) <= 2000),
+  ai_action_id uuid,                                    -- set when ChatGPT or Claude added it
   legacy_id   text check (char_length(legacy_id) <= 200),
   created_at  timestamptz not null default now(),
   updated_at  timestamptz not null default now(),
   version     bigint not null default 0,
   deleted_at  timestamptz,
+  foreign key (ai_action_id, user_id) references diary.ai_actions (id, user_id) on delete set null (ai_action_id),
   unique (id, user_id),
   check (ended_at is null or ended_at >= started_at),
   foreign key (routine_id, user_id) references diary.routines (id, user_id) on delete set null (routine_id)
