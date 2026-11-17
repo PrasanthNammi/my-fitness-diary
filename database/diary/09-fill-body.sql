@@ -41,9 +41,9 @@ begin
     then update set local_date = s.local_date, weight_kg = s.weight_kg, body_fat_pct = s.body_fat_pct, source = s.source, ai_action_id = s.ai_action_id, deleted_at = null
   when not matched then insert (id, user_id, local_date, weight_kg, body_fat_pct, source, ai_action_id, legacy_id) values (s.id, s.user_id, s.local_date, s.weight_kg, s.body_fat_pct, s.source, s.ai_action_id, s.legacy_id);
   insert into diary.fill_problems (user_id, kind, legacy_id, detail)
-  select u, 'weigh_in', x->>'id', case when diary.within(diary.num(x->'kg'), 20, 400) is null then 'kg' else 'second on the same day' end
+  select u, 'weigh_in', coalesce(x->>'id', n::text), case when diary.day(x->>'date') is null then 'date' when diary.within(diary.num(x->'kg'), 20, 400) is null then 'kg' else 'second on the same day' end
   from jsonb_array_elements(case when jsonb_typeof(doc->'weights') = 'array' then doc->'weights' else '[]' end) with ordinality e(x, n)
-  where diary.within(diary.num(x->'kg'), 20, 400) is null
+  where diary.day(x->>'date') is null or diary.within(diary.num(x->'kg'), 20, 400) is null
      or exists (select 1 from jsonb_array_elements(doc->'weights') with ordinality e2(y, m) where y->>'date' = x->>'date' and m > n)
   on conflict do nothing;
 
