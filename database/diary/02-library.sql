@@ -58,7 +58,9 @@ create table if not exists diary.exercises (
 -- A shared exercise is found by its source id; your own by name (ignoring capitals), once each.
 create unique index if not exists exercises_shared_ref on diary.exercises (source, source_ref) where user_id is null;
 create unique index if not exists exercises_own_name on diary.exercises (user_id, lower(btrim(name))) where user_id is not null and deleted_at is null;
-create unique index if not exists exercises_legacy on diary.exercises (user_id, legacy_id) where legacy_id is not null;
+-- The old id is only a note (own exercises are matched by name; one old id can carry several names).
+drop index if exists diary.exercises_legacy;
+create index if not exists exercises_legacy on diary.exercises (user_id, legacy_id) where legacy_id is not null;
 create index if not exists exercises_sync on diary.exercises (user_id, version);
 
 create table if not exists diary.exercise_muscle_groups (
