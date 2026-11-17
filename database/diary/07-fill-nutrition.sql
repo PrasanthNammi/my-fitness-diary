@@ -76,7 +76,10 @@ begin
   -- Removed from My foods: the food stays (entries point to it), only the flag goes.
   update diary.foods set in_my_foods = false where user_id = u and in_my_foods and deleted_at is null and not (legacy_id = any(my));
 
-  -- ── Entries ──
+  -- ── Entries (those an assistant added get their ai_actions row first) ──
+  perform diary.note_ai(u, 'log_meal', (select jsonb_agg(jsonb_build_object('key', x->>'id', 'by', x->'addedBy'))
+    from jsonb_array_elements(case when jsonb_typeof(doc->'meals') = 'array' then doc->'meals' else '[]' end) x
+    where x ? 'addedBy' and (only_entries is null or x->>'id' = any(only_entries))));
   merge into diary.food_entries t
   using (
     select diary.legacy_uuid(u, 'food_entry', x->>'id') id, u user_id,
@@ -91,17 +94,17 @@ begin
       coalesce(diary.within(diary.num(x->'f'), 0, 10000), 0) fat_g,
       diary.within(diary.num(x->'fiber'), 0, 10000) fibre_g, diary.within(diary.num(x->'sugar'), 0, 10000) sugars_g,
       diary.within(diary.num(x->'saturates'), 0, 10000) saturated_fat_g, diary.within(diary.num(x->'salt'), 0, 10000) salt_g,
-      x->>'id' legacy_id
+      case when x ? 'addedBy' then diary.legacy_uuid(u, 'ai_action', 'log_meal:' || (x->>'id')) end ai_action_id, x->>'id' legacy_id
     from jsonb_array_elements(case when jsonb_typeof(doc->'meals') = 'array' then doc->'meals' else '[]' end) x
     where coalesce(x->>'id', '') <> '' and (only_entries is null or x->>'id' = any(only_entries))
   ) s
   on t.id = s.id
-  when matched and (t.local_date, t.meal, t.food_id, t.name, t.amount, t.unit, t.kcal, t.protein_g, t.carbs_g, t.fat_g, t.fibre_g, t.sugars_g, t.saturated_fat_g, t.salt_g, t.deleted_at)
-    is distinct from (s.local_date, s.meal, s.food_id, s.name, s.amount, s.unit, s.kcal, s.protein_g, s.carbs_g, s.fat_g, s.fibre_g, s.sugars_g, s.saturated_fat_g, s.salt_g, null::timestamptz)
+  when matched and (t.local_date, t.meal, t.food_id, t.name, t.amount, t.unit, t.kcal, t.protein_g, t.carbs_g, t.fat_g, t.fibre_g, t.sugars_g, t.saturated_fat_g, t.salt_g, t.ai_action_id, t.deleted_at)
+    is distinct from (s.local_date, s.meal, s.food_id, s.name, s.amount, s.unit, s.kcal, s.protein_g, s.carbs_g, s.fat_g, s.fibre_g, s.sugars_g, s.saturated_fat_g, s.salt_g, s.ai_action_id, null::timestamptz)
     then update set local_date = s.local_date, meal = s.meal, food_id = s.food_id, name = s.name, amount = s.amount, unit = s.unit, kcal = s.kcal, protein_g = s.protein_g,
-      carbs_g = s.carbs_g, fat_g = s.fat_g, fibre_g = s.fibre_g, sugars_g = s.sugars_g, saturated_fat_g = s.saturated_fat_g, salt_g = s.salt_g, deleted_at = null
-  when not matched then insert (id, user_id, local_date, meal, food_id, name, amount, unit, kcal, protein_g, carbs_g, fat_g, fibre_g, sugars_g, saturated_fat_g, salt_g, legacy_id)
-    values (s.id, s.user_id, s.local_date, s.meal, s.food_id, s.name, s.amount, s.unit, s.kcal, s.protein_g, s.carbs_g, s.fat_g, s.fibre_g, s.sugars_g, s.saturated_fat_g, s.salt_g, s.legacy_id);
+      carbs_g = s.carbs_g, fat_g = s.fat_g, fibre_g = s.fibre_g, sugars_g = s.sugars_g, saturated_fat_g = s.saturated_fat_g, salt_g = s.salt_g, ai_action_id = s.ai_action_id, deleted_at = null
+  when not matched then insert (id, user_id, local_date, meal, food_id, name, amount, unit, kcal, protein_g, carbs_g, fat_g, fibre_g, sugars_g, saturated_fat_g, salt_g, ai_action_id, legacy_id)
+    values (s.id, s.user_id, s.local_date, s.meal, s.food_id, s.name, s.amount, s.unit, s.kcal, s.protein_g, s.carbs_g, s.fat_g, s.fibre_g, s.sugars_g, s.saturated_fat_g, s.salt_g, s.ai_action_id, s.legacy_id);
   update diary.food_entries set deleted_at = now_ts
     where user_id = u and deleted_at is null and legacy_id is not null and (only_entries is null or legacy_id = any(only_entries))
       and legacy_id not in (select x->>'id' from jsonb_array_elements(case when jsonb_typeof(doc->'meals') = 'array' then doc->'meals' else '[]' end) x where x->>'id' is not null);
@@ -167,8 +170,10 @@ begin
 end $$;
 revoke all on function diary.follow_nutrition() from public, anon, authenticated;
 
+-- Triggers on one event run in name order: diary_1_training, diary_2_nutrition, diary_3_body, diary_4_account.
 drop trigger if exists follow_nutrition on public.forma_workspaces;
-create trigger follow_nutrition after insert or update of payload on public.forma_workspaces
+drop trigger if exists diary_2_nutrition on public.forma_workspaces;
+create trigger diary_2_nutrition after insert or update of payload on public.forma_workspaces
   for each row execute function diary.follow_nutrition();
 
 commit;

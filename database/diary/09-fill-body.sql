@@ -24,19 +24,22 @@ begin
                      from jsonb_array_elements(case when jsonb_typeof(doc->'weights') = 'array' then doc->'weights' else '[]' end) with ordinality e(x, n)
                      where diary.day(x->>'date') is not null and diary.within(diary.num(x->'kg'), 20, 400) is not null
                      order by diary.day(x->>'date'), n desc) k where k.id = t.legacy_id);
+  perform diary.note_ai(u, 'log_weight', (select jsonb_agg(jsonb_build_object('key', x->>'id', 'by', x->'addedBy'))
+    from jsonb_array_elements(case when jsonb_typeof(doc->'weights') = 'array' then doc->'weights' else '[]' end) x where x ? 'addedBy'));
   merge into diary.weigh_ins t
   using (
     select distinct on (d) diary.legacy_uuid(u, 'weigh_in', x->>'id') id, u user_id, d local_date,
       diary.within(diary.num(x->'kg'), 20, 400) weight_kg, diary.within(diary.num(x->'bodyFat'), 2, 70) body_fat_pct,
-      case when x->>'source' = 'health' then 'health_connect' when x ? 'addedBy' then 'ai' else 'manual' end source, x->>'id' legacy_id
+      case when x->>'source' = 'health' then 'health_connect' when x ? 'addedBy' then 'ai' else 'manual' end source,
+      case when x ? 'addedBy' then diary.legacy_uuid(u, 'ai_action', 'log_weight:' || (x->>'id')) end ai_action_id, x->>'id' legacy_id
     from (select x, diary.day(x->>'date') d, n from jsonb_array_elements(case when jsonb_typeof(doc->'weights') = 'array' then doc->'weights' else '[]' end) with ordinality e(x, n)) w
     where d is not null and coalesce(x->>'id', '') <> '' and diary.within(diary.num(x->'kg'), 20, 400) is not null
     order by d, n desc
   ) s
   on t.id = s.id
-  when matched and (t.local_date, t.weight_kg, t.body_fat_pct, t.source, t.deleted_at) is distinct from (s.local_date, s.weight_kg, s.body_fat_pct, s.source, null::timestamptz)
-    then update set local_date = s.local_date, weight_kg = s.weight_kg, body_fat_pct = s.body_fat_pct, source = s.source, deleted_at = null
-  when not matched then insert (id, user_id, local_date, weight_kg, body_fat_pct, source, legacy_id) values (s.id, s.user_id, s.local_date, s.weight_kg, s.body_fat_pct, s.source, s.legacy_id);
+  when matched and (t.local_date, t.weight_kg, t.body_fat_pct, t.source, t.ai_action_id, t.deleted_at) is distinct from (s.local_date, s.weight_kg, s.body_fat_pct, s.source, s.ai_action_id, null::timestamptz)
+    then update set local_date = s.local_date, weight_kg = s.weight_kg, body_fat_pct = s.body_fat_pct, source = s.source, ai_action_id = s.ai_action_id, deleted_at = null
+  when not matched then insert (id, user_id, local_date, weight_kg, body_fat_pct, source, ai_action_id, legacy_id) values (s.id, s.user_id, s.local_date, s.weight_kg, s.body_fat_pct, s.source, s.ai_action_id, s.legacy_id);
   insert into diary.fill_problems (user_id, kind, legacy_id, detail)
   select u, 'weigh_in', x->>'id', case when diary.within(diary.num(x->'kg'), 20, 400) is null then 'kg' else 'second on the same day' end
   from jsonb_array_elements(case when jsonb_typeof(doc->'weights') = 'array' then doc->'weights' else '[]' end) with ordinality e(x, n)
@@ -94,19 +97,22 @@ begin
     where user_id = u and deleted_at is null and local_date not in (select d from _rec where jsonb_typeof(x->'sleepStages') = 'object');
 
   -- ── Measurements: one row per site of each old row ──
+  perform diary.note_ai(u, 'log_measurements', (select jsonb_agg(jsonb_build_object('key', x->>'id', 'by', x->'addedBy'))
+    from jsonb_array_elements(case when jsonb_typeof(doc->'checkins') = 'array' then doc->'checkins' else '[]' end) x where x ? 'addedBy'));
   merge into diary.body_measurements t
   using (
     select diary.legacy_uuid(u, 'measurement', (x->>'id') || ':' || site) id, u user_id, diary.day(x->>'date') local_date, site,
-      round(diary.num(x->site), 1) cm, (x->>'id') || ':' || site legacy_id
+      round(diary.num(x->site), 1) cm,
+      case when x ? 'addedBy' then diary.legacy_uuid(u, 'ai_action', 'log_measurements:' || (x->>'id')) end ai_action_id, (x->>'id') || ':' || site legacy_id
     from jsonb_array_elements(case when jsonb_typeof(doc->'checkins') = 'array' then doc->'checkins' else '[]' end) x,
          unnest(array['waist', 'chest', 'hips', 'arms']) site
     where coalesce(x->>'id', '') <> '' and diary.day(x->>'date') is not null
       and case site when 'arms' then diary.num(x->site) between 15 and 80 when 'waist' then diary.num(x->site) between 40 and 200 else diary.num(x->site) between 50 and 200 end
   ) s
   on t.id = s.id
-  when matched and (t.local_date, t.cm, t.deleted_at) is distinct from (s.local_date, s.cm, null::timestamptz)
-    then update set local_date = s.local_date, cm = s.cm, deleted_at = null
-  when not matched then insert (id, user_id, local_date, site, cm, legacy_id) values (s.id, s.user_id, s.local_date, s.site, s.cm, s.legacy_id);
+  when matched and (t.local_date, t.cm, t.ai_action_id, t.deleted_at) is distinct from (s.local_date, s.cm, s.ai_action_id, null::timestamptz)
+    then update set local_date = s.local_date, cm = s.cm, ai_action_id = s.ai_action_id, deleted_at = null
+  when not matched then insert (id, user_id, local_date, site, cm, ai_action_id, legacy_id) values (s.id, s.user_id, s.local_date, s.site, s.cm, s.ai_action_id, s.legacy_id);
   update diary.body_measurements t set deleted_at = now_ts
     where t.user_id = u and t.deleted_at is null and t.legacy_id is not null and t.legacy_id not in (
       select (x->>'id') || ':' || site from jsonb_array_elements(case when jsonb_typeof(doc->'checkins') = 'array' then doc->'checkins' else '[]' end) x,
@@ -137,8 +143,10 @@ begin
 end $$;
 revoke all on function diary.follow_body() from public, anon, authenticated;
 
+-- Triggers on one event run in name order: diary_1_training, diary_2_nutrition, diary_3_body, diary_4_account.
 drop trigger if exists follow_body on public.forma_workspaces;
-create trigger follow_body after insert or update of payload on public.forma_workspaces
+drop trigger if exists diary_3_body on public.forma_workspaces;
+create trigger diary_3_body after insert or update of payload on public.forma_workspaces
   for each row execute function diary.follow_body();
 
 commit;
