@@ -96,6 +96,14 @@ begin
           where coalesce(x->>'sleep', x->>'steps', x->>'energy', x->>'soreness') is not null or jsonb_typeof(x->'sleepStages') = 'object' order by x->>'date', i) oc
     left join (select x->>'date' d, x from jsonb_array_elements(n->'checkins') x where x->>'id' like 'recovery:%') nc using (d);
 
+    -- The Friends feed: each workout's copy as friends see it now, and as the tables would write it.
+    if to_regclass('public.mfd_social_workouts') is not null then
+      execute $f$insert into _d select 11, 'Friends feed', 'workout copies', count(*) filter (where c.data = diary.feed_copy(w)),
+          count(*) filter (where w.id is null or c.data is distinct from diary.feed_copy(w)), min(c.workout_id) filter (where w.id is null or c.data is distinct from diary.feed_copy(w))
+        from public.mfd_social_workouts c left join diary.workouts w on w.user_id = c.owner_id and w.legacy_id = c.workout_id and w.deleted_at is null
+        where c.owner_id = $1$f$ using u;
+    end if;
+
     -- 2. The AI connector's answers, from each version.
     select btrim(x->>'exercise') into top from jsonb_array_elements(case when jsonb_typeof(o->'sessions') = 'array' then o->'sessions' else '[]' end) s,
       jsonb_array_elements(case when jsonb_typeof(s->'sets') = 'array' then s->'sets' else '[]' end) x group by 1 order by count(*) desc limit 1;
