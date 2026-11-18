@@ -1,7 +1,8 @@
 // Derived data hooks. Selectors read stable slices from the store, then compute with useMemo.
 import { useMemo,useSyncExternalStore } from 'react';
 import {selectedDay,subscribeDay} from '../lib/daySelection';
-import { calculateTargets, nutrientsFor, sumNutrients, fibreSummary, type Nutrients } from '../domain/nutrition';
+import { MFD3 } from '../lib/release';
+import { calculateTargets, profileForTargets, nutrientsFor, sumNutrients, fibreSummary, type Nutrients } from '../domain/nutrition';
 import type { DiaryEntry, ISODate, Meal } from '../domain/types';
 import { todayISO } from '../lib/format';
 import { useDB } from './store';
@@ -12,7 +13,8 @@ export function useSelectedDate(): ISODate {
 
 export function useTargets() {
   const profile = useDB((d) => d.profile);
-  return useMemo(() => (profile ? calculateTargets(profile) : null), [profile]);
+  const weights = useDB((d) => d.weights);
+  return useMemo(() => (profile ? calculateTargets(profileForTargets(profile, weights, MFD3)) : null), [profile, weights]);
 }
 
 export const entryNutrients = (e: DiaryEntry): Nutrients => nutrientsFor(e.food, e.amount, e.unit);

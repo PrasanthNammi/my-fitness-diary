@@ -8,7 +8,7 @@
 //     carbohydrate fills the remaining energy.
 //  5. Water: 35 ml per kg body weight.
 
-import type { ActivityLevel, Food, Goal, NutritionTargets, PortionUnit, Profile } from './types';
+import type { ActivityLevel, Food, Goal, NutritionTargets, PortionUnit, Profile, WeightEntry } from './types';
 
 export const ACTIVITY_FACTORS: Record<ActivityLevel, { factor: number; label: string; hint: string }> = {
   sedentary: { factor: 1.2, label: 'Sedentary', hint: 'Desk job, little exercise' },
@@ -42,6 +42,17 @@ export interface TargetBreakdown {
 export function bmrMifflinStJeor(p: Pick<Profile, 'sex' | 'weightKg' | 'heightCm' | 'age'>): number {
   const base = 10 * p.weightKg + 6.25 * p.heightCm - 5 * p.age;
   return p.sex === 'male' ? base + 5 : base - 161;
+}
+
+/**
+ * The profile targets are worked out from. From MFD 3.0 (latestWeighIn) the weight is the latest weigh-in, so
+ * targets follow progress; the weight typed at onboarding is only used until the first weigh-in.
+ */
+export function profileForTargets(p: Profile, weights: readonly WeightEntry[], latestWeighIn: boolean): Profile {
+  if (!latestWeighIn) return p;
+  let last: WeightEntry | undefined;
+  for (const w of weights) if (Number.isFinite(w.kg) && w.kg >= 20 && w.kg <= 400 && (!last || w.date > last.date)) last = w;
+  return last ? { ...p, weightKg: last.kg } : p;
 }
 
 export function calculateTargets(p: Profile): TargetBreakdown {
