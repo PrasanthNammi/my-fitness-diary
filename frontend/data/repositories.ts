@@ -1,3 +1,4 @@
+import { ageOn } from '../domain/birthDate';
 import {selectDay} from '../lib/daySelection';
 import { finishedWorkout, workoutExpired } from '../domain/workoutLimit';
 import {activeRecords,metricLabels} from '../domain/records';
@@ -13,7 +14,7 @@ import type {
   ActiveWorkout, CheckIn, DiaryEntry, Exercise, ExerciseBlock, Folder, Food, ID, ISODate,
   Meal, PortionUnit, Profile, Routine, SetEntry, SetType, Settings, TrackingMode, Workout,
 } from '../domain/types';
-import { uid } from '../lib/format';
+import { todayISO, uid } from '../lib/format';
 import { resolveExercise } from '../catalogue/runtime';
 import { activeSuggestion, applyTargets, extraTargets, fits, matchBlock, removeTargets, targetSets, type AiSuggestion } from '../domain/aiSuggestions';
 import { getDB, update } from './store';
@@ -404,6 +405,10 @@ export const profileRepo = {
   async save(p: Profile) {
     await saveIdentity(p);
     update((d) => void (d.profile = p));
+  },
+  /** MFD 3.0: the date of birth; the age (and with it the targets) is worked out from it from now on. */
+  setBirthDate(date: ISODate) {
+    update((d) => { if (d.profile) d.profile = { ...d.profile, birthDate: date, age: ageOn(date, todayISO()) }; });
   },
   updateSettings(patch: Partial<Settings>) {
     update((d) => void (d.settings = { ...d.settings, ...patch }));

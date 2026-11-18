@@ -6,8 +6,9 @@
 //   06-nutrition.sql  food entries keep their values exactly (no rounding to 0.01);
 //   12-read.sql       reading the diary back from the tables (new; used by the check and, later, the readers).
 // Update 2: 06-nutrition.sql again, food labels keep their values exactly (salt 0.125 was stored as 0.13).
+// Update 3: 11-fill-account.sql, the date of birth (MFD 3.0 pop-up) is copied into user_profiles.birth_date.
 // Then every diary is copied again (only rows that change are written) and a short report is shown.
-// Usage: node scripts-diary-update.cjs [update number, default 2] [out-file]
+// Usage: node scripts-diary-update.cjs [update number, default 3] [out-file]
 const fs = require('fs'), os = require('os'), path = require('path');
 const strip = (sql) => sql.split('\n').filter((l) => !/^\s*(begin|commit);\s*$/i.test(l)).join('\n');
 const part = (f) => strip(fs.readFileSync(path.join(__dirname, 'database/diary', f + '.sql'), 'utf8'));
@@ -24,8 +25,11 @@ select (select count(*) from diary.workout_exercises where tracking is not null)
        after: `select (select count(*) from diary.foods where user_id is not null and deleted_at is null) as foods,
        (select count(*) from diary.foods where salt_g <> round(salt_g, 2) or fat_g <> round(fat_g, 2) or sugars_g <> round(sugars_g, 2)) as labels_with_more_than_2_decimals,
        (select count(*) from diary.fill_problems) as problems_left;` },
+  3: { title: 'update 3 (2026-11-18): the date of birth from MFD 3.0\'s pop-up is copied into the profile', parts: ['11-fill-account'], fills: ['fill_account'],
+       after: `select (select count(*) from diary.user_profiles) as profiles, (select count(*) from diary.user_profiles where birth_date is not null) as with_birth_date,
+       (select count(*) from diary.fill_problems) as problems_left;` },
 };
-const n = Number(process.argv[2] || 2), u = updates[n];
+const n = Number(process.argv[2] || 3), u = updates[n];
 if (!u) throw new Error('Unknown update ' + n);
 const out = `-- MFD 3.0 database, ${u.title}. Paste all of it into the Supabase SQL editor (project Forma) and press Run.
 -- All or nothing; safe to run again; the app keeps working throughout.

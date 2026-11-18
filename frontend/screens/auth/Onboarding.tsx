@@ -1,3 +1,6 @@
+import { BirthDateFields, birthParts, type BirthParts } from '../../components/BirthDate';
+import { checkBirthDate } from '../../domain/birthDate';
+import { MFD3 } from '../../lib/release';
 import { useEffect, useMemo, useState } from 'react';
 import {checkProfileId,getIdentity,splitName,validProfileId} from '../../adapters/profile';
 import { ChevronLeft } from 'lucide-react';
@@ -8,11 +11,25 @@ import { useDB } from '../../data/store';
 import { body, profileRepo } from '../../data/repositories';
 import { kgTo, parseDecimal, round1, todayISO, toKg } from '../../lib/format';
 
+/** MFD 3.0: what's wrong with the date of birth, if anything. */
+function birthError(b: BirthParts): string | null {
+  const c = checkBirthDate(b.day, b.month, b.year, todayISO());
+  return c.state === 'empty' ? 'Enter your date of birth.' : c.state === 'bad' ? c.message : null;
+}
+/** The age (and, from 3.0, the date of birth it comes from) the profile is saved with. */
+function birthFromDraft(d: ProfileDraft): Pick<Profile, 'age' | 'birthDate'> {
+  if (!MFD3) return { age: Number(d.age) };
+  const c = checkBirthDate(d.birth.day, d.birth.month, d.birth.year, todayISO());
+  return c.state === 'ok' ? { birthDate: c.date, age: c.age } : { age: Number(d.age) };
+}
+
 export interface ProfileDraft {
   firstName: string;
   lastName: string;
   profileId: string;
   age: string;
+  /** MFD 3.0: date of birth instead of age. */
+  birth: BirthParts;
   sex: Sex | null;
   height: string;
   weight: string;
@@ -25,11 +42,11 @@ export interface ProfileDraft {
 export function draftFromProfile(p: Profile | null, fallbackName: string, unit: 'kg' | 'lb'): ProfileDraft {
   return p
     ? {
-        ...splitName(p.name),firstName:p.firstName??splitName(p.name).firstName,lastName:p.lastName??splitName(p.name).lastName,profileId:p.profileId||'', age: String(p.age), sex: p.sex, height: String(p.heightCm),
+        ...splitName(p.name),firstName:p.firstName??splitName(p.name).firstName,lastName:p.lastName??splitName(p.name).lastName,profileId:p.profileId||'', age: String(p.age), birth: birthParts(p.birthDate), sex: p.sex, height: String(p.heightCm),
         weight: String(round1(kgTo(p.weightKg, unit))), activity: p.activity, goal: p.goal,
         target: String(round1(kgTo(p.targetWeightKg, unit))), days: p.trainingDaysPerWeek,
       }
-    : { ...splitName(fallbackName),profileId:'', age: '', sex: null, height: '', weight: '', activity: null, goal: null, target: '', days: 3 };
+    : { ...splitName(fallbackName),profileId:'', age: '', birth: birthParts(), sex: null, height: '', weight: '', activity: null, goal: null, target: '', days: 3 };
 }
 
 export function validateDraft(d: ProfileDraft, unit: 'kg' | 'lb') {
@@ -43,7 +60,7 @@ export function validateDraft(d: ProfileDraft, unit: 'kg' | 'lb') {
     firstName: !d.firstName.trim()||d.firstName.trim().length>40 ? 'Enter your first name (up to 40 characters).' : null,
     lastName: !d.lastName.trim()||d.lastName.trim().length>39 ? 'Enter your last name (up to 39 characters).' : null,
     profileId: !validProfileId(d.profileId) ? 'Use 3–24 lowercase letters, numbers, dots or underscores.' : null,
-    age: !d.age ? 'Enter your age.' : !Number.isInteger(age) || age < 16 || age > 100 ? 'Enter an age between 16 and 100.' : null,
+    age: MFD3 ? birthError(d.birth) : !d.age ? 'Enter your age.' : !Number.isInteger(age) || age < 16 || age > 100 ? 'Enter an age between 16 and 100.' : null,
     sex: !d.sex ? 'Choose one — it’s used for the calorie formula.' : null,
     height: h === null ? 'Enter your height.' : h < 120 || h > 230 ? 'Enter a height between 120 and 230 cm.' : null,
     weight: wKg === null ? 'Enter your weight.' : wKg < 30 || wKg > 300 ? 'Enter a realistic weight.' : null,
@@ -57,7 +74,7 @@ export function profileFromDraft(d: ProfileDraft, unit: 'kg' | 'lb'): Profile {
   return {
     firstName:d.firstName.trim(),lastName:d.lastName.trim(),profileId:d.profileId,
     name: [d.firstName.trim(),d.lastName.trim()].join(' '),
-    age: Number(d.age),
+    ...birthFromDraft(d),
     sex: d.sex!,
     heightCm: parseDecimal(d.height)!,
     weightKg: round1(toKg(parseDecimal(d.weight)!, unit)),
@@ -94,9 +111,10 @@ export function ProfileFields({
         <>
           <div className="grid-2"><Field label="First name" htmlFor="pf-first" error={e('firstName')}><input id="pf-first" className="input" autoComplete="given-name" maxLength={40} value={d.firstName} onChange={x=>set({firstName:x.target.value})}/></Field><Field label="Last name" htmlFor="pf-last" error={e('lastName')}><input id="pf-last" className="input" autoComplete="family-name" maxLength={39} value={d.lastName} onChange={x=>set({lastName:x.target.value})}/></Field></div>
           <Field label="Profile ID" htmlFor="pf-id" error={e('profileId')}><input id="pf-id" className="input" autoComplete="username" autoCapitalize="none" spellCheck={false} maxLength={24} value={d.profileId} onChange={x=>set({profileId:x.target.value.toLowerCase().replace(/^@/,'')})}/></Field>
+          {MFD3 ? <BirthDateFields value={d.birth} onChange={(birth) => set({ birth })} id="pf-dob" error={e('age')} /> : (
           <Field label="Age" htmlFor="pf-age" error={e('age')}>
             <input id="pf-age" className="input" inputMode="numeric" value={d.age} onChange={(x) => set({ age: x.target.value.replace(/\D/g, '') })} />
-          </Field>
+          </Field>)}
           <div className="field">
             <span className="label">Sex used for calorie estimation</span>
             <Segmented label="Sex" value={d.sex ?? ('' as Sex)} onChange={(v) => set({ sex: v })} options={[{ value: 'female', label: 'Female' }, { value: 'male', label: 'Male' }]} />
