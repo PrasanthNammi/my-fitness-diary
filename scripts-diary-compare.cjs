@@ -11,6 +11,13 @@ const strip = (sql) => sql.split('\n').filter((l) => !/^\s*(begin|commit);\s*$/i
 const read = strip(fs.readFileSync(path.join(__dirname, 'database/diary/12-read.sql'), 'utf8'));
 
 const report = `
+-- Two copies of a feed workout that differ only in older own-exercise ids ("history:…").
+create function pg_temp.only_old_ids(a jsonb, b jsonb) returns boolean language sql immutable as $$
+  select exists (select 1 from jsonb_array_elements(a->'sets') s where s->>'catalogId' like 'history:%')
+    and jsonb_set(a, '{sets}', coalesce((select jsonb_agg(s - 'catalogId' order by i) from jsonb_array_elements(a->'sets') with ordinality t(s, i)), '[]'))
+      = jsonb_set(b, '{sets}', coalesce((select jsonb_agg(s - 'catalogId' order by i) from jsonb_array_elements(b->'sets') with ordinality t(s, i)), '[]'))
+$$;
+
 do $cmp$
 declare u uuid; o jsonb; n jsonb; op text; args jsonb; a jsonb; b jsonb; top text; rep text := '';
 begin
@@ -98,10 +105,17 @@ begin
 
     -- The Friends feed: each workout's copy as friends see it now, and as the tables would write it.
     if to_regclass('public.mfd_social_workouts') is not null then
+      -- A copy that differs only because a few sets carry an older id of the person's own exercise ("history:…",
+      -- now matched by name to the same exercise) is expected: friends see the same names and numbers.
       execute $f$insert into _d select 11, 'Friends feed', 'workout copies', count(*) filter (where c.data = diary.feed_copy(w)),
-          count(*) filter (where w.id is null or c.data is distinct from diary.feed_copy(w)), min(c.workout_id) filter (where w.id is null or c.data is distinct from diary.feed_copy(w))
+          count(*) filter (where w.id is null or (c.data is distinct from diary.feed_copy(w) and not pg_temp.only_old_ids(c.data, diary.feed_copy(w)))),
+          min(c.workout_id) filter (where w.id is null or (c.data is distinct from diary.feed_copy(w) and not pg_temp.only_old_ids(c.data, diary.feed_copy(w))))
         from public.mfd_social_workouts c left join diary.workouts w on w.user_id = c.owner_id and w.legacy_id = c.workout_id and w.deleted_at is null
-        where c.owner_id = $1$f$ using u;
+        where c.owner_id = $1
+        union all
+        select 31, 'Expected', 'feed copies, older exercise id', 0, count(*), null
+        from public.mfd_social_workouts c join diary.workouts w on w.user_id = c.owner_id and w.legacy_id = c.workout_id and w.deleted_at is null
+        where c.owner_id = $1 and c.data is distinct from diary.feed_copy(w) and pg_temp.only_old_ids(c.data, diary.feed_copy(w))$f$ using u;
     end if;
 
     -- 2. The AI connector's answers, from each version.
@@ -127,10 +141,12 @@ begin
   end loop;
 
   select string_agg(rpad(area, 13) || rpad(item, 36) || lpad(sum_same::text, 7) || lpad(sum_diff::text, 7) || '  '
-           || case when sum_diff = 0 then 'SAME' else 'DIFFERENT' || coalesce(' (e.g. ' || left(ex1, 60) || ')', '') end, chr(10) order by k, item)
+           || case when area = 'Expected' then 'EXPECTED' when sum_diff = 0 then 'SAME' else 'DIFFERENT' || coalesce(' (e.g. ' || left(ex1, 60) || ')', '') end, chr(10) order by k, item)
     into rep
-  from (select min(k) k, area, item, sum(same) sum_same, sum(diff) sum_diff, min(example) ex1 from _d group by area, item) z;
-  raise exception '%', 'MFD 3.0 SIDE-BY-SIDE CHECK · nothing was kept (this error undid everything)' || chr(10)
+  from (select min(k) k, area, item, sum(same) sum_same, sum(diff) sum_diff, min(example) ex1 from _d group by area, item) z
+  where area <> 'Expected' or sum_diff > 0;
+  raise exception '%', 'MFD 3.0 SIDE-BY-SIDE CHECK · the "error" is on purpose: it undoes everything, so nothing is kept.' || chr(10)
+    || 'Read the last column: SAME = identical, EXPECTED = a known, planned difference, DIFFERENT = needs a look (there should be none).' || chr(10)
     || (select count(*) from public.forma_workspaces) || ' diaries · counts are entries (or people for the AI connector lines)' || chr(10) || chr(10)
     || rpad('Area', 13) || rpad('What', 36) || lpad('same', 7) || lpad('diff', 7) || chr(10) || rep;
 end $cmp$;
