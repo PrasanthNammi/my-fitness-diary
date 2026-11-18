@@ -6,6 +6,7 @@
 --   diary.changes_since(n)      every row of the caller's that changed after sync number n, per table, and the
 --                               newest number, so a phone only downloads what changed.
 --
+-- Numbers come back without trailing zeros (80.00 kg as 80), as the old document stored them.
 -- What the old document held but the tables deliberately don't (device-only or leftovers of the old format) is left
 -- out: the coach chat, AI coach settings, hidden AI items, folder open/closed, import bookkeeping on sets
 -- (legacyCatalogId, sourceSetIndex), the 'Hevy' label on a few imported sets, a rest timer's saved end.
@@ -27,9 +28,9 @@ $$;
 -- A food label in the old shape (per basis amount).
 create or replace function diary.label_json(f diary.foods) returns jsonb language sql stable set search_path = '' as $$
   select jsonb_strip_nulls(jsonb_build_object('id', coalesce(f.legacy_id, f.id::text), 'name', f.name, 'brand', f.brand, 'barcode', f.barcode,
-    'basis', f.basis_amount, 'unit', f.basis_unit, 'servingSize', f.serving_size, 'servingLabel', f.serving_label,
-    'cal', f.kcal, 'p', f.protein_g, 'c', f.carbs_g, 'f', f.fat_g, 'fiber', f.fibre_g, 'sugar', f.sugars_g, 'saturates', f.saturated_fat_g,
-    'salt', f.salt_g, 'ingredients', f.ingredients, 'notes', f.notes, 'source', f.source))
+    'basis', trim_scale(f.basis_amount), 'unit', f.basis_unit, 'servingSize', trim_scale(f.serving_size), 'servingLabel', f.serving_label,
+    'cal', trim_scale(f.kcal), 'p', trim_scale(f.protein_g), 'c', trim_scale(f.carbs_g), 'f', trim_scale(f.fat_g), 'fiber', trim_scale(f.fibre_g), 'sugar', trim_scale(f.sugars_g), 'saturates', trim_scale(f.saturated_fat_g),
+    'salt', trim_scale(f.salt_g), 'ingredients', f.ingredients, 'notes', f.notes, 'source', f.source))
 $$;
 
 -- One workout (finished or running) in the old shape.
@@ -51,11 +52,11 @@ create or replace function diary.workout_json(w diary.workouts) returns jsonb la
         'type', case s.set_type when 'drop' then 'dropset' else s.set_type end,
         -- the old group number is kept in the exercise's old id ("workout:group")
         'group', coalesce(case when we.legacy_id ~ ':\d+$' then substring(we.legacy_id from ':(\d+)$')::int end, we.position),
-        'set', s.position + 1, 'kg', s.weight_kg, 'reps', s.reps, 'duration_seconds', s.duration_s, 'distance_meters', s.distance_m,
-        'floors', s.floors, 'steps', s.steps, 'rpe', s.rpe, 'done', s.completed_at is not null,
+        'set', s.position + 1, 'kg', trim_scale(s.weight_kg), 'reps', s.reps, 'duration_seconds', s.duration_s, 'distance_meters', trim_scale(s.distance_m),
+        'floors', s.floors, 'steps', s.steps, 'rpe', trim_scale(s.rpe), 'done', s.completed_at is not null,
         'mfdDoneAt', case when s.completed_at is distinct from w.ended_at then diary.epoch_ms(s.completed_at) end,
-        'mfdSuggested', case when s.planned_weight_kg is not null or s.planned_reps is not null
-                          then jsonb_strip_nulls(jsonb_build_object('kg', s.planned_weight_kg, 'reps', s.planned_reps)) end,
+        'mfdSuggested', case when trim_scale(s.planned_weight_kg) is not null or s.planned_reps is not null
+                          then jsonb_strip_nulls(jsonb_build_object('kg', trim_scale(s.planned_weight_kg), 'reps', s.planned_reps)) end,
         'mfdAi', case when s.planned_by_ai then true end,
         'superset_id', we.superset_group::text, 'notes', coalesce(we.notes, '')))
         order by we.position, s.position)
@@ -83,9 +84,9 @@ language sql stable security definer set search_path = '' as $$
             'rest', re.rest_s, 'notes', coalesce(re.notes, ''), 'superset_id', re.superset_group::text,
             'sets', (select count(*) from diary.routine_sets rs where rs.routine_exercise_id = re.id and rs.deleted_at is null),
             'reps', (select rs.target_reps from diary.routine_sets rs where rs.routine_exercise_id = re.id and rs.deleted_at is null and rs.set_type <> 'warmup' order by rs.position limit 1),
-            'kg', (select rs.target_weight_kg from diary.routine_sets rs where rs.routine_exercise_id = re.id and rs.deleted_at is null and rs.set_type <> 'warmup' order by rs.position limit 1),
+            'kg', (select trim_scale(rs.target_weight_kg) from diary.routine_sets rs where rs.routine_exercise_id = re.id and rs.deleted_at is null and rs.set_type <> 'warmup' order by rs.position limit 1),
             'setDetails', (select jsonb_agg(jsonb_strip_nulls(jsonb_build_object('type', case rs.set_type when 'drop' then 'dropset' else rs.set_type end,
-                              'kg', rs.target_weight_kg, 'reps', rs.target_reps, 'duration_seconds', rs.target_duration_s, 'distance_meters', rs.target_distance_m))
+                              'kg', trim_scale(rs.target_weight_kg), 'reps', rs.target_reps, 'duration_seconds', rs.target_duration_s, 'distance_meters', trim_scale(rs.target_distance_m)))
                               order by rs.position)
                            from diary.routine_sets rs where rs.routine_exercise_id = re.id and rs.deleted_at is null)))
             order by re.position)
@@ -98,8 +99,8 @@ language sql stable security definer set search_path = '' as $$
                               from diary.exercises e where e.user_id = u and e.deleted_at is null and e.archived_at is null), '[]'),
     'meals', coalesce((select jsonb_agg(jsonb_strip_nulls(jsonb_build_object(
         'id', coalesce(m.legacy_id, m.id::text), 'date', m.local_date::text, 'meal', initcap(m.meal), 'name', m.name,
-        'amount', m.amount, 'unit', m.unit, 'cal', m.kcal, 'p', m.protein_g, 'c', m.carbs_g, 'f', m.fat_g,
-        'fiber', m.fibre_g, 'sugar', m.sugars_g, 'saturates', m.saturated_fat_g, 'salt', m.salt_g,
+        'amount', trim_scale(m.amount), 'unit', m.unit, 'cal', trim_scale(m.kcal), 'p', trim_scale(m.protein_g), 'c', trim_scale(m.carbs_g), 'f', trim_scale(m.fat_g),
+        'fiber', trim_scale(m.fibre_g), 'sugar', trim_scale(m.sugars_g), 'saturates', trim_scale(m.saturated_fat_g), 'salt', trim_scale(m.salt_g),
         'labelFood', (select diary.label_json(f) from diary.foods f where f.id = m.food_id),
         'addedBy', diary.added_by(m.ai_action_id)))
         order by m.local_date, m.created_at, m.id)
@@ -112,29 +113,29 @@ language sql stable security definer set search_path = '' as $$
     'water', coalesce((select jsonb_object_agg(d, ml) from (select local_date::text d, sum(ml) ml from diary.water_logs
                         where user_id = u and deleted_at is null group by 1) z), '{}'),
     'weights', coalesce((select jsonb_agg(jsonb_strip_nulls(jsonb_build_object(
-        'id', coalesce(x.legacy_id, x.id::text), 'date', x.local_date::text, 'kg', x.weight_kg, 'bodyFat', x.body_fat_pct,
+        'id', coalesce(x.legacy_id, x.id::text), 'date', x.local_date::text, 'kg', trim_scale(x.weight_kg), 'bodyFat', trim_scale(x.body_fat_pct),
         'source', case when x.source = 'health_connect' then 'health' end, 'addedBy', diary.added_by(x.ai_action_id)))
         order by x.local_date)
       from diary.weigh_ins x where x.user_id = u and x.deleted_at is null), '[]'),
     -- Recovery days and measurements are separate tables; the old document had one list of check-ins.
     'checkins', coalesce((select jsonb_agg(c order by c->>'date', c->>'id') from (
         select jsonb_strip_nulls(jsonb_build_object('id', 'recovery:' || r.local_date, 'date', r.local_date::text,
-          'sleep', r.sleep_h, 'sleepSource', case when r.sleep_source = 'health_connect' then 'health' end, 'steps', r.steps,
+          'sleep', trim_scale(r.sleep_h), 'sleepSource', case when r.sleep_source = 'health_connect' then 'health' end, 'steps', r.steps,
           'restingHr', r.resting_hr, 'hrv', r.hrv_ms, 'energy', r.energy, 'soreness', r.soreness, 'note', coalesce(r.note, ''),
           'sleepStages', (select jsonb_build_object('deep', n.deep_min, 'light', n.light_min, 'rem', n.rem_min, 'awake', n.awake_min,
                             'start', diary.epoch_ms(n.started_at), 'end', diary.epoch_ms(n.ended_at))
                           from diary.sleep_nights n where n.user_id = u and n.local_date = r.local_date and n.deleted_at is null))) c
         from diary.recovery_days r where r.user_id = u and r.deleted_at is null
         union all
-        select jsonb_strip_nulls(jsonb_object_agg(site, cm) || jsonb_build_object('id', split_part(legacy_id, ':', 1), 'date', min(local_date)::text,
+        select jsonb_strip_nulls(jsonb_object_agg(site, trim_scale(cm)) || jsonb_build_object('id', split_part(legacy_id, ':', 1), 'date', min(local_date)::text,
           'note', '', 'addedBy', diary.added_by(min(ai_action_id::text)::uuid)))
         from diary.body_measurements where user_id = u and deleted_at is null group by split_part(legacy_id, ':', 1)) z), '[]'),
     'profile', (select jsonb_strip_nulls(jsonb_build_object(
         'firstName', p.first_name, 'lastName', p.last_name, 'name', nullif(btrim(concat_ws(' ', p.first_name, p.last_name)), ''),
         'birthDate', p.birth_date::text, 'age', case when p.birth_date is not null then extract(year from age(p.birth_date))::int end,
-        'sex', p.sex, 'height', p.height_cm, 'activity', p.activity_level,
-        'weight', (select x.weight_kg from diary.weigh_ins x where x.user_id = u and x.deleted_at is null order by x.local_date desc limit 1),
-        'goal', g.goal, 'target', g.target_weight_kg, 'days', g.training_days_per_week, 'waterGoalMl', g.water_goal_ml,
+        'sex', p.sex, 'height', trim_scale(p.height_cm), 'activity', p.activity_level,
+        'weight', (select trim_scale(x.weight_kg) from diary.weigh_ins x where x.user_id = u and x.deleted_at is null order by x.local_date desc limit 1),
+        'goal', g.goal, 'target', trim_scale(g.target_weight_kg), 'days', g.training_days_per_week, 'waterGoalMl', g.water_goal_ml,
         'experience', p.experience, 'equipment', p.equipment, 'limitations', p.limitations, 'diet', p.diet, 'onboarded', p.onboarded))
       from diary.user_profiles p left join diary.user_goals g on g.user_id = p.user_id where p.user_id = u and p.deleted_at is null),
     'mfdSettings', (select jsonb_strip_nulls(jsonb_build_object('weightUnit', s.weight_unit, 'energyUnit', s.energy_unit, 'lengthUnit', s.length_unit,
