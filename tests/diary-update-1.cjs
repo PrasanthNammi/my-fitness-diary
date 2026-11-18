@@ -47,7 +47,7 @@ const diary = (names = ['Upper 1', 'Upper 2']) => ({
 
   // The update, twice (safe to run again).
   const file = path.join(mkdtempSync(path.join(tmpdir(), 'mfd-update-')), 'update.sql');
-  execFileSync(process.execPath, ['scripts-diary-update.cjs', file], { stdio: 'pipe' });
+  execFileSync(process.execPath, ['scripts-diary-update.cjs', '1', file], { stdio: 'pipe' });
   const sql = readFileSync(file, 'utf8');
   const res = await db.exec(sql);
   assert.deepEqual(res.at(-2).rows[0], { exercises_with_tracking: 2, food_entries: 1, problems_left: 0 });
