@@ -3,6 +3,7 @@
 --   diary.as_envelope(person)   the person's diary rebuilt from the tables in the shape the app, the connector and the
 --                               Friends feed read today (the old JSON document). Readers can switch to the tables one
 --                               by one without changing how they read. Ids are the old ones where an entry has one.
+--   diary.feed_copy(workout)    a workout as the Friends feed shows it (mfd_social_workouts.data): only ticked sets.
 --   diary.changes_since(n)      every row of the caller's that changed after sync number n, per table, and the
 --                               newest number, so a phone only downloads what changed.
 --
@@ -65,6 +66,18 @@ create or replace function diary.workout_json(w diary.workouts) returns jsonb la
       join diary.exercises e on e.id = we.exercise_id
       where we.workout_id = w.id and we.deleted_at is null), '[]')))
 $$;
+
+-- The Friends feed's copy of a workout, built from the tables exactly as mfd_private.project_workouts builds it from
+-- the stored document (social-incremental.sql): the workout's facts and its ticked sets.
+create or replace function diary.feed_copy(w diary.workouts) returns jsonb language sql stable set search_path = '' as $$
+  select jsonb_build_object('id', j->'id', 'name', j->'name', 'date', j->'date', 'started', j->'started', 'finished', j->'finished',
+    'sets', coalesce((select jsonb_agg(jsonb_build_object('exercise', e->'exercise', 'group', e->'group', 'set', e->'set', 'type', e->'type',
+        'kg', e->'kg', 'reps', e->'reps', 'duration_seconds', e->'duration_seconds', 'distance_meters', e->'distance_meters', 'rpe', e->'rpe',
+        'catalogId', e->'catalogId', 'tracking', e->'tracking', 'floors', e->'floors', 'steps', e->'steps', 'done', true))
+      from jsonb_array_elements(j->'sets') e where (e->>'done')::boolean), '[]'))
+  from (select diary.workout_json(w) j) z
+$$;
+revoke all on function diary.feed_copy(diary.workouts) from public, anon, authenticated;
 
 create or replace function diary.as_envelope(u uuid) returns jsonb
 language sql stable security definer set search_path = '' as $$

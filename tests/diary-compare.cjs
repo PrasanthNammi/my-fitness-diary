@@ -52,6 +52,12 @@ function diary(who) {
   for (const f of ['mcp-suggest-targets', 'mcp-start-workout', 'mcp-recovery', 'mcp-ai-logging']) await db.exec(readFileSync(`database/${f}.sql`, 'utf8'));
   for (const f of ['01-foundation', '02-library', '03-training', '04-catalogue', '05-fill-training', '06-nutrition', '07-fill-nutrition', '08-body', '09-fill-body', '10-account', '11-fill-account'])
     await db.exec(readFileSync(`database/diary/${f}.sql`, 'utf8'));
+  // The Friends feed's copy table and the trigger that writes it today (from the stored document).
+  const social = readFileSync('database/social-incremental.sql', 'utf8');
+  const project = social.slice(social.indexOf('create or replace function mfd_private.project_workouts()'), social.indexOf('end loop;return new;end$$;') + 'end loop;return new;end$$;'.length);
+  await db.exec(`create schema if not exists mfd_private; create table public.mfd_social_workouts(owner_id uuid not null, workout_id text not null, data jsonb not null,
+    started_at timestamptz not null, updated_at timestamptz not null default now(), primary key(owner_id, workout_id)); ${project}
+    create trigger mfd_project_workouts after insert or update on public.forma_workspaces for each row execute function mfd_private.project_workouts();`);
   for (const [u, w] of [[alice, 'a'], [bob, 'b']]) await db.query(`insert into public.forma_workspaces (user_id, payload) values ($1, $2)`, [u, JSON.stringify(diary(w))]);
 
   const file = path.join(mkdtempSync(path.join(tmpdir(), 'mfd-compare-')), 'compare.sql');
@@ -64,7 +70,8 @@ function diary(who) {
 
   const report = await run();
   const lines = report.split('\n').filter((l) => /SAME|DIFFERENT/.test(l));
-  assert.equal(lines.length, 21, report);
+  assert.equal(lines.length, 22, report);
+  assert.ok(/Friends feed\s+workout copies\s+16\s+0\s+SAME/.test(report), report);
   // Only the targets differ: the new tables work them out from the date of birth (3.0), which these diaries don't have yet.
   assert.deepEqual(lines.filter((l) => l.includes('DIFFERENT')).map((l) => l.trim().split(/\s{2,}/)[1]), ['daily targets (need date of birth)'], report);
   assert.ok(/AI connector\s+exercise_progress\s+2\s+0\s+SAME/.test(report), report);
@@ -76,6 +83,7 @@ function diary(who) {
   const bad = await run();
   assert.ok(/sets: weight, reps, type, done\s+\d+\s+1\s+DIFFERENT/.test(bad), bad);
   assert.ok(/AI connector\s+summarize_training week\s+1\s+1\s+DIFFERENT/.test(bad), bad);
+  assert.ok(/Friends feed\s+workout copies\s+15\s+1\s+DIFFERENT/.test(bad), bad);
 
-  console.log('diary compare: production-shaped diaries SAME on all 20 lines (data and connector answers); nothing kept; a changed value is caught');
+  console.log('diary compare: production-shaped diaries SAME on all 21 lines (data, Friends feed copies and connector answers); nothing kept; a changed value is caught');
 })().catch((e) => { console.error(e); process.exit(1); });
