@@ -14,6 +14,8 @@ export interface Profile {
   lastName?: string;
   profileId?: string;
   name: string;
+  /** Date of birth (MFD 3.0); when set, `age` is worked out from it. */
+  birthDate?: ISODate;
   age: number;
   sex: Sex;
   heightCm: number;

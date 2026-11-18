@@ -29,14 +29,18 @@ begin
            else case diary.num(p->'activity') when 1.2 then 'sedentary' when 1.375 then 'light' when 1.725 then 'very' when 1.9 then 'extra' else 'moderate' end end activity_level,
       nullif(left(btrim(coalesce(p->>'experience', '')), 40), '') experience, nullif(left(btrim(coalesce(p->>'equipment', '')), 200), '') equipment,
       nullif(left(btrim(coalesce(p->>'limitations', '')), 1000), '') limitations, nullif(left(btrim(coalesce(p->>'diet', '')), 60), '') diet,
-      coalesce((p->>'onboarded')::boolean, false) onboarded) x
+      coalesce((p->>'onboarded')::boolean, false) onboarded,
+      -- MFD 3.0's date of birth (a real date, 13 to 100 years old today; anything else is left out)
+      case when diary.day(p->>'birthDate') between (now() - interval '101 years')::date + 1 and (now() - interval '13 years')::date
+        then diary.day(p->>'birthDate') end birth_date) x
     on t.user_id = x.user_id
-    when matched and (t.first_name, t.last_name, t.sex, t.height_cm, t.activity_level, t.experience, t.equipment, t.limitations, t.diet, t.onboarded, t.deleted_at)
-      is distinct from (x.first_name, x.last_name, x.sex, x.height_cm, x.activity_level, x.experience, x.equipment, x.limitations, x.diet, x.onboarded, null::timestamptz)
+    when matched and (t.first_name, t.last_name, t.sex, t.height_cm, t.activity_level, t.experience, t.equipment, t.limitations, t.diet, t.onboarded, t.birth_date, t.deleted_at)
+      is distinct from (x.first_name, x.last_name, x.sex, x.height_cm, x.activity_level, x.experience, x.equipment, x.limitations, x.diet, x.onboarded, coalesce(x.birth_date, t.birth_date), null::timestamptz)
       then update set first_name = x.first_name, last_name = x.last_name, sex = x.sex, height_cm = x.height_cm, activity_level = x.activity_level,
-        experience = x.experience, equipment = x.equipment, limitations = x.limitations, diet = x.diet, onboarded = x.onboarded, deleted_at = null
-    when not matched then insert (user_id, first_name, last_name, sex, height_cm, activity_level, experience, equipment, limitations, diet, onboarded)
-      values (x.user_id, x.first_name, x.last_name, x.sex, x.height_cm, x.activity_level, x.experience, x.equipment, x.limitations, x.diet, x.onboarded);
+        experience = x.experience, equipment = x.equipment, limitations = x.limitations, diet = x.diet, onboarded = x.onboarded,
+        birth_date = coalesce(x.birth_date, t.birth_date), deleted_at = null
+    when not matched then insert (user_id, first_name, last_name, sex, height_cm, activity_level, experience, equipment, limitations, diet, onboarded, birth_date)
+      values (x.user_id, x.first_name, x.last_name, x.sex, x.height_cm, x.activity_level, x.experience, x.equipment, x.limitations, x.diet, x.onboarded, x.birth_date);
   end if;
 
   -- ── Goals ──

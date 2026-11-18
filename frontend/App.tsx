@@ -1,3 +1,4 @@
+import { BirthDatePrompt } from './components/BirthDate';
 import { useWorkoutLimit } from './lib/useWorkoutLimit';
 import { RoutineOverview } from './screens/training/RoutineOverview';
 import {SyncStatus} from './components/SyncStatus';
@@ -174,6 +175,7 @@ export function App() {
       {!focused && <nav className="bottom-nav" aria-label="Main">{navItems()}</nav>}
       {/* Outside the header: the header's blur would make the fixed rest dock position against it. */}
       <RestBar />
+      <BirthDatePrompt />
       <ToastHost />
       <SuggestionHost />
       <AiAddedNotice />
