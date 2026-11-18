@@ -59,11 +59,12 @@ const files = ['01-foundation', '02-library', '03-training', '04-catalogue'].map
   await rejects(`insert into diary.workout_sets (user_id, workout_exercise_id, position, set_type) values ($1, $2, 2, 'mega')`, [alice, wex], /check/, 'unknown set type');
   await rejects(`insert into diary.workouts (user_id, name, local_date, started_at, ended_at) values ($1, 'X', '2026-11-17', '2026-11-17 18:00+01', '2026-11-17 17:00+01')`, [alice], /check/, 'ends before it starts');
   await rejects(`insert into diary.workouts (user_id, name, local_date, started_at) values ($1, 'Second', '2026-11-17', now())`, [alice], /workouts_one_running/, 'two running workouts');
-  await rejects(`insert into diary.routines (user_id, name) values ($1, 'push a')`, [alice], /routines_name/, 'routine name taken (any capitals)');
+  // Routine names may repeat, as in the app (update 1); they're found by name through an index.
+  assert.equal((await db.query(`insert into diary.routines (user_id, name) values ($1, 'push a') returning name`, [alice])).rows[0].name, 'push a');
   await rejects(`insert into diary.workout_sets (user_id, workout_exercise_id, position) values ($1, gen_random_uuid(), 0)`, [alice], /foreign key/, 'set without a real exercise row');
   await rejects(`insert into diary.workout_exercises (user_id, workout_id, exercise_id, position) values ($1, $2, gen_random_uuid(), 1)`, [alice, workout], /Unknown exercise|foreign key/, 'unknown exercise');
   await db.exec('commit');
-  console.log('PASS rules: negative reps, RPE > 10, unknown set types, backwards times, a second running workout, duplicate routine names and dangling links are refused');
+  console.log('PASS rules: negative reps, RPE > 10, unknown set types, backwards times, a second running workout and dangling links are refused; routine names may repeat, as in the app');
 
   // Ownership: Bob can't see Alice's rows, can't attach rows to them, and can't use her own exercises.
   const myCurl = (await one(`insert into diary.exercises (user_id, source, name, tracking) values ($1, 'custom', 'Alice Curl', 'weight_reps') returning id`, [alice])).id;

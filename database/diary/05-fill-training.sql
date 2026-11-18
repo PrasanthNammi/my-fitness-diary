@@ -255,14 +255,15 @@ begin
     pos, coalesce(diary.within(round(diary.num(rest->'duration')), 0, 900), 90)::int,
     case when nullif(superset, '') is not null then dense_rank() over (partition by wid order by superset) - 1 end,
     nullif(left(btrim(coalesce(first->>'notes', '')), 300), ''),
-    case when running then diary.ms(rest->'end') end, wlegacy || ':' || grp
+    case when running then diary.ms(rest->'end') end,
+    case when first->>'tracking' in ('weight_reps', 'reps', 'weighted_bodyweight', 'assisted_bodyweight', 'time', 'weight_time', 'distance_time', 'weight_distance', 'floors_time', 'steps_time', 'duration', 'distance_duration') then first->>'tracking' end, wlegacy || ':' || grp
   from _g left join lateral (select x from jsonb_array_elements(case when jsonb_typeof(doc->'mfdExercises') = 'array' then doc->'mfdExercises' else '[]' end) x where x->>'id' = first->>'catalogId' limit 1) o(own) on true
-  ) s(id, user_id, workout_id, exercise_id, position, rest_s, superset_group, notes, rest_ends_at, legacy_id)
+  ) s(id, user_id, workout_id, exercise_id, position, rest_s, superset_group, notes, rest_ends_at, tracking, legacy_id)
   on t.id = s.id
-  when matched and (t.workout_id, t.exercise_id, t.position, t.rest_s, t.superset_group, t.notes, t.rest_ends_at, t.deleted_at)
-      is distinct from (s.workout_id, s.exercise_id, s.position, s.rest_s, s.superset_group, s.notes, s.rest_ends_at, null::timestamptz)
-    then update set exercise_id = s.exercise_id, position = s.position, rest_s = s.rest_s, superset_group = s.superset_group, notes = s.notes, rest_ends_at = s.rest_ends_at, deleted_at = null
-  when not matched then insert (id, user_id, workout_id, exercise_id, position, rest_s, superset_group, notes, rest_ends_at, legacy_id) values (s.id, s.user_id, s.workout_id, s.exercise_id, s.position, s.rest_s, s.superset_group, s.notes, s.rest_ends_at, s.legacy_id);
+  when matched and (t.workout_id, t.exercise_id, t.position, t.rest_s, t.superset_group, t.notes, t.rest_ends_at, t.tracking, t.deleted_at)
+      is distinct from (s.workout_id, s.exercise_id, s.position, s.rest_s, s.superset_group, s.notes, s.rest_ends_at, s.tracking, null::timestamptz)
+    then update set exercise_id = s.exercise_id, position = s.position, rest_s = s.rest_s, superset_group = s.superset_group, notes = s.notes, rest_ends_at = s.rest_ends_at, tracking = s.tracking, deleted_at = null
+  when not matched then insert (id, user_id, workout_id, exercise_id, position, rest_s, superset_group, notes, rest_ends_at, tracking, legacy_id) values (s.id, s.user_id, s.workout_id, s.exercise_id, s.position, s.rest_s, s.superset_group, s.notes, s.rest_ends_at, s.tracking, s.legacy_id);
   update diary.workout_exercises x set deleted_at = now_ts
     where x.user_id = u and x.deleted_at is null and x.legacy_id is not null
       and split_part(x.legacy_id, ':', 1) in (select w->>'id' from _w)

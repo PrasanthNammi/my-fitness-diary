@@ -16,7 +16,7 @@ function diary(who) {
     const sets = [];
     for (let g = 0; g < 2; g++) for (let i = 0; i < 3; i++) sets.push({ id: `${who}${k}-${g}-${i}`, exercise: ['Bench Press (Barbell)', 'Squat (Barbell)'][g],
       catalogId: ['bench_press_barbell', 'squat_barbell'][g], catalogSource: 'MFD', tracking: 'weight_reps', type: i ? (i === 2 && k === 3 ? 'dropset' : 'normal') : 'warmup',
-      group: g, set: i + 1, kg: 60 + k * 2.5 + i * 5, reps: 8 - i, done: true, notes: g ? '' : 'Slow down' });
+      group: g, set: i + 1, kg: 60 + k * 2.5 + i * 5, reps: 8 - i, done: true, notes: g ? '' : 'Slow down', ...(k === 5 && g === 1 ? { tracking: 'weighted_bodyweight' } : {}) });
     return { id: `${who}w${k}`, name: k % 2 ? 'Legs' : 'Push', date: day(40 - k * 5), started: T(40 - k * 5), finished: T(40 - k * 5) + 3600000, routineId: null, sets,
       ...(k < 4 ? { source: 'hevy', importKey: `push|${k}`, importTimezone: 'Europe/Berlin', sample: false, notes: '', rest: {} } : {}) };
   });
@@ -24,12 +24,15 @@ function diary(who) {
     profile: { name: 'Alex M', firstName: 'Alex', lastName: 'M', age: 31, sex: 'male', height: 180, weight: 80, target: 76, activity: 1.55, goal: 'Fat loss', days: 4, onboarded: true, cal: 2400, protein: 160, carbs: 250, fat: 70 },
     mfdSettings: { weightUnit: 'kg', energyUnit: 'kcal', defaultRestSec: 120, coach: { provider: 'none' } },
     sessions, active: null, chat: [], folders: [{ id: 'f1', name: 'PPL' }], folderOpen: {},
-    routines: [{ id: 'r1', name: 'Push A', folderId: 'f1', exercises: [{ name: 'Bench Press (Barbell)', catalogId: 'bench_press_barbell', catalogSource: 'MFD', sets: 3, reps: 8, kg: 80, rest: 120, notes: '', superset_id: null, setDetails: [] }] }],
+    routines: [{ id: 'r1', name: 'Push A', folderId: 'f1', exercises: [{ name: 'Bench Press (Barbell)', catalogId: 'bench_press_barbell', catalogSource: 'MFD', sets: 3, reps: 8, kg: 80, rest: 120, notes: '', superset_id: null, setDetails: [] }] },
+               { id: 'r2', name: 'Push B', folderId: 'f1', exercises: [] }],
     meals: [
       { id: `${who}m1`, date: day(3), meal: 'Breakfast', name: 'Skyr', amount: 200, unit: 'g', labelFood: { id: 'off-1', name: 'Skyr', basis: 100, unit: 'g', cal: 60, p: 11, c: 4, f: 0.2 }, cal: 120, p: 22, c: 8, f: 0.4 },
       { id: `${who}m2`, date: day(2), meal: 'Snack', name: 'Dal', amount: 1, unit: 'serving', labelFood: { id: 'mcp-1', name: 'Dal', basis: 1, unit: 'serving', cal: 350, p: 18, c: 50, f: 8 }, cal: 350, p: 18, c: 50, f: 8,
         addedBy: { connection: 'https://claude.ai/x', at: '2026-11-16T10:00:00Z' } },
       { id: `${who}m3`, date: day(2), meal: 'Lunch', name: 'Skyr', amount: 150, unit: 'g', labelFood: { id: 'off-1', name: 'Skyr', basis: 100, unit: 'g', cal: 60, p: 11, c: 4, f: 0.2 }, cal: 90, p: 16.5, c: 6, f: 0.3 },
+      // portions worked out to many decimals, as the app stores them
+      { id: `${who}m4`, date: day(2), meal: 'Dinner', name: 'Oats', amount: 47, unit: 'g', labelFood: { id: 'off-2', name: 'Oats', basis: 100, unit: 'g', cal: 371.3, p: 13.37, c: 58.71, f: 7.03 }, cal: 174.511, p: 6.2839, c: 27.5937, f: 3.3041 },
     ],
     products: [], foodFavorites: [], water: { [day(2)]: 2000 },
     weights: [{ id: `${who}k1`, date: day(20), kg: 81.2 }, { id: `${who}k2`, date: day(10), kg: 80.4 }, { id: `${who}k3`, date: day(1), kg: 79.6 }],
@@ -68,10 +71,18 @@ function diary(who) {
     throw new Error('the check must end with its report');
   };
 
+  // A save that swaps two routine names (the app allows it; a one-name rule refused it in production).
+  const swapped = diary('a'); swapped.routines[0].name = 'Push B'; swapped.routines[1].name = 'Push A';
+  await db.query('update public.forma_workspaces set payload = $2 where user_id = $1', [alice, JSON.stringify(swapped)]);
+  assert.deepEqual((await db.query(`select legacy_id, name from diary.routines where user_id = '${alice}' order by legacy_id`)).rows.map((r) => r.name), ['Push B', 'Push A']);
+  assert.equal((await db.query('select count(*)::int n from diary.fill_problems')).rows[0].n, 0, 'no problems noted');
+
   const report = await run();
   const lines = report.split('\n').filter((l) => /SAME|DIFFERENT/.test(l));
   assert.equal(lines.length, 22, report);
   assert.ok(/Friends feed\s+workout copies\s+16\s+0\s+SAME/.test(report), report);
+  assert.ok(/food entries\s+8\s+0\s+SAME/.test(report), report);
+  assert.ok(/routines: name, folder, exercises\s+4\s+0\s+SAME/.test(report), report);
   // Only the targets differ: the new tables work them out from the date of birth (3.0), which these diaries don't have yet.
   assert.deepEqual(lines.filter((l) => l.includes('DIFFERENT')).map((l) => l.trim().split(/\s{2,}/)[1]), ['daily targets (need date of birth)'], report);
   assert.ok(/AI connector\s+exercise_progress\s+2\s+0\s+SAME/.test(report), report);
@@ -85,5 +96,5 @@ function diary(who) {
   assert.ok(/AI connector\s+summarize_training week\s+1\s+1\s+DIFFERENT/.test(bad), bad);
   assert.ok(/Friends feed\s+workout copies\s+15\s+1\s+DIFFERENT/.test(bad), bad);
 
-  console.log('diary compare: production-shaped diaries SAME on all 21 lines (data, Friends feed copies and connector answers); nothing kept; a changed value is caught');
+  console.log('diary compare: production-shaped diaries SAME on all 21 lines (data, Friends feed copies and connector answers), incl. long decimals, tracking as logged and a routine-name swap; nothing kept; a changed value is caught');
 })().catch((e) => { console.error(e); process.exit(1); });

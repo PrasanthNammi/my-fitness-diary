@@ -43,7 +43,10 @@ create table if not exists diary.routines (
   -- A removed folder leaves its routines unfiled (only folder_id is emptied, never the owner).
   foreign key (folder_id, user_id) references diary.routine_folders (id, user_id) on delete set null (folder_id)
 );
-create unique index if not exists routines_name on diary.routines (user_id, lower(btrim(name))) where deleted_at is null;
+-- The app allows two routines with the same name, so names are looked up, not forced unique (a unique rule here
+-- refused a save that swapped two names, 2026-11-18).
+drop index if exists diary.routines_name;
+create index if not exists routines_by_name on diary.routines (user_id, lower(btrim(name))) where deleted_at is null;
 
 create table if not exists diary.routine_exercises (
   id             uuid primary key default gen_random_uuid(),
@@ -122,6 +125,7 @@ create table if not exists diary.workout_exercises (
   superset_group smallint check (superset_group >= 0),
   notes          text check (char_length(notes) <= 300),
   rest_ends_at   timestamptz,                               -- a running rest timer
+  tracking       text check (tracking in ('weight_reps', 'reps', 'weighted_bodyweight', 'assisted_bodyweight', 'time', 'weight_time', 'distance_time', 'weight_distance', 'floors_time', 'steps_time', 'duration', 'distance_duration')),  -- as logged (empty = the exercise's)
   legacy_id      text check (char_length(legacy_id) <= 200),
   created_at     timestamptz not null default now(),
   updated_at     timestamptz not null default now(),
@@ -132,6 +136,10 @@ create table if not exists diary.workout_exercises (
 );
 -- "Every time I did Bench Press" (progress charts, personal records).
 create index if not exists workout_exercises_by_exercise on diary.workout_exercises (user_id, exercise_id) where deleted_at is null;
+-- How the exercise was tracked when it was logged (e.g. weight × reps vs weighted bodyweight), which says how its
+-- numbers are read; it can differ from the exercise's tracking today. Old names 'duration' and 'distance_duration'
+-- are kept as logged.
+alter table diary.workout_exercises add column if not exists tracking text check (tracking in ('weight_reps', 'reps', 'weighted_bodyweight', 'assisted_bodyweight', 'time', 'weight_time', 'distance_time', 'weight_distance', 'floors_time', 'steps_time', 'duration', 'distance_duration'));
 
 create table if not exists diary.workout_sets (
   id                  uuid primary key default gen_random_uuid(),
