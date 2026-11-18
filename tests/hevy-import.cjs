@@ -7,10 +7,10 @@ const fs = require('fs'), os = require('os'), path = require('path'), vm = requi
 // MFD's own import functions, taken unchanged from the app.
 const src = fs.readFileSync('public/legacy/training.js', 'utf8').split('\n');
 const fn = (name) => { const line = src.find((l) => l.startsWith(`function ${name}(`)); assert.ok(line, name); return line; };
-function importer(existing = []) {
+function importer(existing = [], smart = false) {
   let n = 0;
   const ctx = vm.createContext({ Intl, Date, Number, Math, Map, Set, Error, JSON, String, Object, Array, state: { sessions: existing }, uid: () => 'id' + (++n) });
-  vm.runInContext(["const setKinds=[['warmup','Warm-up'],['normal','Working'],['failure','Failure'],['dropset','Drop set']];", ...['parseCSV', 'numericCSV', 'hevyDate', 'importIdentity', 'parseHevyImport'].map(fn)].join('\n'), ctx);
+  vm.runInContext(["const setKinds=[['warmup','Warm-up'],['normal','Working'],['failure','Failure'],['dropset','Drop set']];", `const MFD3_IMPORT=${smart};`, ...['parseCSV', 'numericCSV', 'hevyDate', 'importIdentity', 'exerciseKey', 'sameWorkout', 'parseHevyImport'].map(fn)].join('\n'), ctx);
   // Copied out of the sandbox so results compare like normal values.
   return (text, zone) => JSON.parse(JSON.stringify(ctx.parseHevyImport(text, zone)));
 }
@@ -47,6 +47,25 @@ assert.deepEqual([again.fresh.length, again.duplicates.length], [0, 2]);
 const broken = importer()(sample.replace(',1,normal,80,,8,', ',x,normal,80,,8,'), 'Europe/Berlin');
 assert.equal(broken.errors.length, 1); assert.match(broken.errors[0].message, /Invalid set_index/);
 console.log('PASS Hevy import: workouts, sets, set types, lb/km/miles, supersets, notes, both date formats, duplicates, broken rows');
+
+// ── MFD 3.0: a workout logged in both Hevy and MFD is "already in MFD" ─────────────────────────────────────
+// Same day, overlapping time (30 min slack), at least half the exercises the same. Only workouts logged in MFD count
+// (earlier imports are matched exactly, as before). Behind the 3.0 switch, which must match the app's.
+assert.match(src.find((l) => l.startsWith('const MFD3_IMPORT=')), /=false;/, 'off until 3.0');
+assert.match(fs.readFileSync('frontend/lib/release.ts', 'utf8'), /export const MFD3 = false;/, 'the importer and the app switch together');
+const logged = (extra) => ({ id: 'm', name: 'Upper', date: push.date, started: push.started + 5 * 60000, finished: push.finished + 10 * 60000,
+  sets: [{ exercise: 'Bench Press (Barbell)' }, { exercise: 'Lateral Raise (Dumbbell)' }, { exercise: 'Face Pull' }], ...extra });
+const check = (s, smart = true) => importer([s], smart)(sample, 'Europe/Berlin');
+assert.deepEqual(check(logged()).alreadyInMfd.map((w) => w.name), ['Push A'], 'same workout logged in MFD: not imported again');
+assert.deepEqual(check(logged()).fresh.map((w) => w.name), ['Cardio'], 'the other workout still imports');
+assert.equal(check(logged(), false).alreadyInMfd.length, 0, 'switch off: as before');
+assert.equal(check(logged({ date: '2026-05-08' })).alreadyInMfd.length, 0, 'another day');
+assert.equal(check(logged({ started: push.finished + 31 * 60000, finished: push.finished + 90 * 60000 })).alreadyInMfd.length, 0, 'not at the same time');
+assert.equal(check(logged({ started: push.finished + 20 * 60000, finished: push.finished + 80 * 60000 })).alreadyInMfd.length, 1, 'right after (within 30 min) still counts');
+assert.equal(check(logged({ sets: [{ exercise: 'Squat (Barbell)' }, { exercise: 'Leg Press (Machine)' }, { exercise: 'Bench Press (Barbell)' }] })).alreadyInMfd.length, 0, 'mostly other exercises');
+assert.equal(check(logged({ source: 'hevy' })).alreadyInMfd.length, 0, 'an earlier import is not a logged workout');
+assert.equal(check(logged({ sets: [] })).alreadyInMfd.length, 0, 'an empty workout matches nothing');
+console.log('PASS already in MFD: same day + overlapping time + mostly the same exercises; other days, times, exercises and earlier imports are not; off until 3.0');
 
 // ── Exercise names matched to the library ──────────────────────────────────────────────────────────────────
 const temp = fs.mkdtempSync(path.join(os.tmpdir(), 'mfd-hevy-'));
