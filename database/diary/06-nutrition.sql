@@ -64,14 +64,14 @@ create table if not exists diary.food_entries (
   amount          numeric(9,2) not null check (amount > 0 and amount <= 100000),
   unit            text not null check (unit in ('g', 'ml', 'serving')),
   -- What the amount eaten contained (snapshot).
-  kcal            numeric(8,2) not null check (kcal between 0 and 100000),
-  protein_g       numeric(8,2) not null default 0 check (protein_g between 0 and 10000),
-  carbs_g         numeric(8,2) not null default 0 check (carbs_g between 0 and 10000),
-  fat_g           numeric(8,2) not null default 0 check (fat_g between 0 and 10000),
-  fibre_g         numeric(8,2) check (fibre_g between 0 and 10000),
-  sugars_g        numeric(8,2) check (sugars_g between 0 and 10000),
-  saturated_fat_g numeric(8,2) check (saturated_fat_g between 0 and 10000),
-  salt_g          numeric(8,2) check (salt_g between 0 and 10000),
+  kcal            numeric      not null check (kcal between 0 and 100000),
+  protein_g       numeric      not null default 0 check (protein_g between 0 and 10000),
+  carbs_g         numeric      not null default 0 check (carbs_g between 0 and 10000),
+  fat_g           numeric      not null default 0 check (fat_g between 0 and 10000),
+  fibre_g         numeric      check (fibre_g between 0 and 10000),
+  sugars_g        numeric      check (sugars_g between 0 and 10000),
+  saturated_fat_g numeric      check (saturated_fat_g between 0 and 10000),
+  salt_g          numeric      check (salt_g between 0 and 10000),
   ai_action_id uuid,                                    -- set when ChatGPT or Claude added it
   legacy_id       text check (char_length(legacy_id) <= 200),
   created_at      timestamptz not null default now(),
@@ -82,6 +82,11 @@ create table if not exists diary.food_entries (
 );
 -- The food diary of one day, the screen MFD opens most.
 create index if not exists food_entries_by_day on diary.food_entries (user_id, local_date) where deleted_at is null;
+-- An entry keeps what was logged exactly (the app works portions out to many decimals; rounding to 0.01 shifted
+-- day totals by 0.1). Tables made before this change are widened in place.
+alter table diary.food_entries alter column kcal type numeric, alter column protein_g type numeric, alter column carbs_g type numeric,
+  alter column fat_g type numeric, alter column fibre_g type numeric, alter column sugars_g type numeric,
+  alter column saturated_fat_g type numeric, alter column salt_g type numeric;
 create index if not exists food_entries_by_food on diary.food_entries (food_id);
 
 create table if not exists diary.water_logs (

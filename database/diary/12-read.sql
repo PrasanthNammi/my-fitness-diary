@@ -49,7 +49,7 @@ create or replace function diary.workout_json(w diary.workouts) returns jsonb la
       select jsonb_agg(jsonb_strip_nulls(jsonb_build_object(
         'id', case when starts_with(s.legacy_id, w.legacy_id || ':') then substr(s.legacy_id, length(w.legacy_id) + 2) else s.id::text end,
         'exercise', e.name, 'catalogId', coalesce(e.source_ref, e.legacy_id, e.id::text),
-        'catalogSource', case when e.user_id is null then 'MFD' else 'Custom' end, 'tracking', e.tracking,
+        'catalogSource', case when e.user_id is null then 'MFD' else 'Custom' end, 'tracking', coalesce(we.tracking, e.tracking),
         'type', case s.set_type when 'drop' then 'dropset' else s.set_type end,
         -- the old group number is kept in the exercise's old id ("workout:group")
         'group', coalesce(case when we.legacy_id ~ ':\d+$' then substring(we.legacy_id from ':(\d+)$')::int end, we.position),
