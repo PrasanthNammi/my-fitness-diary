@@ -17,6 +17,7 @@ function diary(who) {
     for (let g = 0; g < 2; g++) for (let i = 0; i < 3; i++) sets.push({ id: `${who}${k}-${g}-${i}`, exercise: ['Bench Press (Barbell)', 'Squat (Barbell)'][g],
       catalogId: ['bench_press_barbell', 'squat_barbell'][g], catalogSource: 'MFD', tracking: 'weight_reps', type: i ? (i === 2 && k === 3 ? 'dropset' : 'normal') : 'warmup',
       group: g, set: i + 1, kg: 60 + k * 2.5 + i * 5, reps: 8 - i, done: true, notes: g ? '' : 'Slow down', ...(k === 5 && g === 1 ? { tracking: 'weighted_bodyweight' } : {}) });
+    if (k === 7) sets.push({ id: `${who}${k}-band`, exercise: 'Band Walk', catalogId: 'history:band%20walk', catalogSource: 'Custom', tracking: 'reps', type: 'normal', group: 2, set: 1, kg: null, reps: 20, done: true, notes: '' });
     return { id: `${who}w${k}`, name: k % 2 ? 'Legs' : 'Push', date: day(40 - k * 5), started: T(40 - k * 5), finished: T(40 - k * 5) + 3600000, routineId: null, sets,
       ...(k < 4 ? { source: 'hevy', importKey: `push|${k}`, importTimezone: 'Europe/Berlin', sample: false, notes: '', rest: {} } : {}) };
   });
@@ -24,6 +25,7 @@ function diary(who) {
     profile: { name: 'Alex M', firstName: 'Alex', lastName: 'M', age: 31, sex: 'male', height: 180, weight: 80, target: 76, activity: 1.55, goal: 'Fat loss', days: 4, onboarded: true, cal: 2400, protein: 160, carbs: 250, fat: 70 },
     mfdSettings: { weightUnit: 'kg', energyUnit: 'kcal', defaultRestSec: 120, coach: { provider: 'none' } },
     sessions, active: null, chat: [], folders: [{ id: 'f1', name: 'PPL' }], folderOpen: {},
+    mfdExercises: [{ id: 'custom:band', name: 'Band Walk', tracking: 'reps', source: 'custom' }],
     routines: [{ id: 'r1', name: 'Push A', folderId: 'f1', exercises: [{ name: 'Bench Press (Barbell)', catalogId: 'bench_press_barbell', catalogSource: 'MFD', sets: 3, reps: 8, kg: 80, rest: 120, notes: '', superset_id: null, setDetails: [] }] },
                { id: 'r2', name: 'Push B', folderId: 'f1', exercises: [] }],
     meals: [
@@ -78,14 +80,17 @@ function diary(who) {
   assert.equal((await db.query('select count(*)::int n from diary.fill_problems')).rows[0].n, 0, 'no problems noted');
 
   const report = await run();
-  const lines = report.split('\n').filter((l) => /SAME|DIFFERENT/.test(l));
-  assert.equal(lines.length, 22, report);
-  assert.ok(/Friends feed\s+workout copies\s+16\s+0\s+SAME/.test(report), report);
+  const lines = report.split('\n').filter((l) => /\s(SAME|DIFFERENT|EXPECTED)( \(.*)?$/.test(l));
+  assert.equal(lines.length, 23, report);
+  assert.ok(/Expected\s+feed copies, older exercise id\s+0\s+2\s+EXPECTED/.test(report), report);
+  assert.ok(/Friends feed\s+workout copies\s+14\s+0\s+SAME/.test(report), report);
   assert.ok(/food entries\s+8\s+0\s+SAME/.test(report), report);
   assert.ok(/list_saved_foods\s+2\s+0\s+SAME/.test(report), report);
   assert.ok(/routines: name, folder, exercises\s+4\s+0\s+SAME/.test(report), report);
   // Only the targets differ: the new tables work them out from the date of birth (3.0), which these diaries don't have yet.
-  assert.deepEqual(lines.filter((l) => l.includes('DIFFERENT')).map((l) => l.trim().split(/\s{2,}/)[1]), ['daily targets (need date of birth)'], report);
+  assert.deepEqual(lines.filter((l) => l.includes('DIFFERENT')), [], report);
+  assert.ok(/Expected\s+daily targets \(need date of birth\)\s+0\s+4\s+EXPECTED/.test(report), report);
+  assert.ok(/the "error" is on purpose/.test(report), report);
   assert.ok(/AI connector\s+exercise_progress\s+2\s+0\s+SAME/.test(report), report);
   // Nothing kept: the read functions it installed are gone again.
   assert.equal((await db.query(`select count(*)::int n from pg_proc where proname = 'as_envelope'`)).rows[0].n, 0);
@@ -95,7 +100,7 @@ function diary(who) {
   const bad = await run();
   assert.ok(/sets: weight, reps, type, done\s+\d+\s+1\s+DIFFERENT/.test(bad), bad);
   assert.ok(/AI connector\s+summarize_training week\s+1\s+1\s+DIFFERENT/.test(bad), bad);
-  assert.ok(/Friends feed\s+workout copies\s+15\s+1\s+DIFFERENT/.test(bad), bad);
+  assert.ok(/Friends feed\s+workout copies\s+\d+\s+1\s+DIFFERENT/.test(bad), bad);
 
   console.log('diary compare: production-shaped diaries SAME on all 21 lines (data, Friends feed copies and connector answers), incl. long decimals, tracking as logged and a routine-name swap; nothing kept; a changed value is caught');
 })().catch((e) => { console.error(e); process.exit(1); });
