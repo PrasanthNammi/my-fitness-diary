@@ -67,6 +67,34 @@ assert.equal(check(logged({ source: 'hevy' })).alreadyInMfd.length, 0, 'an earli
 assert.equal(check(logged({ sets: [] })).alreadyInMfd.length, 0, 'an empty workout matches nothing');
 console.log('PASS already in MFD: same day + overlapping time + mostly the same exercises; other days, times, exercises and earlier imports are not; off until 3.0');
 
+// ── The review (renderHevyPreview) and what gets imported (hevyToImport) ─────────────────────────────────────
+// Rendered in a sandbox with the app's helpers stubbed: the "Also logged in MFD" list with a tick each, counts that
+// follow the ticks, and exactly the review of today when nothing is already in MFD.
+const whole = fs.readFileSync('public/legacy/training.js', 'utf8');
+const renderSrc = whole.slice(whole.indexOf('function renderHevyPreview('), whole.indexOf('function previewHevySession('));
+function review(d) {
+  let html = '';
+  const ctx = vm.createContext({ hevyImportDraft: d, modal: (h) => { html = h; }, modalHead: (t) => `<h2>${t}</h2>`, esc: (x) => String(x), dateText: (x) => x, mfdOn: () => 'h',
+    $: () => ({ classList: { add() {} } }), Date, Set, Math, Intl });
+  vm.runInContext([fn('hevyToImport'), renderSrc].join('\n'), ctx);
+  ctx.renderHevyPreview();
+  return { html, toImport: (draft) => JSON.parse(JSON.stringify(vm.runInContext('hevyToImport', ctx)(draft))) };
+}
+const both = check(logged());
+const r = review(both);
+assert.match(r.html, /Also logged in MFD/);
+assert.match(r.html, /id="anyway-[^"]+"/, 'a tick for the workout');
+assert.match(r.html, /Already in MFD<\/span><strong id="hevy-left">1</);
+assert.match(r.html, />Import 1 workouts</, 'only the new one');
+assert.deepEqual(r.toImport(both).map((w) => w.name), ['Cardio']);
+both.importAnyway = new Set([both.alreadyInMfd[0].id]);
+assert.deepEqual(r.toImport(both).map((w) => w.name).sort(), ['Cardio', 'Push A'], 'ticked: imported as well');
+assert.match(review(both).html, />Import 2 workouts</);
+const plain = review(check(logged(), false));
+assert.doesNotMatch(plain.html, /Also logged in MFD|Already in MFD/, 'switch off: today\'s review');
+assert.match(plain.html, />Import 2 workouts</);
+console.log('PASS review: "Also logged in MFD" listed unticked with Import anyway; counts and button follow the ticks; switch off shows today\'s review');
+
 // ── Exercise names matched to the library ──────────────────────────────────────────────────────────────────
 const temp = fs.mkdtempSync(path.join(os.tmpdir(), 'mfd-hevy-'));
 esbuild.buildSync({ entryPoints: ['frontend/catalogue/hevyMatcher.ts'], bundle: true, platform: 'node', format: 'cjs', outfile: path.join(temp, 'm.cjs'), logLevel: 'silent' });
