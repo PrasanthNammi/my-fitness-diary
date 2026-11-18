@@ -2,7 +2,7 @@
 // for a data item) and watch → phone commands (applied once each, in order, malformed ones ignored).
 const assert=require('assert/strict'),esbuild=require('esbuild'),os=require('os'),path=require('path');
 const out=path.join(os.tmpdir(),'mfd-watch-sync.cjs');
-const stubs={'../adapters/engine':'export const engine=()=>null','../data/store':'export const getDB=()=>null,subscribe=()=>()=>{}','../data/repositories':'export const exercises={},workouts={},body={},diary={}','../components/ui':'export const toast=()=>{}','./native':'export const ask=async()=>({}),inApp=()=>false,onNative=()=>()=>{},tell=()=>{}','./appUpdate':'export const appVersion=()=>null,newer=()=>false'};
+const stubs={'../adapters/engine':'export const engine=()=>null,client=()=>null','../data/store':'export const getDB=()=>null,subscribe=()=>()=>{}','../data/repositories':'export const exercises={},workouts={},body={},diary={}','../components/ui':'export const toast=()=>{}','./native':'export const ask=async()=>({}),inApp=()=>false,onNative=()=>()=>{},tell=()=>{}','./appUpdate':'export const appVersion=()=>null,newer=()=>false'};
 (async()=>{
  await esbuild.build({entryPoints:['frontend/lib/watch.ts'],bundle:true,platform:'node',format:'cjs',outfile:out,logLevel:'silent',
   plugins:[{name:'stubs',setup(b){b.onResolve({filter:/.*/},a=>stubs[a.path]?{path:a.path,namespace:'stub'}:undefined);b.onLoad({filter:/.*/,namespace:'stub'},a=>({contents:stubs[a.path]}))}}]});

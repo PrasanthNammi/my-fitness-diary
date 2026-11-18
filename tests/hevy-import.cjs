@@ -10,7 +10,7 @@ const fn = (name) => { const line = src.find((l) => l.startsWith(`function ${nam
 function importer(existing = [], smart = false) {
   let n = 0;
   const ctx = vm.createContext({ Intl, Date, Number, Math, Map, Set, Error, JSON, String, Object, Array, state: { sessions: existing }, uid: () => 'id' + (++n) });
-  vm.runInContext(["const setKinds=[['warmup','Warm-up'],['normal','Working'],['failure','Failure'],['dropset','Drop set']];", `const MFD3_IMPORT=${smart};`, ...['parseCSV', 'numericCSV', 'hevyDate', 'importIdentity', 'exerciseKey', 'sameWorkout', 'parseHevyImport'].map(fn)].join('\n'), ctx);
+  vm.runInContext(["const setKinds=[['warmup','Warm-up'],['normal','Working'],['failure','Failure'],['dropset','Drop set']];", `function mfd3Import(){return ${smart}}`, ...['parseCSV', 'numericCSV', 'hevyDate', 'importIdentity', 'exerciseKey', 'sameWorkout', 'parseHevyImport'].map(fn)].join('\n'), ctx);
   // Copied out of the sandbox so results compare like normal values.
   return (text, zone) => JSON.parse(JSON.stringify(ctx.parseHevyImport(text, zone)));
 }
@@ -51,8 +51,8 @@ console.log('PASS Hevy import: workouts, sets, set types, lb/km/miles, supersets
 // ── MFD 3.0: a workout logged in both Hevy and MFD is "already in MFD" ─────────────────────────────────────
 // Same day, overlapping time (30 min slack), at least half the exercises the same. Only workouts logged in MFD count
 // (earlier imports are matched exactly, as before). Behind the 3.0 switch, which must match the app's.
-assert.match(src.find((l) => l.startsWith('const MFD3_IMPORT=')), /=false;/, 'off until 3.0');
-assert.match(fs.readFileSync('frontend/lib/release.ts', 'utf8'), /export const MFD3 = false;/, 'the importer and the app switch together');
+assert.match(src.find((l) => l.startsWith('function mfd3Import(')), /window\.parent\.mfdRelease\.mfd3/, 'asks the app window');
+assert.match(fs.readFileSync('frontend/lib/release.ts', 'utf8'), /mfdRelease = \{ mfd3: MFD3 \}/, 'which the app sets from the same switch');
 const logged = (extra) => ({ id: 'm', name: 'Upper', date: push.date, started: push.started + 5 * 60000, finished: push.finished + 10 * 60000,
   sets: [{ exercise: 'Bench Press (Barbell)' }, { exercise: 'Lateral Raise (Dumbbell)' }, { exercise: 'Face Pull' }], ...extra });
 const check = (s, smart = true) => importer([s], smart)(sample, 'Europe/Berlin');

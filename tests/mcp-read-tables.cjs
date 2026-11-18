@@ -78,7 +78,7 @@ function diary(who) {
     assert.ok((await db.query('select pg_get_functiondef($1::regprocedure) d', [fn])).rows[0].d.includes('mfd_mcp.read_doc('), fn);
 
   // Switched on for Alice: the same answers from the tables; Bob still reads his stored document.
-  await db.exec('reset role'); await db.query('insert into diary.read_from_tables values ($1)', [alice]);
+  await db.exec('reset role'); await db.query('insert into diary.mfd3_people values ($1)', [alice]);
   const after = await answers(alice);
   for (const [op] of reads) assert.deepEqual(view(op, after[op]), view(op, before[op]), op);
   assert.notDeepEqual(after.summarize_nutrition.data.daily_targets, before.summarize_nutrition.data.daily_targets, 'targets come from the date of birth in 3.0');
@@ -88,10 +88,13 @@ function diary(who) {
   await db.exec('reset role'); await db.exec(`update diary.weigh_ins set weight_kg = 79.1 where user_id = '${alice}' and legacy_id = 'ak2'`);
   assert.equal((await answers(alice)).progress.data[0].kg, 79.1);
 
+  // The app's question "is 3.0 on for me?": yes for Alice, no for Bob.
+  await as_(alice); assert.equal((await db.query('select public.mfd3_enabled() x')).rows[0].x, true);
+  await as_(bob); assert.equal((await db.query('select public.mfd3_enabled() x')).rows[0].x, false);
   // A client can't call the switch or the rebuild directly.
   await as_(alice, true);
   await assert.rejects(db.query(`select mfd_mcp.read_doc('${alice}', '{}')`), /permission denied/);
   await assert.rejects(db.query(`select diary.as_envelope('${alice}')`), /permission denied/);
 
-  console.log('mcp read tables: no change when installed; switched on, all 13 read tools answer the same from the tables; others unaffected; not callable directly');
+  console.log('mcp read tables: mfd3_enabled answers per person; no change when installed; switched on, all 13 read tools answer the same from the tables; others unaffected; not callable directly');
 })().catch((e) => { console.error(e); process.exit(1); });

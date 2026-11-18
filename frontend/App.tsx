@@ -37,6 +37,7 @@ import {SettingsLive} from './screens/SettingsLive';
 import {FriendsScreen} from './screens/Friends';
 import {Users} from 'lucide-react';
 import { SettingsScreen } from './screens/settings/SettingsScreen';
+import { refreshMfd3 } from './lib/release';
 
 const TABS = [
   { id: 'today', label: 'Overview', icon: Sun },
@@ -126,6 +127,8 @@ export function App() {
   useEffect(() => installHealthWrites(), []);
   // Android app: refresh sleep and steps from Health Connect on opening MFD (at most every 10 minutes).
   useEffect(() => { const run = () => { if (!document.hidden) void syncHealth(); }; run(); document.addEventListener('visibilitychange', run); return () => document.removeEventListener('visibilitychange', run); }, []);
+  // MFD 3.0 is switched on per person: check with the server after sign-in (reloads once if it changed).
+  useEffect(() => { if (signedIn) void refreshMfd3().catch(() => {}); }, [signedIn, accountKey]);
   useEffect(() => setHub(false), [routeKey]);
   useEffect(() => { const open = () => setHub(true); window.addEventListener('mfd-ai-hub', open); return () => window.removeEventListener('mfd-ai-hub', open); }, []);// useRoute returns a new array each render: compare the text
 
