@@ -67,6 +67,23 @@ create or replace function diary.workout_json(w diary.workouts) returns jsonb la
       where we.workout_id = w.id and we.deleted_at is null), '[]')))
 $$;
 
+-- Daily targets, the app's formula (frontend/domain/nutrition.ts, also mfd_mcp.targets): Mifflin-St Jeor BMR ×
+-- activity, adjusted for the goal, never under 1,500 kcal (men) / 1,200 (women); protein per kg, fat as a share.
+-- From MFD 3.0 the weight is the latest weigh-in and the age comes from the date of birth.
+create or replace function diary.targets(sex text, kg numeric, cm numeric, age numeric, activity text, goal text) returns jsonb
+language plpgsql immutable set search_path = '' as $$
+declare bmr numeric := 10 * kg + 6.25 * cm - 5 * age + case when sex = 'female' then -161 else 5 end;
+  factor numeric := case activity when 'sedentary' then 1.2 when 'light' then 1.375 when 'very' then 1.725 when 'extra' then 1.9 else 1.55 end;
+  adj numeric := case goal when 'lose' then -0.2 when 'gain' then 0.1 when 'recomp' then -0.1 else 0 end;
+  ppk numeric := case goal when 'maintain' then 1.6 when 'gain' then 1.8 else 2.0 end;
+  share numeric := case goal when 'maintain' then 0.3 else 0.25 end;
+  kcal numeric; p numeric; f numeric;
+begin
+  kcal := round(greatest(bmr * factor * (1 + adj), case when sex = 'female' then 1200 else 1500 end) / 10) * 10;
+  p := round(kg * ppk); f := round(kcal * share / 9);
+  return jsonb_build_object('cal', kcal, 'protein', p, 'carbs', greatest(0, round((kcal - p * 4 - f * 9) / 4)), 'fat', f);
+end $$;
+
 -- The Friends feed's copy of a workout, built from the tables exactly as mfd_private.project_workouts builds it from
 -- the stored document (social-incremental.sql): the workout's facts and its ticked sets.
 create or replace function diary.feed_copy(w diary.workouts) returns jsonb language sql stable set search_path = '' as $$
@@ -145,12 +162,16 @@ language sql stable security definer set search_path = '' as $$
         from diary.body_measurements where user_id = u and deleted_at is null group by split_part(legacy_id, ':', 1)) z), '[]'),
     'profile', (select jsonb_strip_nulls(jsonb_build_object(
         'firstName', p.first_name, 'lastName', p.last_name, 'name', nullif(btrim(concat_ws(' ', p.first_name, p.last_name)), ''),
-        'birthDate', p.birth_date::text, 'age', case when p.birth_date is not null then extract(year from age(p.birth_date))::int end,
-        'sex', p.sex, 'height', trim_scale(p.height_cm), 'activity', p.activity_level,
-        'weight', (select trim_scale(x.weight_kg) from diary.weigh_ins x where x.user_id = u and x.deleted_at is null order by x.local_date desc limit 1),
+        'birthDate', p.birth_date::text, 'age', extract(year from age(p.birth_date))::int,
+        'sex', p.sex, 'height', trim_scale(p.height_cm), 'activity', p.activity_level, 'weight', trim_scale(lw.kg),
         'goal', g.goal, 'target', trim_scale(g.target_weight_kg), 'days', g.training_days_per_week, 'waterGoalMl', g.water_goal_ml,
         'experience', p.experience, 'equipment', p.equipment, 'limitations', p.limitations, 'diet', p.diet, 'onboarded', p.onboarded))
-      from diary.user_profiles p left join diary.user_goals g on g.user_id = p.user_id where p.user_id = u and p.deleted_at is null),
+        -- Daily targets need the age, so they appear once the date of birth is known.
+        || case when p.birth_date is not null and lw.kg is not null
+             then diary.targets(p.sex, lw.kg, p.height_cm, extract(year from age(p.birth_date)), p.activity_level, coalesce(g.goal, 'maintain')) else '{}' end
+      from diary.user_profiles p left join diary.user_goals g on g.user_id = p.user_id
+        left join lateral (select x.weight_kg kg from diary.weigh_ins x where x.user_id = u and x.deleted_at is null order by x.local_date desc limit 1) lw on true
+      where p.user_id = u and p.deleted_at is null),
     'mfdSettings', (select jsonb_strip_nulls(jsonb_build_object('weightUnit', s.weight_unit, 'energyUnit', s.energy_unit, 'lengthUnit', s.length_unit,
         'weekStart', s.week_start, 'defaultRestSec', s.default_rest_s, 'keepAwake', s.keep_awake, 'vibrate', s.vibrate, 'plates', s.plate_set,
         'healthWeightSkip', case when cardinality(s.health_weight_skip) > 0 then to_jsonb(s.health_weight_skip) end))

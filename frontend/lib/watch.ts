@@ -5,7 +5,8 @@ import { useEffect, useState } from 'react';
 import { getDB, subscribe, type DB } from '../data/store';
 import { body, diary, exercises, workouts } from '../data/repositories';
 import type { Exercise, Food, PortionUnit, SetEntry, SetType, TrackingMode } from '../domain/types';
-import { allowedUnits, calculateTargets, nutrientsFor, sumNutrients } from '../domain/nutrition';
+import { allowedUnits, calculateTargets, nutrientsFor, profileForTargets, sumNutrients } from '../domain/nutrition';
+import { MFD3 } from './release';
 import { checkinNumber, isRecoveryRow } from '../domain/progressStats';
 import { applyQuickLog, QUICK_LOGS } from '../domain/watchQuickLogs';
 import { addDays, toISODate } from './format';
@@ -129,7 +130,7 @@ export function snapshot(d: DB, lib: Library, applied: string[] = []): Snapshot 
   };
   const today = toISODate(new Date());
   const eaten = sumNutrients(d.diary.filter((e) => e.date === today).map((e) => nutrientsFor(e.food, e.amount, e.unit)));
-  const targets = d.profile ? calculateTargets(d.profile).targets : null;
+  const targets = d.profile ? calculateTargets(profileForTargets(d.profile, d.weights, MFD3)).targets : null;
   const lastWeight = [...d.weights].sort((x, y) => y.date.localeCompare(x.date))[0];
   const check = d.checkins.find((c) => c.date === today && isRecoveryRow(c));
   const weekStart = addDays(today, -6);
