@@ -21,14 +21,14 @@ create table if not exists diary.foods (
   basis_unit      text not null check (basis_unit in ('g', 'ml', 'serving')),
   serving_size    numeric(9,2) check (serving_size > 0 and serving_size <= 100000),   -- g or ml in one serving
   serving_label   text check (char_length(serving_label) <= 60),
-  kcal            numeric(8,2) not null check (kcal between 0 and 100000),
-  protein_g       numeric(8,2) not null default 0 check (protein_g between 0 and 10000),
-  carbs_g         numeric(8,2) not null default 0 check (carbs_g between 0 and 10000),
-  fat_g           numeric(8,2) not null default 0 check (fat_g between 0 and 10000),
-  fibre_g         numeric(8,2) check (fibre_g between 0 and 10000),        -- empty = not on the label (unlike 0)
-  sugars_g        numeric(8,2) check (sugars_g between 0 and 10000),
-  saturated_fat_g numeric(8,2) check (saturated_fat_g between 0 and 10000),
-  salt_g          numeric(8,2) check (salt_g between 0 and 10000),
+  kcal            numeric      not null check (kcal between 0 and 100000),
+  protein_g       numeric      not null default 0 check (protein_g between 0 and 10000),
+  carbs_g         numeric      not null default 0 check (carbs_g between 0 and 10000),
+  fat_g           numeric      not null default 0 check (fat_g between 0 and 10000),
+  fibre_g         numeric      check (fibre_g between 0 and 10000),        -- empty = not on the label (unlike 0)
+  sugars_g        numeric      check (sugars_g between 0 and 10000),
+  saturated_fat_g numeric      check (saturated_fat_g between 0 and 10000),
+  salt_g          numeric      check (salt_g between 0 and 10000),
   ingredients     text check (char_length(ingredients) <= 4000),
   notes           text check (char_length(notes) <= 1000),
   source          text check (char_length(source) <= 60),                  -- 'Open Food Facts', 'Community', …
@@ -43,6 +43,11 @@ create unique index if not exists foods_shared_barcode on diary.foods (barcode) 
 create index if not exists foods_own_barcode on diary.foods (user_id, barcode) where barcode is not null;
 create index if not exists foods_my_foods on diary.foods (user_id) where in_my_foods and deleted_at is null;
 create index if not exists foods_legacy on diary.foods (user_id, legacy_id) where legacy_id is not null;
+-- A label keeps its values exactly (e.g. salt 0.125 g; rounding to 0.01 changed what the AI connector read, update 2).
+-- Tables made before this change are widened in place.
+alter table diary.foods alter column kcal type numeric, alter column protein_g type numeric, alter column carbs_g type numeric,
+  alter column fat_g type numeric, alter column fibre_g type numeric, alter column sugars_g type numeric,
+  alter column saturated_fat_g type numeric, alter column salt_g type numeric;
 
 create table if not exists diary.favourite_foods (
   user_id    uuid not null references auth.users(id) on delete cascade,

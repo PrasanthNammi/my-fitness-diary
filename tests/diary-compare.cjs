@@ -32,7 +32,7 @@ function diary(who) {
         addedBy: { connection: 'https://claude.ai/x', at: '2026-11-16T10:00:00Z' } },
       { id: `${who}m3`, date: day(2), meal: 'Lunch', name: 'Skyr', amount: 150, unit: 'g', labelFood: { id: 'off-1', name: 'Skyr', basis: 100, unit: 'g', cal: 60, p: 11, c: 4, f: 0.2 }, cal: 90, p: 16.5, c: 6, f: 0.3 },
       // portions worked out to many decimals, as the app stores them
-      { id: `${who}m4`, date: day(2), meal: 'Dinner', name: 'Oats', amount: 47, unit: 'g', labelFood: { id: 'off-2', name: 'Oats', basis: 100, unit: 'g', cal: 371.3, p: 13.37, c: 58.71, f: 7.03 }, cal: 174.511, p: 6.2839, c: 27.5937, f: 3.3041 },
+      { id: `${who}m4`, date: day(2), meal: 'Dinner', name: 'Oats', amount: 47, unit: 'g', labelFood: { id: 'off-2', name: 'Oats', basis: 100, unit: 'g', cal: 371.3, p: 13.37, c: 58.71, f: 7.03, salt: 0.125, sugar: 1.075 }, cal: 174.511, p: 6.2839, c: 27.5937, f: 3.3041 },
     ],
     products: [], foodFavorites: [], water: { [day(2)]: 2000 },
     weights: [{ id: `${who}k1`, date: day(20), kg: 81.2 }, { id: `${who}k2`, date: day(10), kg: 80.4 }, { id: `${who}k3`, date: day(1), kg: 79.6 }],
@@ -82,6 +82,7 @@ function diary(who) {
   assert.equal(lines.length, 22, report);
   assert.ok(/Friends feed\s+workout copies\s+16\s+0\s+SAME/.test(report), report);
   assert.ok(/food entries\s+8\s+0\s+SAME/.test(report), report);
+  assert.ok(/list_saved_foods\s+2\s+0\s+SAME/.test(report), report);
   assert.ok(/routines: name, folder, exercises\s+4\s+0\s+SAME/.test(report), report);
   // Only the targets differ: the new tables work them out from the date of birth (3.0), which these diaries don't have yet.
   assert.deepEqual(lines.filter((l) => l.includes('DIFFERENT')).map((l) => l.trim().split(/\s{2,}/)[1]), ['daily targets (need date of birth)'], report);
