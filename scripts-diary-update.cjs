@@ -7,11 +7,12 @@
 //   12-read.sql       reading the diary back from the tables (new; used by the check and, later, the readers).
 // Update 2: 06-nutrition.sql again, food labels keep their values exactly (salt 0.125 was stored as 0.13).
 // Update 3: 11-fill-account.sql, the date of birth (MFD 3.0 pop-up) is copied into user_profiles.birth_date.
+// Update 4: database/mcp-read-tables.sql, MFD 3.0 per person (diary.mfd3_people, mfd3_enabled, connector reads).
 // Then every diary is copied again (only rows that change are written) and a short report is shown.
-// Usage: node scripts-diary-update.cjs [update number, default 3] [out-file]
+// Usage: node scripts-diary-update.cjs [update number, default 4] [out-file]
 const fs = require('fs'), os = require('os'), path = require('path');
 const strip = (sql) => sql.split('\n').filter((l) => !/^\s*(begin|commit);\s*$/i.test(l)).join('\n');
-const part = (f) => strip(fs.readFileSync(path.join(__dirname, 'database/diary', f + '.sql'), 'utf8'));
+const part = (f) => strip(fs.readFileSync(path.join(__dirname, f.includes('/') ? f : 'database/diary/' + f + '.sql'), 'utf8'));
 
 const updates = {
   1: { title: 'update 1 (2026-11-18): routine names may repeat, tracking as logged, food entries exact', parts: ['03-training', '05-fill-training', '06-nutrition', '12-read'],
@@ -28,8 +29,13 @@ select (select count(*) from diary.workout_exercises where tracking is not null)
   3: { title: 'update 3 (2026-11-18): the date of birth from MFD 3.0\'s pop-up is copied into the profile', parts: ['11-fill-account'], fills: ['fill_account'],
        after: `select (select count(*) from diary.user_profiles) as profiles, (select count(*) from diary.user_profiles where birth_date is not null) as with_birth_date,
        (select count(*) from diary.fill_problems) as problems_left;` },
+  4: { title: 'update 4 (2026-11-18): MFD 3.0 switched on per person (empty list = nobody; the AI connector reads the tables for people on the list)',
+       parts: ['database/mcp-read-tables.sql'], fills: [],
+       after: `select (select count(*) from diary.mfd3_people) as people_with_3_0,
+       (select count(*) from pg_proc where proname = 'mfd3_enabled') as app_check_installed,
+       (select count(*) from pg_proc p where p.proname in ('dispatch', 'recovery', 'routines_out') and pg_get_functiondef(p.oid) like '%mfd_mcp.read_doc(%') as connector_reads_switched;` },
 };
-const n = Number(process.argv[2] || 3), u = updates[n];
+const n = Number(process.argv[2] || 4), u = updates[n];
 if (!u) throw new Error('Unknown update ' + n);
 const out = `-- MFD 3.0 database, ${u.title}. Paste all of it into the Supabase SQL editor (project Forma) and press Run.
 -- All or nothing; safe to run again; the app keeps working throughout.
@@ -39,7 +45,7 @@ ${u.parts.map(part).join('\n')}
 -- Copy every diary again so the fixes take effect (MERGE writes only rows that change).
 do $fill$ declare u uuid; begin
   for u in select user_id from public.forma_workspaces loop
-    ${u.fills.map((f) => `perform diary.${f}(u);`).join(' ')}
+    ${u.fills.map((f) => `perform diary.${f}(u);`).join(' ') || 'null;'}
   end loop;
 end $fill$;
 ${u.after}

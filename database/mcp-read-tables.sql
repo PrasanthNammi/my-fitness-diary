@@ -1,8 +1,8 @@
--- MFD 3.0 step 4: the AI connector's read tools can read the diary from the new tables.
+-- MFD 3.0: who has 3.0 switched on, and the AI connector's read tools reading the diary from the new tables for them.
 --
 -- Each read tool loads the person's diary once (the old JSON document) and works from it. This file puts a switch in
 -- front of those three loads (the dispatcher's read operations, recovery, and the folder names on routines):
---   * people in diary.read_from_tables get their diary rebuilt from the tables (diary.as_envelope, 12-read.sql);
+--   * people in diary.mfd3_people get their diary rebuilt from the tables (diary.as_envelope, 12-read.sql);
 --   * everyone else gets the stored document, exactly as before.
 -- Nobody is switched on by this file, so after running it the connector answers exactly as it does today.
 -- Writes (logging meals, workouts, settings…) are not touched; they move in a later step.
@@ -12,13 +12,22 @@
 -- Run after database/diary/12-read.sql and the connector files. Safe to re-run.
 begin;
 
--- Who reads from the tables (switched on per person; empty = everyone reads the stored document).
-create table if not exists diary.read_from_tables (
+-- Who has MFD 3.0 switched on (one row per person; empty = nobody). The connector's read tools use the tables for
+-- them, and the app turns on the 3.0 features (date of birth, targets from the latest weigh-in, Hevy duplicates).
+create table if not exists diary.mfd3_people (
   user_id    uuid primary key references auth.users(id) on delete cascade,
   created_at timestamptz not null default now()
 );
-alter table diary.read_from_tables enable row level security;
-revoke all on diary.read_from_tables from public, anon, authenticated;
+alter table diary.mfd3_people enable row level security;
+revoke all on diary.mfd3_people from public, anon, authenticated;
+
+-- The app asks: is MFD 3.0 on for me?
+create or replace function public.mfd3_enabled() returns boolean
+language sql stable security definer set search_path = '' as $$
+  select exists (select 1 from diary.mfd3_people p where p.user_id = auth.uid())
+$$;
+revoke all on function public.mfd3_enabled() from public, anon;
+grant execute on function public.mfd3_enabled() to authenticated;
 
 -- The diary a read tool works from: rebuilt from the tables when switched on, otherwise the stored document.
 -- Only ever for the signed-in person.
@@ -26,7 +35,7 @@ create or replace function mfd_mcp.read_doc(u uuid, stored jsonb) returns jsonb
 language plpgsql stable security definer set search_path = '' as $$
 begin
   if u is distinct from auth.uid() then raise exception 'Not allowed' using errcode = '42501'; end if;
-  if exists (select 1 from diary.read_from_tables r where r.user_id = u) then return diary.as_envelope(u); end if;
+  if exists (select 1 from diary.mfd3_people r where r.user_id = u) then return diary.as_envelope(u); end if;
   return stored;
 end $$;
 revoke all on function mfd_mcp.read_doc(uuid, jsonb) from public, anon, authenticated;
