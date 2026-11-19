@@ -252,4 +252,20 @@ do $$ declare t text; begin
   end loop;
 end $$;
 
+-- People whose training lives in these tables (the original), not in the stored diary document (step 2b,
+-- 15-tables-switch.sql switches people on and off).
+create table if not exists diary.table_people (
+  user_id  uuid primary key references auth.users(id) on delete cascade,
+  moved_at timestamptz not null default now()
+);
+alter table diary.table_people enable row level security;
+revoke all on diary.table_people from public, anon, authenticated;
+
+create or replace function diary.in_tables(u uuid) returns boolean language sql stable security definer set search_path = '' as $$
+  select exists (select 1 from diary.table_people p where p.user_id = u)
+$$;
+revoke all on function diary.in_tables(uuid) from public, anon;
+grant execute on function diary.in_tables(uuid) to authenticated;
+
+
 commit;

@@ -58,7 +58,7 @@ const KB=v=>Math.round(v/1024);
  report.push(`first sign-in: ${KB(A.traffic.down)} KB down`);
  // 2. A logs a set in one workout: only that workout travels.
  A.reset();A.edit(st=>{st.sessions[5].sets.push({...st.sessions[5].sets[0],id:'new-set',kg:100})},['sessions']);assert.equal(await A.sync(),true);
- assert.ok(A.traffic.calls.includes('/rpc/forma_save_workspace_patch'),'saved as a patch');assert.ok(A.traffic.up<20000,'one workout up, not the diary: '+A.traffic.up);
+ assert.ok(A.traffic.calls.includes('/rpc/forma_save_changes'),'saved as a patch');assert.ok(A.traffic.up<20000,'one workout up, not the diary: '+A.traffic.up);
  s=server(U);assert.equal(s.revision,2);assert.ok(same(s.payload,A.c.state),'server equals phone A');
  report.push(`log one set: ${KB(A.traffic.up)} KB up (was ${KB(compactSize)} KB)`);
  // 3. Nothing changed: returning to the app downloads (almost) nothing.

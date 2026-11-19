@@ -56,7 +56,8 @@ function reconcileCloud(data){
  cloud.dirty=cloud.conflict||!MFDWorkspaceMerge.equal(state,data.payload);cloud.error='';
 }
 async function cloudRequest(request){if(typeof AbortController==='undefined'||typeof request.abortSignal!=='function')return request;const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),20000);try{return await request.abortSignal(controller.signal)}finally{clearTimeout(timer)}}
-async function fetchCloudWorkspace(){return cloudRequest(cloud.client.from('forma_workspaces').select('payload,revision,updated_at').eq('user_id',cloud.user.id).maybeSingle())}
+// The whole diary through the server (for people whose training lives in the database's tables it is put together there).
+async function fetchCloudWorkspace(){return cloudRequest(cloud.client.rpc('forma_workspace_full'))}
 // Delta sync (database/DELTA_SYNC.md). cloud.serverBase is a private copy of exactly what the server
 // holds at cloud.revision: changes are computed against it and applied to it. Whenever it can't be
 // trusted it's dropped, and the next exchange is a full copy, as before.
@@ -115,7 +116,7 @@ async function saveCloud(){
   const ops=workspaceOps&&cloud.serverBase&&revision>0&&!cloud.patchUnavailable?workspaceOps.diff(cloud.serverBase,document):null;
   let data,error,whole=!ops;
   if(ops&&!ops.length){data=[{saved_revision:revision,conflict:false,adjusted:false}];error=null}// the server already has exactly this
-  else{({data,error}=await(ops?cloudRequest(cloud.client.rpc('forma_save_workspace_patch',{ops,expected_revision:revision})):saveWhole()));
+  else{({data,error}=await(ops?cloudRequest(cloud.client.rpc('forma_save_changes',{ops,expected_revision:revision})):saveWhole()));
    // Older server without patch saves, or a change that didn't fit the server copy: save the whole document, as before.
    if(ops&&error&&(missingRpc(error)||error.code==='22023')){if(missingRpc(error))cloud.patchUnavailable=true;cloud.serverBase=null;whole=true;({data,error}=await saveWhole())}}
   if(generation!==cloud.generation)return false;
