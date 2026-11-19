@@ -149,7 +149,7 @@ export function ActiveWorkoutScreen() {
         </div>
       </div>
 
-      <ExercisePicker open={pickerOpen} onClose={() => setPickerOpen(false)} onAdd={(b) => setBlocks((l) => [...l, b])} />
+      <ExercisePicker open={pickerOpen} onClose={() => setPickerOpen(false)} added={a.exercises.map((x) => x.exerciseId)} onAdd={(b) => setBlocks((l) => [...l, b])} />
       {replaceId && <ExercisePicker key={replaceId} open onClose={() => setReplaceId(null)} replace initialSets={Math.max(1, a.exercises.find(x => x.id === replaceId)?.sets.filter(s => !s.done).length ?? 3)} onAdd={b => {
         workouts.mutate(w => { w.exercises = replaceExerciseBlock(w.exercises, replaceId, prepareActiveBlock(b), true); delete w.timers[replaceId]; for (const x of w.exercises) if (!w.timers[x.id]) w.timers[x.id] = { durationSec: x.restSec, endsAt: null, pausedRemainingSec: null }; });
         setReplaceId(null); toast('Exercise replaced');

@@ -7,6 +7,6 @@ export function setFromRow(s: any, fallbackId: string): SetEntry {
     id: s.id || fallbackId, type: s.type === 'dropset' ? 'drop' : s.type || 'normal', weightKg: s.kg ?? null, reps: s.reps ?? null,
     timeSec: s.duration_seconds ?? null, distanceKm: s.distance_meters == null ? null : s.distance_meters / 1000, floors: s.floors ?? null,
     steps: s.steps ?? null, rpe: s.rpe ?? null, suggested: s.mfdSuggested, ...(s.mfdAi ? { aiTarget: true, aiPrev: s.mfdAiPrev ?? null } : {}),
-    ...(s.mfdAiAdded ? { aiAdded: true } : {}), ...(typeof s.mfdDoneAt === 'number' ? { doneAt: s.mfdDoneAt } : {}), done: s.done !== false,
+    ...(s.mfdAiAdded ? { aiAdded: true } : {}), ...(typeof s.mfdDoneAt === 'number' ? { doneAt: s.mfdDoneAt } : {}), ...(s.mfdUnusualOk ? { unusualOk: true } : {}), done: s.done !== false,
   } as SetEntry;
 }

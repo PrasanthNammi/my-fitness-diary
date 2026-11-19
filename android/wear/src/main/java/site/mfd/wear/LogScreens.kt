@@ -9,6 +9,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.focusable
+import androidx.compose.foundation.layout.requiredSize
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -114,6 +115,7 @@ fun Modifier.bezel(onTurn: (Int) -> Unit): Modifier {
 fun ExerciseScreen(
     w: Workout, b: Block, units: Units,
     onSend: (String, Map<String, Any?>) -> Unit, onOtherExercise: (Int) -> Unit, onSetType: (SetRow) -> Unit, onActions: () -> Unit, onOverview: () -> Unit, onLogged: (Block) -> Unit,
+    onRest: (String) -> Unit = {},
 ) {
     val pending = b.sets.indexOfFirst { !it.done }.let { if (it < 0) b.sets.lastIndex else it }
     var view by remember(b.id) { mutableStateOf<Int?>(null) }
@@ -143,29 +145,32 @@ fun ExerciseScreen(
             else -> maxOf(0.0, ((cur + dir * 0.1) * 10).roundToInt() / 10.0)
         }
     }, contentAlignment = Alignment.TopCenter) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.padding(top = 26.dp, start = 24.dp, end = 24.dp)) {
+        // A little inside the round edge (start/end 30 dp) so nothing is cut off.
+        Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.padding(top = 22.dp, start = 30.dp, end = 30.dp)) {
+            RestChip(w, onRest)
             // The name opens the exercise's actions (add or remove sets, move, superset…).
             Text(b.name + "  ⋯", fontWeight = FontWeight.ExtraBold, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.clickable { onActions() }.padding(horizontal = 6.dp, vertical = 2.dp))
             val k = KINDS[s.type] ?: KINDS.getValue("normal")
+            // ‹ › keep their size; a long label shortens instead.
             Row(verticalAlignment = Alignment.CenterVertically) {
-                IconButton(onClick = { view = si - 1 }, enabled = si > 0, modifier = Modifier.size(30.dp)) { Icon(Icons.Filled.KeyboardArrowLeft, "Previous set") }
-                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.clickable { onSetType(s) }.padding(horizontal = 2.dp)) {
+                IconButton(onClick = { view = si - 1 }, enabled = si > 0, modifier = Modifier.requiredSize(30.dp)) { Icon(Icons.Filled.KeyboardArrowLeft, "Previous set") }
+                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f, fill = false).clickable { onSetType(s) }.padding(horizontal = 2.dp)) {
                     k.letter?.let { Box(Modifier.size(18.dp).background(k.color, CircleShape), contentAlignment = Alignment.Center) { Text(it, color = Color.Black, fontSize = 10.sp, fontWeight = FontWeight.ExtraBold) } }
                     if (s.done) Icon(Icons.Filled.Check, "Logged", tint = C.success, modifier = Modifier.size(14.dp))
-                    Text(" Set ${si + 1}/${b.sets.size} · ${k.label}", color = k.color, fontSize = 12.sp, fontWeight = FontWeight.Bold, maxLines = 1)
+                    Text(" Set ${si + 1}/${b.sets.size} · ${k.label}", color = k.color, fontSize = 12.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
-                IconButton(onClick = { view = si + 1 }, enabled = si < b.sets.lastIndex, modifier = Modifier.size(30.dp)) { Icon(Icons.Filled.KeyboardArrowRight, "Next set") }
+                IconButton(onClick = { view = si + 1 }, enabled = si < b.sets.lastIndex, modifier = Modifier.requiredSize(30.dp)) { Icon(Icons.Filled.KeyboardArrowRight, "Next set") }
             }
             Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 for (f in fields) {
                     val on = selected == f
                     Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center,
-                        modifier = Modifier.width(if (fields.size == 1) 100.dp else 74.dp).height(54.dp)
+                        modifier = Modifier.width(if (fields.size == 1) 96.dp else 70.dp).height(50.dp)
                             .background(if (on) C.accentSoft else C.surface, RoundedCornerShape(18.dp))
                             .then(if (on) Modifier.border(2.dp, C.accent, RoundedCornerShape(18.dp)) else Modifier)
                             .clickable { selected = if (on) null else f }) {
-                        Text((if (showAi) "✦" else "") + fieldText(f, shownValue(f), units), fontSize = 24.sp, fontWeight = FontWeight.ExtraBold,
+                        Text((if (showAi) "✦" else "") + fieldText(f, shownValue(f), units), fontSize = 22.sp, fontWeight = FontWeight.ExtraBold,
                             color = if (showAi) C.ai else C.text, maxLines = 1)
                         Text(fieldUnit(f, units), fontSize = 10.sp, color = C.muted)
                     }
@@ -181,7 +186,7 @@ fun ExerciseScreen(
 /** The main action along the round screen's bottom edge (like Wear OS's edge button). */
 @Composable
 fun EdgeAction(label: String, modifier: Modifier = Modifier, onClick: () -> Unit) = Box(
-    modifier.padding(bottom = 2.dp).width(128.dp).height(46.dp)
+    modifier.padding(bottom = 4.dp).width(118.dp).height(42.dp)
         .background(C.accent, RoundedCornerShape(topStart = 22.dp, topEnd = 22.dp, bottomStart = 66.dp, bottomEnd = 66.dp))
         .clickable(onClick = onClick),
     contentAlignment = Alignment.Center,
@@ -198,6 +203,19 @@ fun SetTypeScreen(s: SetRow, onPick: (String) -> Unit) = Column(Modifier.fillMax
     for ((key, k) in KINDS) Button(onClick = { onPick(key) }, modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp).height(38.dp),
         colors = ButtonDefaults.filledTonalButtonColors(containerColor = if (s.type == key) C.surface2 else C.surface, contentColor = k.color),
         label = { Text((k.letter?.let { "$it · " } ?: "") + k.label, fontWeight = FontWeight.Bold) })
+}
+
+/** The running rest (the one ending last), as a small countdown chip; tapping it opens the rest timer. Nothing when no rest runs. */
+fun runningRest(w: Workout, now: Long): Pair<String, Long>? =
+    w.timers.mapNotNull { (id, t) -> t.endsAt?.takeIf { it > now }?.let { id to it } }.filter { (id) -> w.blocks.any { it.id == id } }.maxByOrNull { it.second }
+
+@Composable
+fun RestChip(w: Workout, onOpen: (String) -> Unit) {
+    var now by remember { mutableLongStateOf(System.currentTimeMillis()) }
+    LaunchedEffect(Unit) { while (true) { now = System.currentTimeMillis(); delay(250) } }
+    val (id, ends) = runningRest(w, now) ?: return
+    Text("⏱ " + mmss(((ends - now + 999) / 1000).toInt()), color = C.accent2, fontSize = 11.sp, fontWeight = FontWeight.Bold, maxLines = 1,
+        modifier = Modifier.background(C.accentSoft, RoundedCornerShape(50)).clickable { onOpen(id) }.padding(horizontal = 9.dp, vertical = 2.dp))
 }
 
 /** Rest countdown with −15 s / Skip / +15 s; at zero it buzzes, says "Rest over" and goes on by itself after 2 s. */
