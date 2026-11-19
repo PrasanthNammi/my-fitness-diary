@@ -147,7 +147,8 @@ $$;
 
 -- What each item held that the columns don't rebuild exactly, and its place in its list ("extra", 03-training.sql),
 -- so the tables give back exactly what the app stored. Only rows whose extra really changes are written.
-create or replace function diary.fill_training_extras(u uuid, doc jsonb, only_workouts text[] default null) returns void
+drop function if exists diary.fill_training_extras(uuid, jsonb, text[]);
+create or replace function diary.fill_training_extras(u uuid, doc jsonb, only_workouts text[] default null, plans boolean default null) returns void
 language plpgsql security definer set search_path = '' as $$
 begin
   -- Workouts (in _w from fill_training) and their sets.
@@ -166,7 +167,7 @@ begin
     join diary.workouts wo on wo.id = we.workout_id)
   update diary.workout_sets t set extra = c.extra from c where t.id = c.id and t.extra is distinct from c.extra;
 
-  if only_workouts is not null then return; end if;
+  if not coalesce(plans, only_workouts is null) then return; end if;
 
   -- Folders.
   with c as (
@@ -211,13 +212,16 @@ begin
     select t.id, '{"$pos": null}'::jsonb from diary.exercises t where t.user_id = u and t.deleted_at is null and t.id not in (select id from src))
   update diary.exercises t set extra = c.extra from c where t.id = c.id and t.extra is distinct from c.extra;
 end $$;
-revoke all on function diary.fill_training_extras(uuid, jsonb, text[]) from public, anon, authenticated;
+revoke all on function diary.fill_training_extras(uuid, jsonb, text[], boolean) from public, anon, authenticated;
 
-create or replace function diary.fill_training(u uuid, only_workouts text[] default null) returns void
+-- (src: the training to copy instead of the stored document, e.g. one changed workout; plans: also redo folders,
+-- routines and own exercises, by default when every workout is redone. only_workouts = '{}' redoes no workout.)
+drop function if exists diary.fill_training(uuid, text[]);
+create or replace function diary.fill_training(u uuid, only_workouts text[] default null, src jsonb default null, plans boolean default null) returns void
 language plpgsql security definer set search_path = '' as $$
-declare doc jsonb; now_ts timestamptz := now();
+declare doc jsonb := src; now_ts timestamptz := now(); do_plans boolean := coalesce(plans, only_workouts is null);
 begin
-  select payload into doc from public.forma_workspaces where user_id = u;
+  if doc is null then select payload into doc from public.forma_workspaces where user_id = u; end if;
   if doc is null then return; end if;
 
   -- ── Every exercise the diary refers to: built-in by library id, otherwise the person's own (one per name) ──
@@ -235,7 +239,7 @@ begin
     select r->>'catalogId', btrim(r->>'name'), coalesce(r->>'tracking', r->'setDetails'->0->>'tracking')
     from jsonb_array_elements(case when jsonb_typeof(doc->'routines') = 'array' then doc->'routines' else '[]' end) rt,
          jsonb_array_elements(case when jsonb_typeof(rt->'exercises') = 'array' then rt->'exercises' else '[]' end) r
-    where only_workouts is null
+    where do_plans
     union all
     -- Every exercise in "My exercises" has a row, used or not (also the ones the app made itself, "history:…"), so
     -- the list comes back exactly as the app shows it.
@@ -263,7 +267,7 @@ begin
   when not matched then insert (id, user_id, source, name, tracking, legacy_id) values (s.id, s.user_id, s.source, s.name, s.tracking, s.legacy_id);
 
   -- ── Folders (whole list) ──
-  if only_workouts is null then
+  if do_plans then
     -- MERGE runs the stamp trigger only for rows that are really added or changed, so sync numbers stay exact.
   merge into diary.routine_folders t
   using (
@@ -492,9 +496,9 @@ begin
     then update set source = s.source, interval_s = s.interval_s, bpm = s.bpm, avg_bpm = s.avg_bpm, max_bpm = s.max_bpm, deleted_at = null
   when not matched then insert (workout_id, user_id, source, interval_s, bpm, avg_bpm, max_bpm) values (s.workout_id, s.user_id, s.source, s.interval_s, s.bpm, s.avg_bpm, s.max_bpm);
 
-  perform diary.fill_training_extras(u, doc, only_workouts);
+  perform diary.fill_training_extras(u, doc, only_workouts, do_plans);
 end $$;
-revoke all on function diary.fill_training(uuid, text[]) from public, anon, authenticated;
+revoke all on function diary.fill_training(uuid, text[], jsonb, boolean) from public, anon, authenticated;
 
 -- After every save of the envelope: redo only the workouts that changed (plus plans and the running workout when
 -- those changed). Comparing old and new per workout keeps a save that ticks one set from touching 400 workouts.
