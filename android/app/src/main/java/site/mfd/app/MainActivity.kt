@@ -77,16 +77,20 @@ class MainActivity : ComponentActivity() {
         finishEnable(id, reply)
     }
 
-    // Export & import → Download: the page's file, saved where the user picks (Downloads, Drive…).
-    private var pendingSave: Triple<String, Int, JavaScriptReplyProxy>? = null
-    private val saveFile = registerForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri ->
-        val (text, id, reply) = pendingSave ?: return@registerForActivityResult
+    // Export: the page's file (JSON backup, a CSV, or a .zip of CSVs), saved where the user picks (Downloads, Drive…).
+    // Text comes as "text", binary files (.zip) as "base64". One picker per file type, so Android suggests the right one.
+    private var pendingSave: Triple<ByteArray, Int, JavaScriptReplyProxy>? = null
+    private fun saveTo(uri: android.net.Uri?) {
+        val (bytes, id, reply) = pendingSave ?: return
         pendingSave = null
         val saved = uri != null && try {
-            contentResolver.openOutputStream(uri, "wt")?.use { it.write(text.toByteArray()) } != null
+            contentResolver.openOutputStream(uri, "wt")?.use { it.write(bytes) } != null
         } catch (e: Exception) { false }
         reply.postMessage(JSONObject().put("id", id).put("saved", saved).toString())
     }
+    private val saveJson = registerForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { saveTo(it) }
+    private val saveCsv = registerForActivityResult(ActivityResultContracts.CreateDocument("text/csv")) { saveTo(it) }
+    private val saveZip = registerForActivityResult(ActivityResultContracts.CreateDocument("application/zip")) { saveTo(it) }
 
     private val filePicker = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
         pendingFiles?.onReceiveValue(WebChromeClient.FileChooserParams.parseResult(result.resultCode, result.data))
@@ -301,8 +305,12 @@ class MainActivity : ComponentActivity() {
             "watchDrain" -> answer(JSONObject().put("commands", WatchLink.drain(applicationContext)))
             "save" -> {
                 val name = m.optString("name").takeIf { SAVE_NAME.matches(it) } ?: return
-                pendingSave = Triple(m.optString("text"), id, reply)
-                try { saveFile.launch(name) } catch (e: ActivityNotFoundException) { pendingSave = null; answer(JSONObject().put("saved", false)) }
+                val bytes = if (m.has("base64")) try { android.util.Base64.decode(m.optString("base64"), android.util.Base64.DEFAULT) } catch (e: IllegalArgumentException) { return }
+                    else m.optString("text").toByteArray()
+                if (bytes.size > MAX_SAVE_BYTES) { answer(JSONObject().put("saved", false)); return }
+                pendingSave = Triple(bytes, id, reply)
+                val picker = when { name.endsWith(".zip") -> saveZip; name.endsWith(".csv") -> saveCsv; else -> saveJson }
+                try { picker.launch(name) } catch (e: ActivityNotFoundException) { pendingSave = null; answer(JSONObject().put("saved", false)) }
             }
         }
     }
@@ -425,7 +433,8 @@ class MainActivity : ComponentActivity() {
         val SITE_ORIGIN: String = SITE.trimEnd('/')
         const val EXTRA_OPEN = "open"
         private val REST_ID = Regex("^[\\w:.-]{1,100}$")
-        private val SAVE_NAME = Regex("^[\\w.-]{1,80}\\.json$")
+        private val SAVE_NAME = Regex("^[\\w.-]{1,100}\\.(json|csv|zip)$")
+        private const val MAX_SAVE_BYTES = 50 * 1024 * 1024
         private val APP_PATH = Regex("^/(#/[\\w%./:-]{0,400})?$")
 
         /** "/", or "/#/<route>": the only places a notification may open. */
