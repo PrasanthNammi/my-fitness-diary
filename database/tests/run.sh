@@ -15,6 +15,9 @@ for f in schema shared-catalogue catalogue-photos social social-photos private-e
 # Production-shaped diaries written before the new SQL, to rehearse the compaction migration.
 node tests/fixtures/prod-shape-seed.cjs | run_sql >/dev/null
 for f in social-incremental social-comments workspace-delta social-push social-push-friends; do run_sql < database/$f.sql >/dev/null 2>&1 || { run_sql < database/$f.sql; exit 1; }; done
+# Weekly encrypted backup (needs pgcrypto in the "extensions" schema, as on Supabase).
+run_sql -c "create schema if not exists extensions; create extension if not exists pgcrypto schema extensions;" >/dev/null
+run_sql < database/backup/backup.sql >/dev/null
 docker run -d --name $RESTC --network $NET -p 127.0.0.1:54330:3000 -e PGRST_DB_URI=postgres://authenticator:test@$DBC:5432/postgres -e PGRST_DB_SCHEMAS=public -e PGRST_DB_ANON_ROLE=anon -e PGRST_JWT_SECRET=local-test-secret-local-test-secret-123 postgrest/postgrest:v12.2.3 >/dev/null
 # Compaction migration: verified, and repeatable.
 run_sql < database/workspace-compact-migration.sql 2>&1 | grep -o "Compaction verified.*"
