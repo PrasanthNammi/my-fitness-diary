@@ -62,8 +62,10 @@ fun elapsed(start: Long): Long {
 @Composable
 private fun ListScreen(edge: (@Composable BoxScope.() -> Unit)? = null, content: ScalingLazyListScope.() -> Unit) {
     val list = rememberScalingLazyListState()
-    if (edge != null) ScreenScaffold(scrollState = list, edgeButton = edge) { padding -> ScalingLazyColumn(state = list, contentPadding = padding, content = content) }
-    else ScreenScaffold(scrollState = list) { padding -> ScalingLazyColumn(state = list, contentPadding = padding, content = content) }
+    // A few dp inside the round edge, so rows are never cut off.
+    val inset = Modifier.padding(horizontal = 6.dp)
+    if (edge != null) ScreenScaffold(scrollState = list, edgeButton = edge) { padding -> ScalingLazyColumn(state = list, modifier = inset, contentPadding = padding, content = content) }
+    else ScreenScaffold(scrollState = list) { padding -> ScalingLazyColumn(state = list, modifier = inset, contentPadding = padding, content = content) }
 }
 
 @Composable
@@ -160,7 +162,8 @@ fun RoutineScreen(r: Routine, startDisabled: Boolean, onStart: () -> Unit) = Lis
 
 // ───────── Workout overview ─────────
 @Composable
-fun OverviewScreen(w: Workout, onExercise: (Block) -> Unit, onAdd: () -> Unit, onFinish: () -> Unit) = ListScreen {
+fun OverviewScreen(w: Workout, onExercise: (Block) -> Unit, onAdd: () -> Unit, onFinish: () -> Unit, onRest: (String) -> Unit = {}) = ListScreen {
+    item { RestChip(w, onRest) }
     item { Text(clock(elapsed(w.startedAt)), color = C.accent, fontSize = 30.sp, fontWeight = FontWeight.ExtraBold) }
     item { Text(w.title, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis) }
     item { HeartChip() }

@@ -75,4 +75,10 @@ class EngineTest {
         assertEquals(listOf("12.5", "12.25", "80", "1.25", "—"), listOf(12.5, 12.25, 80.0, 1.25, null).map { fieldText("weightKg", it, kg) })
         assertEquals("2.35", fieldText("distanceKm", 2.35, kg))
     }
+
+    @Test fun runningRestIsTheOneEndingLast() {
+        val w = workout().copy(timers = mapOf("b1" to Timer(now + 30_000, 90), "b2" to Timer(now + 50_000, 60), "gone" to Timer(now + 90_000, 60)))
+        assertEquals("b2" to now + 50_000, runningRest(w, now))
+        assertNull(runningRest(w.copy(timers = mapOf("b1" to Timer(now - 1, 90), "b2" to Timer(null, 60))), now))
+    }
 }

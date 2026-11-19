@@ -86,6 +86,8 @@ export interface SetEntry {
   aiAdded?: boolean;
   /** When the set was logged (epoch ms); places exercises on the workout's heart-rate graph. */
   doneAt?: number;
+  /** The person confirmed an unusual value is right (domain/unusual.ts): no warning on it. */
+  unusualOk?: boolean;
 }
 
 export interface ExerciseBlock {

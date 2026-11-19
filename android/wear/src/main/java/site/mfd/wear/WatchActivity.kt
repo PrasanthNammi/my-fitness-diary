@@ -5,6 +5,7 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.lifecycle.lifecycleScope
@@ -144,6 +145,22 @@ class WatchActivity : ComponentActivity() {
         val routineToOpen = openRoutine.value
         LaunchedEffect(routineToOpen) { if (routineToOpen != null && view.workout == null) { nav.navigate("routine/$routineToOpen"); openRoutine.value = null } }
 
+        // A rest started on the phone (a set ticked there) opens the rest timer here too. Rests the watch started itself
+        // are already open (or skipped for a superset); ones running when the app opens are only shown as the chip.
+        val restSeen = remember { mutableSetOf<String>() }
+        val restSeeded = remember { mutableStateOf(false) }
+        val restKeys = view.workout?.let { w -> w.timers.mapNotNull { (id, t) -> t.endsAt?.let { "$id@$it" } } }.orEmpty()
+        LaunchedEffect(restKeys) {
+            val w = view.workout ?: return@LaunchedEffect
+            val fresh = restKeys.filter { restSeen.add(it) }
+            if (!restSeeded.value) { restSeeded.value = true; return@LaunchedEffect }
+            val now = System.currentTimeMillis()
+            val local = WatchStore.outbox.filter { it.optString("type") == "logSet" && now - it.optLong("at") < 15_000 }.map { it.optString("block") }.toSet()
+            val open = fresh.map { it.substringBeforeLast('@') to it.substringAfterLast('@').toLong() }
+                .filter { (id, ends) -> ends > now && id !in local && w.blocks.any { it.id == id } }.maxByOrNull { it.second } ?: return@LaunchedEffect
+            if (nav.currentDestination?.route?.startsWith("rest/") != true) nav.navigate("rest/${open.first}")
+        }
+
         MaterialTheme {
             AppScaffold(timeText = { TimeText() }) {
                 SwipeDismissableNavHost(navController = nav, startDestination = "home") {
@@ -164,7 +181,7 @@ class WatchActivity : ComponentActivity() {
                         val r = snapshot?.routines?.firstOrNull { it.id == entry.arguments?.getString("id") }
                         if (r != null) RoutineScreen(r, startDisabled = view.workout != null || view.starting != null) { send("startRoutine", mapOf("routine" to r.id)) }
                     }
-                    composable("overview") { view.workout?.let { w -> OverviewScreen(w, onExercise = { b -> nav.navigate("exercise/${b.id}") }, onAdd = { nav.navigate("add/-") }, onFinish = { nav.navigate("finish") }) } }
+                    composable("overview") { view.workout?.let { w -> OverviewScreen(w, onExercise = { b -> nav.navigate("exercise/${b.id}") }, onAdd = { nav.navigate("add/-") }, onFinish = { nav.navigate("finish") }, onRest = { nav.navigate("rest/$it") }) } }
                     composable("add/{into}") { entry ->
                         val into = entry.arguments?.getString("into")?.takeIf { it != "-" }
                         snapshot?.let { s -> AddExerciseScreen(s, onMuscle = { m -> nav.navigate("muscle/${into ?: "-"}/$m") }, onPick = { e -> addExercise(nav, e, into) { t, f -> send(t, f) } }) }
@@ -202,6 +219,7 @@ class WatchActivity : ComponentActivity() {
                             onActions = { nav.navigate("actions/${b.id}") },
                             onOverview = { nav.popBackStack("overview", false) },
                             onLogged = { logged -> afterLog(nav, w, logged) },
+                            onRest = { nav.navigate("rest/$it") },
                         )
                     }
                     composable("actions/{block}") { entry ->

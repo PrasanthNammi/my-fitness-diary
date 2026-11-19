@@ -6,7 +6,7 @@ import {installNativeCatalogue,loadMfdCatalogue,getCatalogue,mapEntry,migrateExe
 import {ExerciseGuide,ExercisePage} from './ExercisePage';
 import {engine} from '../../adapters/engine';
 import { useMemo, useState, useEffect } from 'react';
-import { ChevronDown, ChevronLeft, Dumbbell, FileText, History, ImageOff, Minus, PersonStanding, Plus, Search, SearchX, X } from 'lucide-react';
+import { ChevronDown, ChevronLeft, Dumbbell, FileText, History, ImageOff, Minus, PersonStanding, Plus, Search, SearchX, X, Check } from 'lucide-react';
 import type { Exercise, ExerciseBlock, ExerciseSource, TrackingMode } from '../../domain/types';
 import { TRACKING_LABEL, trackingFields } from '../../domain/training';
 import { EQUIPMENT, MUSCLES, SOURCE_LABEL, SOURCE_ORDER } from '../../data/exerciseCatalog';
@@ -82,7 +82,8 @@ function Thumb({ src }: { src: string | null }) {
 }
 
 /** Shared exercise picker used by the routine editor and the active workout. */
-export function ExercisePicker({ open, onClose, onAdd, browse, replace = false, initialSets = 3 }: { open: boolean; onClose: () => void; onAdd: (b: ExerciseBlock) => void; browse?:boolean; replace?:boolean; initialSets?:number }) {
+/** `added`: exercises already in the workout or routine (marked "Added"; picking one asks before adding it again). */
+export function ExercisePicker({ open, onClose, onAdd, browse, replace = false, initialSets = 3, added = [], addedIn = 'workout' }: { open: boolean; onClose: () => void; onAdd: (b: ExerciseBlock) => void; browse?:boolean; replace?:boolean; initialSets?:number; added?: string[]; addedIn?: 'workout' | 'routine' }) {
   const custom = useDB((d) => d.customExercises);
   const history = useDB((d) => d.workouts);
   const lastDone = useMemo(() => { const m = new Map<string, number>(); for (const w of history) for (const b of w.exercises) if (w.startedAt > (m.get(b.exerciseId) ?? -1)) m.set(b.exerciseId, w.startedAt); return m; }, [history]);
@@ -97,6 +98,9 @@ export function ExercisePicker({ open, onClose, onAdd, browse, replace = false, 
   const [filterSheet, setFilterSheet] = useState<SheetKey | null>(null);
   const [bodyMap, setBodyMap] = useState(false);
   const [selected, setSelected] = useState<Exercise | null>(null);
+  const [again, setAgain] = useState<Exercise | null>(null);
+  const isAdded = (e: Exercise) => !replace && added.includes(e.id);
+  const pick = (e: Exercise) => (isAdded(e) ? setAgain(e) : setSelected(e));
   const [creating, setCreating] = useState(false);
 
   const all = useMemo(() => exercises.all(), [custom]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -228,9 +232,18 @@ export function ExercisePicker({ open, onClose, onAdd, browse, replace = false, 
               Try a different search or clear filters.
             </Empty>
           ) : (
-            families.slice(0,visible).map(({id,list,thumb,done},i,shown)=>{const ex=list[0];const section=q.trim()?null:i===0&&done>-1?'logged':done===-1&&(i===0||shown[i-1].done>-1)?'all':null;const variants=ex.entry?getCatalogue()?.family(ex.id).map(mapEntry)||list:list;return <div key={id}>{section&&<div className="picker-section">{section==='logged'?<><History aria-hidden="true"/>Logged before</>:'All exercises'}</div>}<div className="catalogue-family"><div className="row"><button className="ex-row grow" onClick={()=>setSelected(ex)}><Thumb src={thumb}/><div className="grow"><div className="nm">{ex.name}</div><div className="mt">{ex.equipment} · {ex.primaryMuscle}{ex.entry?` · ${LEVEL_LABEL[ex.entry.level]}`:''}{done>-1&&<> · <span className="last-done">{lastDoneLabel(done)}</span></>}</div></div></button>{variants.length>1&&<button className="icon-btn" aria-label={`Variations of ${ex.entry?.family_name}`} aria-expanded={expanded.has(id)} onClick={()=>setExpanded(prev=>{const next=new Set(prev);next.has(id)?next.delete(id):next.add(id);return next})}><ChevronDown size={18}/><small>{variants.length}</small></button>}</div>{expanded.has(id)&&variants.filter(e=>e.id!==ex.id).map(e=><button key={e.id} className="ex-row catalogue-variation" onClick={()=>setSelected(e)}><div className="grow"><div className="nm">{e.name}</div><div className="mt">{e.equipment}</div></div><Plus size={16}/></button>)}</div></div>})
+            families.slice(0,visible).map(({id,list,thumb,done},i,shown)=>{const ex=list[0];const section=q.trim()?null:i===0&&done>-1?'logged':done===-1&&(i===0||shown[i-1].done>-1)?'all':null;const variants=ex.entry?getCatalogue()?.family(ex.id).map(mapEntry)||list:list;return <div key={id}>{section&&<div className="picker-section">{section==='logged'?<><History aria-hidden="true"/>Logged before</>:'All exercises'}</div>}<div className="catalogue-family"><div className="row"><button className="ex-row grow" onClick={()=>pick(ex)}><Thumb src={thumb}/><div className="grow"><div className="nm">{ex.name}{isAdded(ex)&&<span className="added-badge"><Check aria-hidden="true"/>Added</span>}</div><div className="mt">{ex.equipment} · {ex.primaryMuscle}{ex.entry?` · ${LEVEL_LABEL[ex.entry.level]}`:''}{done>-1&&<> · <span className="last-done">{lastDoneLabel(done)}</span></>}</div></div></button>{variants.length>1&&<button className="icon-btn" aria-label={`Variations of ${ex.entry?.family_name}`} aria-expanded={expanded.has(id)} onClick={()=>setExpanded(prev=>{const next=new Set(prev);next.has(id)?next.delete(id):next.add(id);return next})}><ChevronDown size={18}/><small>{variants.length}</small></button>}</div>{expanded.has(id)&&variants.filter(e=>e.id!==ex.id).map(e=><button key={e.id} className="ex-row catalogue-variation" onClick={()=>pick(e)}><div className="grow"><div className="nm">{e.name}{isAdded(e)&&<span className="added-badge"><Check aria-hidden="true"/>Added</span>}</div><div className="mt">{e.equipment}</div></div><Plus size={16}/></button>)}</div></div>})
           )}
           {families.length>visible&&<button className="btn btn-soft picker-more" onClick={()=>setVisible(v=>v+80)}><Plus aria-hidden="true"/>Show more</button>}
+          <Sheet open={!!again} onClose={() => setAgain(null)} title={`Already in this ${addedIn}`}>
+            {again && (
+              <div className="again-ask">
+                <p><b>{again.name}</b> is already added. Add it again as a separate exercise?</p>
+                <button className="btn btn-primary btn-block" onClick={() => (setSelected(again), setAgain(null))}>Add again</button>
+                <button className="btn btn-secondary btn-block" onClick={() => setAgain(null)}>Cancel</button>
+              </div>
+            )}
+          </Sheet>
           <Sheet open={!!filterSheet} onClose={() => setFilterSheet(null)} title={filterSheet ? filterLabel(filterSheet) : ''}>
             {filterSheet && (
               <div className="option-list">

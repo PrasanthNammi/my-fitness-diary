@@ -131,7 +131,7 @@ export function RoutineEditor({ routineId, folderId }: { routineId: string | nul
         </button>
       </div>
 
-      <ExercisePicker open={pickerOpen} onClose={() => setPickerOpen(false)} onAdd={(b) => setBlocks((l) => [...l, b])} />
+      <ExercisePicker open={pickerOpen} onClose={() => setPickerOpen(false)} added={blocks.map((x) => x.exerciseId)} addedIn="routine" onAdd={(b) => setBlocks((l) => [...l, b])} />
       {replaceId && <ExercisePicker key={replaceId} open onClose={() => setReplaceId(null)} replace initialSets={Math.max(1, blocks.find(x => x.id === replaceId)?.sets.filter(s => !s.done).length ?? 3)} onAdd={b => {
         setBlocks(l => replaceExerciseBlock(l, replaceId, b, false));
         setReplaceId(null); toast('Exercise replaced');

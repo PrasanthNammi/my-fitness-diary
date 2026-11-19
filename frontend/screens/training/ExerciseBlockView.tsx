@@ -3,7 +3,7 @@ import {useDB} from '../../data/store';
 import {ExercisePage} from './ExercisePage';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
-  Crown, ArrowDown, Disc3, Sparkles, ArrowUp, Check, Info, Link2, Link2Off, NotebookPen, Plus, Repeat, Ruler, Timer, Trash2, X,
+  Crown, ArrowDown, Disc3, Sparkles, ArrowUp, Check, Info, TriangleAlert, Link2, Link2Off, NotebookPen, Plus, Repeat, Ruler, Timer, Trash2, X,
 } from 'lucide-react';
 import type { ExerciseBlock, RestTimer, SetEntry, Workout } from '../../domain/types';
 import {
@@ -13,6 +13,7 @@ import { OverflowMenu, Sheet, type MenuAction } from '../../components/ui';
 import { exercises, newSet } from '../../data/repositories';
 import { fmtNum, kgTo, mss, parseDecimal, parseMss, roundWeight, toKg } from '../../lib/format';
 import { RestSheet, SetTypeSheet, TrackingSheet } from './SetSheets';
+import { recentBest, unusualSet } from '../../domain/unusual';
 import { PlateSheet } from './PlateSheet';
 import { ExerciseDetail, ExerciseThumb } from './ExercisePicker';
 
@@ -158,6 +159,8 @@ export function ExerciseBlockView(p: BlockProps) {
   const [trackOpen, setTrackOpen] = useState(false);
   const [detailOpen, setDetailOpen] = useState(false);
   const [noteOpen, setNoteOpen] = useState(false);
+  const best = useMemo(() => (mode === 'active' && p.history ? recentBest(p.history, block.exerciseId) : null), [mode, p.history, block.exerciseId]);
+  const [warnFor, setWarnFor] = useState<string | null>(null);
   const [platesOpen, setPlatesOpenState] = useState(false), [plateKey, setPlateKey] = useState(0);
   // Each opening starts fresh (the weight typed in the sheet last time is not kept).
   const setPlatesOpen = (on: boolean) => { if (on) setPlateKey((k) => k + 1); setPlatesOpenState(on); };
@@ -265,8 +268,9 @@ export function ExerciseBlockView(p: BlockProps) {
         {block.sets.map((s, i) => {
           const prev = active && p.history ? findPrevious(p.history, block.exerciseId, s.type, ordinalWithinType(block.sets, i)) : null;
           const label = labels[i];
+          const odd = active && best ? unusualSet(s, block.tracking, best) : null;
           return (
-            <div key={s.id} className={`set-row${active && s.done ? ' done' : ''}${active && s.aiTarget && !s.done ? ' ai-target' : ''}`} role="row">
+            <div key={s.id} className={`set-row${active && s.done ? ' done' : ''}${odd ? ' unusual' : ''}${active && s.aiTarget && !s.done ? ' ai-target' : ''}`} role="row">
               <button
                 className={`set-label ${s.type}`}
                 aria-label={`Set ${label}, ${s.type === 'normal' ? 'working' : s.type}${active && s.aiTarget && !s.done ? ', AI target' : ''}. Change set type`}
@@ -304,7 +308,11 @@ export function ExerciseBlockView(p: BlockProps) {
                   onFocusChange={f === 'weightKg' && loadable ? (on) => (on ? setFocusSet(s.id) : setTimeout(() => setFocusSet((cur) => (cur === s.id ? null : cur)), 250)) : undefined}
                 />
               ))}
-              {active ? (
+              {odd ? (
+                <button className="check-btn unusual" aria-label={`Set ${label}: unusual ${odd.field === 'weightKg' ? 'weight' : 'reps'}. Check it`} onClick={() => setWarnFor(s.id)}>
+                  <span><TriangleAlert /></span>
+                </button>
+              ) : active ? (
                 <button
                   className="check-btn"
                   aria-pressed={s.done}
@@ -329,6 +337,29 @@ export function ExerciseBlockView(p: BlockProps) {
       )}
       <button className="btn btn-soft btn-sm add-set" onClick={addSet}><Plus /> Add Set</button>
 
+      {(() => {
+        const i = block.sets.findIndex((x) => x.id === warnFor), s = block.sets[i];
+        const odd = s && best ? unusualSet(s, block.tracking, best) : null;
+        const kg = (v: number) => `${fmtNum(kgTo(v, weightUnit), 2)} ${weightUnit}`;
+        return (
+          <Sheet open={!!odd} onClose={() => setWarnFor(null)} title={odd?.field === 'weightKg' ? 'Unusual weight' : 'Unusual reps'}>
+            {odd && s && (
+              <div className="unusual-ask">
+                <TriangleAlert className="unusual-icon" aria-hidden="true" />
+                <p className="muted">Set {labels[i]} · {ex?.name}</p>
+                <p>{odd.field === 'weightKg' ? <>Did you really lift <b>{kg(odd.value)}</b>?</> : <>Did you really do <b>{odd.value} reps</b>?</>}
+                  {best?.kg != null && odd.field === 'weightKg' && <> Your best recent set is {kg(best.kg)}{best.reps ? ` × ${best.reps}` : ''}.</>}
+                  {best?.usualReps != null && odd.field === 'reps' && <> You usually do about {best.usualReps}.</>}</p>
+                <button className="btn btn-primary btn-block" onClick={() => {
+                  setWarnFor(null);
+                  setTimeout(() => (document.querySelector(`[aria-label="Set ${labels[i]} ${HEAD[odd.field](weightUnit)}"]`) as HTMLElement | null)?.focus(), 50);
+                }}>Edit set</button>
+                <button className="btn btn-secondary btn-block" onClick={() => { patchSet(s.id, { unusualOk: true }); setWarnFor(null); }}>It’s right, keep it</button>
+              </div>
+            )}
+          </Sheet>
+        );
+      })()}
       <SetTypeSheet
         open={!!typeFor}
         onClose={() => setTypeFor(null)}
