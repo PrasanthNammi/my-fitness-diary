@@ -34,3 +34,18 @@ d=base();d.routines[1].folderId=null;A.undoAiChange(d,'m2');assert.ok(!d.folders
 d=base();A.undoAiChange(d,'f');assert.ok(!d.folders.some(f=>f.id==='f2'));assert.deepEqual(d.routines.map(r=>r.folderId),['f1',null,null],'its routines stay, unfiled');
 d=base();A.undoAiChange(d,'nope');assert.equal(d.aiChanges.length,6,'unknown id: nothing happens');
 console.log('PASS AI changes: listed with plain labels; Undo puts water, settings, folders and moved routines back, keeping what the person changed since');
+
+// A routine edit (rename, Bench 3 → 7 sets incl. 2 warm-ups, Treadmill added): undone part by part, only where the
+// routine is still as the AI left it.
+const edited=()=>{const set=(id,type,w)=>({id,type,weightKg:w,reps:8,timeSec:null,distanceKm:null,done:true});
+ return {...base(),routines:[{id:'r1',name:'Push Day',folderId:null,exercises:[
+  {id:'r1:0',exerciseId:'bench',sets:[set('n1','warmup',null),set('n2','warmup',null),...[3,4,5,6,7].map(k=>set('n'+k,'normal',60))]},{id:'r1:1',exerciseId:'treadmill',sets:[]}]}],
+ aiChanges:[{id:'e',kind:'routine_edit',routineId:'r1',name:'Push Day',renamedFrom:'Push A',added:1,addedNames:['Treadmill'],count:2,
+  sets:[{index:0,exercise:'Bench Press',after:7,before:[{id:'a',kg:60,reps:8,type:'normal'},{id:'b',kg:62.5,reps:6,type:'dropset'},{kg:60,reps:8,type:'normal'}]}],addedBy:by}]};};
+assert.equal(A.aiChangeLabel(edited().aiChanges[0]),'Push Day · renamed, sets, +1 exercise');
+d=edited();A.undoAiChange(d,'e');
+assert.equal(d.routines[0].name,'Push A');assert.equal(d.routines[0].exercises.length,1,'added exercise removed');
+assert.deepEqual(d.routines[0].exercises[0].sets.map(s=>[s.id,s.type,s.weightKg,s.reps]),[['a','normal',60,8],['b','drop',62.5,6],['r1:0:2','normal',60,8]],'sets as before');
+d=edited();d.routines[0].name='My Push';d.routines[0].exercises[0].sets.pop();d.routines[0].exercises.push({id:'r1:2',exerciseId:'fly',sets:[]});A.undoAiChange(d,'e');
+assert.deepEqual([d.routines[0].name,d.routines[0].exercises.length,d.routines[0].exercises[0].sets.length],['My Push',3,6],'changed again by the person: kept');
+console.log('PASS AI routine edit: undo restores the name, the sets and removes added exercises, unless the person changed them since');

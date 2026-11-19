@@ -41,6 +41,6 @@ export function hideAiActivity(items: AiAdded[], recentAll: AiAdded[], current: 
 export function aiSummary(items: AiAdded[]) {
   const by = [...new Set(items.map((a) => a.by))].sort();
   const who = by.length <= 1 ? by[0] ?? 'Your AI assistant' : by.slice(0, -1).join(', ') + ' and ' + by.at(-1);
-  return { who, what: items.length === 1 ? items[0]!.label : `${items.length} new entries`, text: `${who} ${items.every((a) => a.kind === 'settings' || a.kind === 'move' || a.kind === 'folder') ? 'changed' : 'added'} ${items.length === 1 ? items[0]!.label : `${items.length} entries`}` };
+  return { who, what: items.length === 1 ? items[0]!.label : `${items.length} new entries`, text: `${who} ${items.every((a) => a.kind === 'settings' || a.kind === 'move' || a.kind === 'folder' || a.kind === 'routine_edit') ? 'changed' : 'added'} ${items.length === 1 ? items[0]!.label : `${items.length} entries`}` };
 }
 export const openAiHub = () => window.dispatchEvent(new Event('mfd-ai-hub'));

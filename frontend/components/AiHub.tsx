@@ -27,7 +27,7 @@ export function AiHub({ open, onClose }: { open: boolean; onClose: () => void })
   const suggested = activeSuggestions(suggestionList, workoutList, now).filter((x) => routineList.some((r) => r.id === x.routineId));
   const routineName = (x: AiSuggestion) => routineList.find((r) => r.id === x.routineId)?.name ?? x.routineName ?? 'Routine';
   const last = (name: string) => aiLastAdded(all, name);
-  const Icon = { food: Utensils, workout: Dumbbell, weight: Scale, routine: ListChecks, measurement: Ruler, water: Droplet, settings: SlidersHorizontal, folder: Folder, move: FolderInput };
+  const Icon = { food: Utensils, workout: Dumbbell, weight: Scale, routine: ListChecks, measurement: Ruler, water: Droplet, settings: SlidersHorizontal, folder: Folder, move: FolderInput, routine_edit: ListChecks };
   const undo = (a: AiAdded) => {
     if (a.kind === 'food') diaryRepo.remove(a.id);
     else if (a.kind === 'workout') workoutRepo.deleteWorkout(a.id);

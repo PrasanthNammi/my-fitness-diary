@@ -207,6 +207,7 @@ export function aiMessage(connection: string, operation: string, args: Record<st
   if (operation === 'start_workout') return {title: `${app} started a workout`, body: [s(args.name) || s(args.routine) || 'Workout', count(args.exercises) ? `${count(args.exercises)} exercises` : '', 'open the app to begin'].filter(Boolean).join(' · '), url: '/#/workout'};
   if (operation === 'log_water') return {title: `${app} logged water`, body: typeof args.ml === 'number' ? `${args.ml} ml` : '', url: '/'};
   if (operation === 'log_measurements') return {title: `${app} logged measurements`, body: (['waist', 'chest', 'hips', 'arms'] as const).filter((k) => typeof args[k + '_cm'] === 'number').map((k) => `${k[0].toUpperCase() + k.slice(1)} ${args[k + '_cm']} cm`).join(' · '), url: '/#/progress/body'};
+  if (operation === 'edit_routine') return {title: `${app} changed a routine`, body: s(args.new_name) || s(args.routine), url: '/#/training'};
   if (operation === 'move_routine') return {title: `${app} moved a routine`, body: [s(args.routine), s(args.folder)].filter(Boolean).join(' → '), url: '/#/training'};
   // Only the confirmed second step changes anything.
   if (operation === 'change_settings') return typeof args.confirm_token === 'string' ? {title: `${app} changed your settings`, body: 'Tap to review or undo', url: '/'} : null;
