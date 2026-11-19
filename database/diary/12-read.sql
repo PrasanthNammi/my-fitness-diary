@@ -12,19 +12,9 @@
 -- out: the coach chat, AI coach settings, hidden AI items, folder open/closed, import bookkeeping on sets
 -- (legacyCatalogId, sourceSetIndex), the 'Hevy' label on a few imported sets, a rest timer's saved end.
 --
+-- The per-item builders (diary.set_base, workout_base, …) and diary.extra_of/with_extra are in 05-fill-training.sql.
 -- Run after 11-fill-account.sql. Safe to re-run. Changes no data.
 begin;
-
-create or replace function diary.epoch_ms(t timestamptz) returns bigint language sql immutable set search_path = '' as $$
-  select (extract(epoch from t) * 1000)::bigint
-$$;
-
--- An assistant's mark as the old document stored it: {connection, at, request}.
-create or replace function diary.added_by(action_id uuid) returns jsonb language sql stable set search_path = '' as $$
-  select jsonb_strip_nulls(jsonb_build_object('connection', a.connection, 'at', to_char(a.created_at at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'),
-    'request', a.request_id))
-  from diary.ai_actions a where a.id = action_id
-$$;
 
 -- A food label in the old shape (per basis amount).
 create or replace function diary.label_json(f diary.foods) returns jsonb language sql stable set search_path = '' as $$
@@ -34,37 +24,27 @@ create or replace function diary.label_json(f diary.foods) returns jsonb languag
     'salt', trim_scale(f.salt_g), 'ingredients', f.ingredients, 'notes', f.notes, 'source', f.source))
 $$;
 
--- One workout (finished or running) in the old shape.
+-- One workout (finished or running) exactly as the app stored it.
 create or replace function diary.workout_json(w diary.workouts) returns jsonb language sql stable set search_path = '' as $$
-  select jsonb_strip_nulls(jsonb_build_object(
-    'id', coalesce(w.legacy_id, w.id::text), 'name', w.name, 'date', w.local_date::text,
-    'started', diary.epoch_ms(w.started_at), 'finished', diary.epoch_ms(w.ended_at),
-    'routineId', (select coalesce(r.legacy_id, r.id::text) from diary.routines r where r.id = w.routine_id),
-    'source', case when w.source = 'hevy_import' then 'hevy' end, 'importKey', w.import_key, 'importTimezone', w.time_zone, 'notes', w.notes,
-    'addedBy', diary.added_by(w.ai_action_id),
-    'heartRate', (select jsonb_build_object('interval', h.interval_s, 'bpm', to_jsonb(h.bpm), 'avg', h.avg_bpm, 'max', h.max_bpm,
-                    'source', case h.source when 'watch' then 'watch' else 'health' end)
-                  from diary.workout_heart_rate h where h.workout_id = w.id and h.deleted_at is null),
-    'sets', coalesce((
-      select jsonb_agg(jsonb_strip_nulls(jsonb_build_object(
-        'id', case when starts_with(s.legacy_id, w.legacy_id || ':') then substr(s.legacy_id, length(w.legacy_id) + 2) else s.id::text end,
-        'exercise', e.name, 'catalogId', coalesce(e.source_ref, e.legacy_id, e.id::text),
-        'catalogSource', case when e.user_id is null then 'MFD' else 'Custom' end, 'tracking', coalesce(we.tracking, e.tracking),
-        'type', case s.set_type when 'drop' then 'dropset' else s.set_type end,
-        -- the old group number is kept in the exercise's old id ("workout:group")
-        'group', coalesce(case when we.legacy_id ~ ':\d+$' then substring(we.legacy_id from ':(\d+)$')::int end, we.position),
-        'set', s.position + 1, 'kg', trim_scale(s.weight_kg), 'reps', s.reps, 'duration_seconds', s.duration_s, 'distance_meters', trim_scale(s.distance_m),
-        'floors', s.floors, 'steps', s.steps, 'rpe', trim_scale(s.rpe), 'done', s.completed_at is not null,
-        'mfdDoneAt', case when s.completed_at is distinct from w.ended_at then diary.epoch_ms(s.completed_at) end,
-        'mfdSuggested', case when trim_scale(s.planned_weight_kg) is not null or s.planned_reps is not null
-                          then jsonb_strip_nulls(jsonb_build_object('kg', trim_scale(s.planned_weight_kg), 'reps', s.planned_reps)) end,
-        'mfdAi', case when s.planned_by_ai then true end,
-        'superset_id', we.superset_group::text, 'notes', coalesce(we.notes, '')))
-        order by we.position, s.position)
+  select diary.with_extra(diary.workout_base(w) || jsonb_build_object('sets', coalesce((
+      select jsonb_agg(diary.with_extra(diary.set_base(s, we, e, w), s.extra) order by diary.pos(s.extra), we.position, s.position)
       from diary.workout_exercises we
       join diary.workout_sets s on s.workout_exercise_id = we.id and s.deleted_at is null
       join diary.exercises e on e.id = we.exercise_id
-      where we.workout_id = w.id and we.deleted_at is null), '[]')))
+      where we.workout_id = w.id and we.deleted_at is null), '[]')), w.extra)
+$$;
+
+-- Plans exactly as the app stored them (the builders without children are in 05-fill-training.sql).
+create or replace function diary.routine_exercise_json(re diary.routine_exercises, e diary.exercises) returns jsonb language sql stable set search_path = '' as $$
+  select diary.with_extra(diary.routine_exercise_base(re, e) || jsonb_build_object('setDetails', coalesce((
+      select jsonb_agg(diary.with_extra(diary.routine_set_base(rs), rs.extra) order by rs.position)
+      from diary.routine_sets rs where rs.routine_exercise_id = re.id and rs.deleted_at is null), '[]')), re.extra)
+$$;
+create or replace function diary.routine_json(r diary.routines) returns jsonb language sql stable set search_path = '' as $$
+  select diary.with_extra(diary.routine_base(r) || jsonb_build_object('exercises', coalesce((
+      select jsonb_agg(diary.routine_exercise_json(re, e) order by re.position)
+      from diary.routine_exercises re join diary.exercises e on e.id = re.exercise_id
+      where re.routine_id = r.id and re.deleted_at is null), '[]')), r.extra)
 $$;
 
 -- Daily targets, the app's formula (frontend/domain/nutrition.ts, also mfd_mcp.targets): Mifflin-St Jeor BMR ×
@@ -96,37 +76,29 @@ create or replace function diary.feed_copy(w diary.workouts) returns jsonb langu
 $$;
 revoke all on function diary.feed_copy(diary.workouts) from public, anon, authenticated;
 
-create or replace function diary.as_envelope(u uuid) returns jsonb
-language sql stable security definer set search_path = '' as $$
-  select jsonb_strip_nulls(jsonb_build_object(
-    'sessions', coalesce((select jsonb_agg(diary.workout_json(w) order by w.started_at, w.id)
+
+-- A person's training (finished workouts, the running one, folders, routines, own exercises) exactly as the app
+-- stored it. Lists keep the app's order; items made without one (none yet) go last.
+create or replace function diary.training_json(u uuid) returns jsonb language sql stable set search_path = '' as $$
+  select jsonb_build_object(
+    'sessions', coalesce((select jsonb_agg(diary.workout_json(w) order by diary.pos(w.extra), w.started_at, w.id)
                           from diary.workouts w where w.user_id = u and w.deleted_at is null and w.ended_at is not null), '[]'),
     'active', (select diary.workout_json(w) from diary.workouts w where w.user_id = u and w.deleted_at is null and w.ended_at is null limit 1),
-    'folders', coalesce((select jsonb_agg(jsonb_build_object('id', coalesce(f.legacy_id, f.id::text), 'name', f.name) order by f.position, f.id)
+    'folders', coalesce((select jsonb_agg(diary.with_extra(diary.folder_base(f), f.extra) order by f.position, f.id)
                          from diary.routine_folders f where f.user_id = u and f.deleted_at is null), '[]'),
-    'routines', coalesce((select jsonb_agg(jsonb_strip_nulls(jsonb_build_object(
-        'id', coalesce(r.legacy_id, r.id::text), 'name', r.name,
-        'folderId', (select coalesce(f.legacy_id, f.id::text) from diary.routine_folders f where f.id = r.folder_id),
-        'addedBy', diary.added_by(r.ai_action_id),
-        'exercises', coalesce((select jsonb_agg(jsonb_strip_nulls(jsonb_build_object(
-            'name', e.name, 'catalogId', coalesce(e.source_ref, e.legacy_id, e.id::text),
-            'catalogSource', case when e.user_id is null then 'MFD' else 'Custom' end,
-            'rest', re.rest_s, 'notes', coalesce(re.notes, ''), 'superset_id', re.superset_group::text,
-            'sets', (select count(*) from diary.routine_sets rs where rs.routine_exercise_id = re.id and rs.deleted_at is null),
-            'reps', (select rs.target_reps from diary.routine_sets rs where rs.routine_exercise_id = re.id and rs.deleted_at is null and rs.set_type <> 'warmup' order by rs.position limit 1),
-            'kg', (select trim_scale(rs.target_weight_kg) from diary.routine_sets rs where rs.routine_exercise_id = re.id and rs.deleted_at is null and rs.set_type <> 'warmup' order by rs.position limit 1),
-            'setDetails', (select jsonb_agg(jsonb_strip_nulls(jsonb_build_object('type', case rs.set_type when 'drop' then 'dropset' else rs.set_type end,
-                              'kg', trim_scale(rs.target_weight_kg), 'reps', rs.target_reps, 'duration_seconds', rs.target_duration_s, 'distance_meters', trim_scale(rs.target_distance_m)))
-                              order by rs.position)
-                           from diary.routine_sets rs where rs.routine_exercise_id = re.id and rs.deleted_at is null)))
-            order by re.position)
-          from diary.routine_exercises re join diary.exercises e on e.id = re.exercise_id
-          where re.routine_id = r.id and re.deleted_at is null), '[]')))
-        order by r.position, r.id)
-      from diary.routines r where r.user_id = u and r.deleted_at is null), '[]'),
-    'mfdExercises', coalesce((select jsonb_agg(jsonb_build_object('id', coalesce(e.legacy_id, e.id::text), 'name', e.name, 'tracking', e.tracking, 'source', 'custom')
-                                order by e.name)
-                              from diary.exercises e where e.user_id = u and e.deleted_at is null and e.archived_at is null), '[]'),
+    'routines', coalesce((select jsonb_agg(diary.routine_json(r) order by r.position, r.id)
+                          from diary.routines r where r.user_id = u and r.deleted_at is null), '[]'),
+    -- "My exercises": own exercises the app lists ("$pos"); ones made only from a set's name aren't listed.
+    'mfdExercises', coalesce((select jsonb_agg(diary.with_extra(diary.own_exercise_base(e), e.extra) order by diary.pos(e.extra), e.name)
+                              from diary.exercises e where e.user_id = u and e.deleted_at is null and e.archived_at is null
+                                and (e.extra is null or jsonb_typeof(e.extra->'$pos') = 'number')), '[]'))
+$$;
+revoke all on function diary.training_json(uuid) from public, anon, authenticated;
+
+create or replace function diary.as_envelope(u uuid) returns jsonb
+language sql stable security definer set search_path = '' as $$
+  -- Training exactly as stored (empty values kept where the app had them); the other areas without empty values.
+  select diary.training_json(u) || jsonb_strip_nulls(jsonb_build_object(
     'meals', coalesce((select jsonb_agg(jsonb_strip_nulls(jsonb_build_object(
         'id', coalesce(m.legacy_id, m.id::text), 'date', m.local_date::text, 'meal', initcap(m.meal), 'name', m.name,
         'amount', trim_scale(m.amount), 'unit', m.unit, 'cal', trim_scale(m.kcal), 'p', trim_scale(m.protein_g), 'c', trim_scale(m.carbs_g), 'f', trim_scale(m.fat_g),

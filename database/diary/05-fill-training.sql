@@ -35,6 +35,94 @@ create or replace function diary.ms(j jsonb) returns timestamptz language sql im
   select case when diary.num(j) between 946684800000 and 4102444800000 then to_timestamp(diary.num(j) / 1000) end
 $$;
 
+-- ── Building items in the app's shape from the rows (also used by 12-read.sql) ──
+create or replace function diary.epoch_ms(t timestamptz) returns bigint language sql immutable set search_path = '' as $$
+  select (extract(epoch from t) * 1000)::bigint
+$$;
+
+-- An assistant's mark as the old document stored it: {connection, at, request}.
+create or replace function diary.added_by(action_id uuid) returns jsonb language sql stable set search_path = '' as $$
+  select jsonb_strip_nulls(jsonb_build_object('connection', a.connection, 'at', to_char(a.created_at at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'),
+    'request', a.request_id))
+  from diary.ai_actions a where a.id = action_id
+$$;
+
+-- ── Exact round trip (step to the tables becoming the original, 2026-11-19) ──
+-- Each training row has "extra": what its item held that the columns don't rebuild exactly (word for word), the
+-- details the columns would add but the item didn't have ("$absent"), and the item's place in its list ("$pos").
+-- diary.extra_of(original, built) works it out; diary.with_extra(built, extra) puts it back.
+create or replace function diary.extra_of(orig jsonb, built jsonb) returns jsonb language sql immutable set search_path = '' as $$
+  select nullif(coalesce((select jsonb_object_agg(k, orig->k) from jsonb_object_keys(orig) k where built->k is distinct from orig->k), '{}'::jsonb)
+    || coalesce((select case when count(*) > 0 then jsonb_build_object('$absent', jsonb_agg(k order by k)) end from jsonb_object_keys(built) k where not orig ? k), '{}'::jsonb), '{}'::jsonb)
+$$;
+create or replace function diary.with_extra(built jsonb, extra jsonb) returns jsonb language sql immutable set search_path = '' as $$
+  select case when extra is null then built
+    else (built - coalesce(array(select jsonb_array_elements_text(case when jsonb_typeof(extra->'$absent') = 'array' then extra->'$absent' else '[]' end)), '{}'::text[]))
+      || (extra - '$absent' - '$pos') end
+$$;
+-- The place an item had in its list (rows without one go last, in their natural order).
+create or replace function diary.pos(extra jsonb) returns int language sql immutable set search_path = '' as $$
+  select case when jsonb_typeof(extra->'$pos') = 'number' then (extra->>'$pos')::int end
+$$;
+
+-- One set as the columns hold it.
+create or replace function diary.set_base(s diary.workout_sets, we diary.workout_exercises, e diary.exercises, w diary.workouts) returns jsonb
+language sql stable set search_path = '' as $$
+  select jsonb_strip_nulls(jsonb_build_object(
+    'id', case when starts_with(s.legacy_id, w.legacy_id || ':') then substr(s.legacy_id, length(w.legacy_id) + 2) else s.id::text end,
+    'exercise', e.name, 'catalogId', coalesce(e.source_ref, e.legacy_id, e.id::text),
+    'catalogSource', case when e.user_id is null then 'MFD' else 'Custom' end, 'tracking', coalesce(we.tracking, e.tracking),
+    'type', case s.set_type when 'drop' then 'dropset' else s.set_type end,
+    -- the old group number is kept in the exercise's old id ("workout:group")
+    'group', coalesce(case when we.legacy_id ~ ':\d+$' then substring(we.legacy_id from ':(\d+)$')::int end, we.position),
+    'set', s.position + 1, 'kg', trim_scale(s.weight_kg), 'reps', s.reps, 'duration_seconds', s.duration_s, 'distance_meters', trim_scale(s.distance_m),
+    'floors', s.floors, 'steps', s.steps, 'rpe', trim_scale(s.rpe), 'done', s.completed_at is not null,
+    'mfdDoneAt', case when s.completed_at is distinct from w.ended_at then diary.epoch_ms(s.completed_at) end,
+    'mfdSuggested', case when trim_scale(s.planned_weight_kg) is not null or s.planned_reps is not null
+                      then jsonb_strip_nulls(jsonb_build_object('weightKg', trim_scale(s.planned_weight_kg), 'reps', s.planned_reps)) end,
+    'mfdAi', case when s.planned_by_ai then true end,
+    'superset_id', we.superset_group::text, 'notes', coalesce(we.notes, '')))
+$$;
+
+-- One workout as the columns hold it, without its sets.
+create or replace function diary.workout_base(w diary.workouts) returns jsonb language sql stable set search_path = '' as $$
+  select jsonb_strip_nulls(jsonb_build_object(
+    'id', coalesce(w.legacy_id, w.id::text), 'name', w.name, 'date', w.local_date::text,
+    'started', diary.epoch_ms(w.started_at), 'finished', diary.epoch_ms(w.ended_at),
+    'routineId', (select coalesce(r.legacy_id, r.id::text) from diary.routines r where r.id = w.routine_id),
+    'source', case when w.source = 'hevy_import' then 'hevy' end, 'importKey', w.import_key, 'importTimezone', w.time_zone, 'notes', w.notes,
+    'addedBy', diary.added_by(w.ai_action_id),
+    'heartRate', (select jsonb_build_object('interval', h.interval_s, 'bpm', to_jsonb(h.bpm), 'avg', h.avg_bpm, 'max', h.max_bpm,
+                    'source', case h.source when 'watch' then 'watch' else 'health' end)
+                  from diary.workout_heart_rate h where h.workout_id = w.id and h.deleted_at is null)))
+$$;
+
+-- Plans as the columns hold them, without their children.
+create or replace function diary.routine_set_base(rs diary.routine_sets) returns jsonb language sql immutable set search_path = '' as $$
+  select jsonb_strip_nulls(jsonb_build_object('type', case rs.set_type when 'drop' then 'dropset' else rs.set_type end,
+    'kg', trim_scale(rs.target_weight_kg), 'reps', rs.target_reps, 'duration_seconds', rs.target_duration_s, 'distance_meters', trim_scale(rs.target_distance_m)))
+$$;
+create or replace function diary.routine_exercise_base(re diary.routine_exercises, e diary.exercises) returns jsonb language sql stable set search_path = '' as $$
+  select jsonb_strip_nulls(jsonb_build_object(
+    'name', e.name, 'catalogId', coalesce(e.source_ref, e.legacy_id, e.id::text),
+    'catalogSource', case when e.user_id is null then 'MFD' else 'Custom' end,
+    'rest', re.rest_s, 'notes', coalesce(re.notes, ''), 'superset_id', re.superset_group::text,
+    'sets', (select count(*) from diary.routine_sets rs where rs.routine_exercise_id = re.id and rs.deleted_at is null),
+    'reps', (select rs.target_reps from diary.routine_sets rs where rs.routine_exercise_id = re.id and rs.deleted_at is null and rs.set_type <> 'warmup' order by rs.position limit 1),
+    'kg', (select trim_scale(rs.target_weight_kg) from diary.routine_sets rs where rs.routine_exercise_id = re.id and rs.deleted_at is null and rs.set_type <> 'warmup' order by rs.position limit 1)))
+$$;
+create or replace function diary.routine_base(r diary.routines) returns jsonb language sql stable set search_path = '' as $$
+  select jsonb_strip_nulls(jsonb_build_object('id', coalesce(r.legacy_id, r.id::text), 'name', r.name,
+    'folderId', (select coalesce(f.legacy_id, f.id::text) from diary.routine_folders f where f.id = r.folder_id),
+    'addedBy', diary.added_by(r.ai_action_id)))
+$$;
+create or replace function diary.folder_base(f diary.routine_folders) returns jsonb language sql immutable set search_path = '' as $$
+  select jsonb_build_object('id', coalesce(f.legacy_id, f.id::text), 'name', f.name)
+$$;
+create or replace function diary.own_exercise_base(e diary.exercises) returns jsonb language sql immutable set search_path = '' as $$
+  select jsonb_build_object('id', coalesce(e.legacy_id, e.id::text), 'name', e.name, 'tracking', e.tracking, 'source', 'custom')
+$$;
+
 -- Values that didn't fit, per person (for the check after filling; nothing is silently lost without a count).
 create table if not exists diary.fill_problems (
   user_id  uuid not null references auth.users(id) on delete cascade,
@@ -46,6 +134,84 @@ create table if not exists diary.fill_problems (
 );
 alter table diary.fill_problems enable row level security;
 revoke all on diary.fill_problems from public, anon, authenticated;
+
+-- A parent's extra and its list of children (sets, exercises, planned sets): a list rebuilt from rows needs nothing;
+-- anything else (missing, not a list, or an empty list that rows can't stand for) is kept as it was.
+create or replace function diary.children_extra(extra jsonb, orig jsonb, k text, empty_ok boolean) returns jsonb
+language sql immutable set search_path = '' as $$
+  select case
+    when jsonb_typeof(orig->k) = 'array' and (empty_ok or jsonb_array_length(orig->k) > 0) then extra
+    when orig ? k then extra || jsonb_build_object(k, orig->k)
+    else extra || jsonb_build_object('$absent', coalesce(extra->'$absent', '[]'::jsonb) || to_jsonb(k)) end
+$$;
+
+-- What each item held that the columns don't rebuild exactly, and its place in its list ("extra", 03-training.sql),
+-- so the tables give back exactly what the app stored. Only rows whose extra really changes are written.
+create or replace function diary.fill_training_extras(u uuid, doc jsonb, only_workouts text[] default null) returns void
+language plpgsql security definer set search_path = '' as $$
+begin
+  -- Workouts (in _w from fill_training) and their sets.
+  with c as (
+    select t.id, nullif(diary.children_extra(coalesce(diary.extra_of(_w.w - 'sets', diary.workout_base(t)), '{}'), _w.w, 'sets', true)
+             || case when _w.pos is not null then jsonb_build_object('$pos', _w.pos) else '{}' end, '{}'::jsonb) extra
+    from _w join diary.workouts t on t.id = diary.legacy_uuid(u, 'workout', _w.w->>'id'))
+  update diary.workouts t set extra = c.extra from c where t.id = c.id and t.extra is distinct from c.extra;
+
+  with c as (
+    select t.id, coalesce(diary.extra_of(e.x, diary.set_base(t, we, ex, wo)), '{}') || jsonb_build_object('$pos', (e.n - 1)::int) extra
+    from _w cross join lateral jsonb_array_elements(case when jsonb_typeof(_w.w->'sets') = 'array' then _w.w->'sets' else '[]' end) with ordinality e(x, n)
+    join diary.workout_sets t on t.id = diary.legacy_uuid(u, 'workout_set', (_w.w->>'id') || ':' || coalesce(nullif(e.x->>'id', ''), e.n::text))
+    join diary.workout_exercises we on we.id = t.workout_exercise_id
+    join diary.exercises ex on ex.id = we.exercise_id
+    join diary.workouts wo on wo.id = we.workout_id)
+  update diary.workout_sets t set extra = c.extra from c where t.id = c.id and t.extra is distinct from c.extra;
+
+  if only_workouts is not null then return; end if;
+
+  -- Folders.
+  with c as (
+    select t.id, diary.extra_of(f, diary.folder_base(t)) extra
+    from jsonb_array_elements(case when jsonb_typeof(doc->'folders') = 'array' then doc->'folders' else '[]' end) f
+    join diary.routine_folders t on t.id = diary.legacy_uuid(u, 'folder', f->>'id'))
+  update diary.routine_folders t set extra = c.extra from c where t.id = c.id and t.extra is distinct from c.extra;
+
+  -- Routines, their exercises and planned sets.
+  with c as (
+    select t.id, nullif(diary.children_extra(coalesce(diary.extra_of(r - 'exercises', diary.routine_base(t)), '{}'), r, 'exercises', true), '{}'::jsonb) extra
+    from jsonb_array_elements(case when jsonb_typeof(doc->'routines') = 'array' then doc->'routines' else '[]' end) r
+    join diary.routines t on t.id = diary.legacy_uuid(u, 'routine', r->>'id'))
+  update diary.routines t set extra = c.extra from c where t.id = c.id and t.extra is distinct from c.extra;
+
+  -- (planned sets made from "N sets of reps × kg" aren't per-set details: an empty or missing list stays as it was)
+  with c as (
+    select t.id, nullif(diary.children_extra(coalesce(diary.extra_of(e - 'setDetails', diary.routine_exercise_base(t, ex)), '{}'), e, 'setDetails', false), '{}'::jsonb) extra
+    from jsonb_array_elements(case when jsonb_typeof(doc->'routines') = 'array' then doc->'routines' else '[]' end) rt(r)
+    cross join lateral jsonb_array_elements(case when jsonb_typeof(r->'exercises') = 'array' then r->'exercises' else '[]' end) with ordinality a(e, n)
+    join diary.routine_exercises t on t.id = diary.legacy_uuid(u, 'routine_exercise', (r->>'id') || ':' || (n - 1))
+    join diary.exercises ex on ex.id = t.exercise_id)
+  update diary.routine_exercises t set extra = c.extra from c where t.id = c.id and t.extra is distinct from c.extra;
+
+  with c as (
+    select t.id, diary.extra_of(d, diary.routine_set_base(t)) extra
+    from jsonb_array_elements(case when jsonb_typeof(doc->'routines') = 'array' then doc->'routines' else '[]' end) rt(r)
+    cross join lateral jsonb_array_elements(case when jsonb_typeof(r->'exercises') = 'array' then r->'exercises' else '[]' end) with ordinality a(e, n)
+    cross join lateral jsonb_array_elements(case when jsonb_typeof(e->'setDetails') = 'array' then e->'setDetails' else '[]' end) with ordinality s(d, k)
+    join diary.routine_sets t on t.id = diary.legacy_uuid(u, 'routine_set', (r->>'id') || ':' || (n - 1) || ':' || (k - 1)))
+  update diary.routine_sets t set extra = c.extra from c where t.id = c.id and t.extra is distinct from c.extra;
+
+  -- Own exercises: the ones listed in "My exercises" keep their place; the others are marked as not listed.
+  with src as (
+    select distinct on (lower(btrim(e->>'name'))) diary.legacy_uuid(u, 'exercise', lower(btrim(e->>'name'))) id, e o, (n - 1)::int pos
+    from jsonb_array_elements(case when jsonb_typeof(doc->'mfdExercises') = 'array' then doc->'mfdExercises' else '[]' end) with ordinality a(e, n)
+    where coalesce(btrim(e->>'name'), '') <> '' order by lower(btrim(e->>'name')), n),
+  c as (
+    select t.id, coalesce(diary.extra_of(src.o, diary.own_exercise_base(t)), '{}') || jsonb_build_object('$pos', src.pos) extra
+    from src join diary.exercises t on t.id = src.id and t.user_id = u
+    union all
+    select t.id, '{"$pos": null}'::jsonb from diary.exercises t where t.user_id = u and t.deleted_at is null and t.id not in (select id from src))
+  update diary.exercises t set extra = c.extra from c where t.id = c.id and t.extra is distinct from c.extra;
+end $$;
+revoke all on function diary.fill_training_extras(uuid, jsonb, text[]) from public, anon, authenticated;
 
 create or replace function diary.fill_training(u uuid, only_workouts text[] default null) returns void
 language plpgsql security definer set search_path = '' as $$
@@ -198,13 +364,13 @@ begin
   end if;
 
   -- ── Workouts: finished ones, plus the running one ("active") ──
-  create temporary table if not exists _w (w jsonb, running boolean) on commit drop;
-  truncate _w;
+  drop table if exists _w;
+  create temporary table _w (w jsonb, running boolean, pos int) on commit drop;
   insert into _w
-    select s, false from jsonb_array_elements(case when jsonb_typeof(doc->'sessions') = 'array' then doc->'sessions' else '[]' end) s
+    select s, false, (n - 1)::int from jsonb_array_elements(case when jsonb_typeof(doc->'sessions') = 'array' then doc->'sessions' else '[]' end) with ordinality a(s, n)
     where coalesce(s->>'id', '') <> '' and (only_workouts is null or s->>'id' = any(only_workouts));
   if jsonb_typeof(doc->'active') = 'object' and coalesce(doc->'active'->>'id', '') <> '' and (only_workouts is null or doc->'active'->>'id' = any(only_workouts)) then
-    insert into _w values (doc->'active', true);
+    insert into _w values (doc->'active', true, null);
   end if;
 
   perform diary.note_ai(u, 'log_workout', (select jsonb_agg(jsonb_build_object('key', w->>'id', 'by', w->'addedBy')) from _w where w ? 'addedBy'));
@@ -281,7 +447,8 @@ begin
     diary.within(round(diary.num(x->'duration_seconds')), 0, 86400)::int, diary.within(diary.num(x->'distance_meters'), 0, 1000000),
     diary.within(round(diary.num(x->'floors')), 0, 10000)::int, diary.within(round(diary.num(x->'steps')), 0, 1000000)::int,
     diary.within(diary.num(x->'rpe'), 1, 10),
-    diary.within(diary.num(x->'mfdSuggested'->'kg'), 0, 1000), diary.within(round(diary.num(x->'mfdSuggested'->'reps')), 0, 1000)::int,
+    -- the app stores the target weight as weightKg (older entries: kg)
+    diary.within(diary.num(coalesce(x->'mfdSuggested'->'weightKg', x->'mfdSuggested'->'kg')), 0, 1000), diary.within(round(diary.num(x->'mfdSuggested'->'reps')), 0, 1000)::int,
     coalesce((x->>'mfdAi')::boolean, false),
     case when x->>'done' = 'false' or (running and x->>'done' is distinct from 'true') then null
          else coalesce(diary.ms(x->'mfdDoneAt'), diary.ms(w->'finished'), diary.ms(w->'started'), coalesce(diary.day(w->>'date'), now_ts::date)::timestamptz + interval '12 hours') end,
@@ -323,6 +490,8 @@ begin
       is distinct from (s.source, s.interval_s, s.bpm, s.avg_bpm, s.max_bpm, null::timestamptz)
     then update set source = s.source, interval_s = s.interval_s, bpm = s.bpm, avg_bpm = s.avg_bpm, max_bpm = s.max_bpm, deleted_at = null
   when not matched then insert (workout_id, user_id, source, interval_s, bpm, avg_bpm, max_bpm) values (s.workout_id, s.user_id, s.source, s.interval_s, s.bpm, s.avg_bpm, s.max_bpm);
+
+  perform diary.fill_training_extras(u, doc, only_workouts);
 end $$;
 revoke all on function diary.fill_training(uuid, text[]) from public, anon, authenticated;
 

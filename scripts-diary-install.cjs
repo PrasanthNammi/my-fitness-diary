@@ -1,8 +1,9 @@
 // Writes the REAL install of the MFD 3.0 database (database/diary/01–11) as numbered files in ~/Downloads/mfd-db-install/,
 // each small enough for the Supabase SQL editor (the full exercise library alone is ~1.9 MB).
 //
-//   1-tables.sql        every table, the follow triggers, the library's linking fields, then fills every diary once
-//                       and ends with the old-vs-new report (all lines should say OK).
+//   1-tables.sql        the foundation, library linking fields, training and nutrition tables and their follow triggers.
+//   2-tables-and-fill   body and account tables, then fills every diary once and ends with the old-vs-new report
+//                       (all lines should say OK).
 //   2…N-library-*.sql   the rest of the exercise library (texts, muscles, equipment), in pieces.
 //
 // Run them in number order. Each runs in one transaction (all or nothing) and is safe to run again.
@@ -51,15 +52,16 @@ commit;
 `;
 
 const files = [];
-files.push(['1-tables', wrap('file 1: tables, follow triggers, first fill', `${part('01-foundation')}
+files.push(['1-tables', wrap('file 1: foundation, library, training and nutrition tables', `${part('01-foundation')}
 ${part('02-library')}
 ${lists}
 ${lite}
 ${part('03-training')}
 ${part('05-fill-training')}
 ${part('06-nutrition')}
-${part('07-fill-nutrition')}
-${part('08-body')}
+${part('07-fill-nutrition')}`)]);
+// (split in two so each stays under the SQL editor's size limit)
+files.push(['2-tables-and-fill', wrap('file 2: body and account tables, follow triggers, first fill', `${part('08-body')}
 ${part('09-fill-body')}
 ${part('10-account')}
 ${part('11-fill-account')}
