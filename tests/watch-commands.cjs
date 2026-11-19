@@ -25,6 +25,10 @@ a.exercises[1].sets[0].suggested={};assert.ok(ok(a,C('logSet',{block:'b2',set:'t
 assert.deepEqual([a.exercises[1].sets[0].weightKg,a.exercises[1].sets[0].reps],[45,6],'from the previous session');
 assert.ok(ok(a,C('logSet',{block:'b3',set:'p1'})));assert.equal(a.timers.b3.endsAt,null,'no rest timer when rest is off');
 assert.ok(!ok(a,C('logSet',{block:'b1',set:'s2'})),'already logged');
+// Logged on the watch 40 s before the phone heard of it: the rest started then too (50 s left, as on the watch).
+let late=fresh();assert.ok(ok(late,C('logSet',{block:'b1',set:'s2',at:ctx.now-40000})));
+assert.deepEqual([late.exercises[0].sets[1].doneAt,late.timers.b1.endsAt],[ctx.now-40000,ctx.now+50000],'rest counted from the watch\'s time');
+late=fresh();assert.ok(ok(late,C('logSet',{block:'b1',set:'s2',at:ctx.now+60000})));assert.equal(late.timers.b1.endsAt,ctx.now+90000,'a time from the future: now');
 const empty=fresh();empty.exercises[0].sets[2].suggested={};assert.ok(!ok(empty,C('logSet',{block:'b1',set:'s3'})),'nothing to log');assert.equal(empty.exercises[0].sets[2].done,false);
 // updateSet / unlogSet / setType
 assert.ok(ok(a,C('updateSet',{block:'b1',set:'s2',values:{weightKg:85,reps:7}})));assert.deepEqual([a.exercises[0].sets[1].weightKg,a.exercises[0].sets[1].reps,a.exercises[0].sets[1].done],[85,7,true]);

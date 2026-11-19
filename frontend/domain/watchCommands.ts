@@ -52,7 +52,8 @@ export function applyWorkoutCommand(a: ActiveWorkout, c: WatchCommand, ctx: Watc
       // Logged at the watch's time (the phone may get it later), within the workout.
       const at = typeof c.at === 'number' && c.at >= a.startedAt && c.at <= ctx.now ? c.at : ctx.now;
       Object.assign(s, logged, { doneAt: at });
-      if (b.restSec > 0) a.timers[b.id] = startTimer({ ...timerFor(a, b), durationSec: b.restSec }, ctx.now);
+      // The rest runs from the same moment, so phone and watch count down together however late the phone hears of it.
+      if (b.restSec > 0) a.timers[b.id] = startTimer({ ...timerFor(a, b), durationSec: b.restSec }, at);
       return true;
     }
     case 'updateSet': {

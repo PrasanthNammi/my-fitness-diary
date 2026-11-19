@@ -76,15 +76,16 @@ class Units(val lb: Boolean) {
     val unit get() = if (lb) "lb" else "kg"
 }
 
-fun num(x: Double): String = if (abs(x - x.roundToInt()) < 0.001) x.roundToInt().toString() else "%.1f".format(x).trimEnd('0').trimEnd('.')
+/** A number as logged, up to two decimals (12.5, 12.25, 80), without trailing zeros. */
+fun num(x: Double): String = if (abs(x - x.roundToInt()) < 0.001) x.roundToInt().toString() else "%.2f".format(x).trimEnd('0').trimEnd('.', ',')
 fun mmss(sec: Int) = "%d:%02d".format(sec / 60, sec % 60)
 
 /** How a field's value reads, and how far one bezel click moves it. */
 fun fieldText(f: String, x: Double?, u: Units): String = when {
     x == null -> "—"
-    f == "weightKg" -> num((u.toShown(x) * 10).roundToInt() / 10.0)
+    f == "weightKg" -> num((u.toShown(x) * 100).roundToInt() / 100.0)
     f == "timeSec" -> mmss(x.toInt())
-    f == "distanceKm" -> "%.1f".format(x)
+    f == "distanceKm" -> num(x)
     else -> x.roundToInt().toString()
 }
 fun fieldUnit(f: String, u: Units) = when (f) { "weightKg" -> u.unit; "reps" -> "reps"; "timeSec" -> "time"; "distanceKm" -> "km"; else -> "" }

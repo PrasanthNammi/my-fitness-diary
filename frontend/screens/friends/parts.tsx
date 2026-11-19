@@ -138,7 +138,7 @@ export function PairBars({ me, friend, avatar, mine, theirs, fmt }: { me: Person
 export function Metric({ label, mine, theirs, me, friend, avatar, fmt }: { label: string; mine: number; theirs: number; me: Person; friend: Person; avatar: Avatar; fmt: (v: number) => string }) {
   return <div className="fr-metric"><div className="fr-metric-head"><span className="strong">{label}</span><ChangeBadge pct={pctChange(mine, theirs)} /></div><PairBars me={me} friend={friend} avatar={avatar} mine={mine} theirs={theirs} fmt={fmt} /></div>;
 }
-export const metricFormat = (m: ExerciseMetric, unit: Unit) => (v: number) => (m.kind === 'kg' ? `${fmtNum(kgTo(v, unit), 1)} ${unit}` : m.kind === 'sec' ? mss(v) : m.kind === 'km' ? `${fmtNum(v, 2)} km` : `${Math.round(v)} reps`);
+export const metricFormat = (m: ExerciseMetric, unit: Unit) => (v: number) => (m.kind === 'kg' ? `${fmtNum(kgTo(v, unit), 2)} ${unit}` : m.kind === 'sec' ? mss(v) : m.kind === 'km' ? `${fmtNum(v, 2)} km` : `${Math.round(v)} reps`);
 
 /** Me vs friend hero; "Stronger" under whoever leads (exercise view). */
 export function Hero({ me, friend, avatar, leader }: { me: Person; friend: Person; avatar: Avatar; leader?: 'me' | 'friend' | null }) {
