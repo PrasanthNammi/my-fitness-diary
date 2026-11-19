@@ -125,7 +125,7 @@ function diary() {
   // Bob's diary is separate; and a broken diary never blocks a save.
   await save(bob, { ...diary(), sessions: diary().sessions.slice(0, 2) });
   assert.equal(await live('workouts', bob), 2); assert.equal(await live('workouts'), 40);
-  await db.exec(`create or replace function diary.fill_training(u uuid, only_workouts text[] default null) returns void language plpgsql as $$ begin raise exception 'boom'; end $$`);
+  await db.exec(`create or replace function diary.fill_training(u uuid, only_workouts text[] default null, src jsonb default null, plans boolean default null) returns void language plpgsql as $$ begin raise exception 'boom'; end $$`);
   d.sessions[1].name = 'Renamed';
   await save(alice, d); // must not throw
   assert.equal((await one(`select payload->'sessions'->1->>'name' n from public.forma_workspaces where user_id = $1`, [alice])).n, 'Renamed', 'the app\'s save went through');

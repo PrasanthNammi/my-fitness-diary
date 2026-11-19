@@ -91,7 +91,7 @@ create or replace function diary.training_json(u uuid) returns jsonb language sq
     -- "My exercises": own exercises the app lists ("$pos"); ones made only from a set's name aren't listed.
     'mfdExercises', coalesce((select jsonb_agg(diary.with_extra(diary.own_exercise_base(e), e.extra) order by diary.pos(e.extra), e.name)
                               from diary.exercises e where e.user_id = u and e.deleted_at is null and e.archived_at is null
-                                and (e.extra is null or jsonb_typeof(e.extra->'$pos') = 'number')), '[]'))
+                                and jsonb_typeof(e.extra->'$pos') = 'number'), '[]'))
 $$;
 revoke all on function diary.training_json(uuid) from public, anon, authenticated;
 
