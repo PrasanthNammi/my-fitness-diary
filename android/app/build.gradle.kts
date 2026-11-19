@@ -22,8 +22,8 @@ android {
         applicationId = "site.mfd.app"
         minSdk = 26
         targetSdk = 36
-        versionCode = 9
-        versionName = "2.0.2"
+        versionCode = 10
+        versionName = "2.0.4"
         // MFD's download site: where the app finds and downloads its own updates. Test builds can point
         // elsewhere with -PmfdDownloads=https://...
         val downloads = (project.findProperty("mfdDownloads") as String?) ?: "https://mfd-downloads.shanustylish777.workers.dev"
