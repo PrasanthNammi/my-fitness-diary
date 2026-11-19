@@ -69,4 +69,10 @@ class EngineTest {
         assertSame(w, Engine.apply(w, c("logSet", "block" to "nope", "set" to "s1")))
         assertSame(w, Engine.apply(w, c("explode", "block" to "b1")))
     }
+
+    @Test fun weightsShowAsLogged() {
+        val kg = Units(false)
+        assertEquals(listOf("12.5", "12.25", "80", "1.25", "—"), listOf(12.5, 12.25, 80.0, 1.25, null).map { fieldText("weightKg", it, kg) })
+        assertEquals("2.35", fieldText("distanceKm", 2.35, kg))
+    }
 }
