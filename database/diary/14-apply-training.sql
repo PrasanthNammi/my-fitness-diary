@@ -47,7 +47,7 @@ $$;
 create or replace function diary.apply_training_ops(u uuid, ops jsonb, present jsonb) returns jsonb
 language plpgsql security definer set search_path = '' as $$
 declare op jsonb; k text; wid text; keys text[] := array(select jsonb_array_elements_text(coalesce(present, '[]'))); doc jsonb; c record;
-  run_id text; p int; own jsonb;
+  run_id text; p int; own jsonb; touched text[] := '{}'; all_feed boolean := false;
 begin
   for op in select e from jsonb_array_elements(ops) with ordinality t(e, n) where e->>'k' = any (diary.training_keys()) order by n loop
     k := op->>'k';
@@ -99,6 +99,7 @@ begin
         if not exists (select 1 from diary.workouts w where w.user_id = u and w.legacy_id = wid and w.deleted_at is null and w.ended_at is not null) then
           raise exception 'Missing item in %', k using errcode = '22023'; end if;
         perform diary.fill_training(u, array[wid], jsonb_build_object('sessions', '[]'::jsonb, 'mfdExercises', own), false);
+        touched := touched || wid;
       elsif op ? 'v' then
         if jsonb_typeof(op->'v') is distinct from 'object' or (op->'v'->'id') is distinct from (op->'i') then
           raise exception 'Item id mismatch in %', k using errcode = '22023'; end if;
@@ -114,10 +115,12 @@ begin
         end if;
         perform diary.fill_training(u, array[wid], jsonb_build_object('sessions', c.document->'sessions', 'mfdExercises', own), false);
         perform diary.set_workout_pos(u, wid, p);
+        touched := touched || wid;
       else raise exception 'Invalid change' using errcode = '22023'; end if;
     elsif op->'d' = 'true'::jsonb then
       keys := array_remove(keys, k);
       perform diary.fill_training(u, null, jsonb_build_object('sessions', '[]'::jsonb, 'mfdExercises', own), false);
+      all_feed := true;
     elsif op ? 'v' then
       if not k = any (keys) then keys := keys || k; end if;
       select * into c from mfd_private.workspace_compact(jsonb_build_object('sessions', op->'v'));
@@ -127,8 +130,13 @@ begin
       end if;
       -- The whole list: every workout redone (the running one is kept).
       perform diary.fill_training(u, null, jsonb_build_object('sessions', c.document->'sessions', 'active', (select diary.training_json(u)->'active'), 'mfdExercises', own), false);
+      all_feed := true;
     else raise exception 'Invalid change' using errcode = '22023'; end if;
   end loop;
+  -- The Friends feed copies of the workouts this changed (from the tables; defined in 15-tables-switch.sql).
+  if (all_feed or cardinality(touched) > 0) and to_regprocedure('diary.project_feed(uuid,text[])') is not null then
+    perform diary.project_feed(u, case when all_feed then null else touched end);
+  end if;
   return to_jsonb(keys);
 end $$;
 revoke all on function diary.apply_training_ops(uuid, jsonb, jsonb) from public, anon, authenticated;

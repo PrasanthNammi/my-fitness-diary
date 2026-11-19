@@ -508,6 +508,8 @@ declare changed text[];
 begin
   -- Filling the tables must never stop the app's save: any error is written down and the save goes through.
   begin
+  -- Training that lives in the tables is written there directly (15-tables-switch.sql), never copied from here.
+  if diary.in_tables(new.user_id) then return null; end if;
   if tg_op = 'INSERT' then perform diary.fill_training(new.user_id); return null; end if;
   if new.payload is not distinct from old.payload then return null; end if;
   -- Fast exit: food, weight, settings… nothing in training changed.

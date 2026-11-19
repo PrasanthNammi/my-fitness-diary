@@ -18,6 +18,8 @@ for f in social-incremental social-comments workspace-delta social-push social-p
 # Weekly encrypted backup (needs pgcrypto in the "extensions" schema, as on Supabase).
 run_sql -c "create schema if not exists extensions; create extension if not exists pgcrypto schema extensions;" >/dev/null
 run_sql < database/backup/backup.sql >/dev/null
+# The diary tables and the per-person switch (the app saves and downloads through forma_save_changes / forma_workspace_full).
+for f in 01-foundation 02-library 03-training 04-catalogue 05-fill-training 06-nutrition 07-fill-nutrition 08-body 09-fill-body 10-account 11-fill-account 12-read 13-save-rows 14-apply-training 15-tables-switch; do run_sql < database/diary/$f.sql >/dev/null; done
 docker run -d --name $RESTC --network $NET -p 127.0.0.1:54330:3000 -e PGRST_DB_URI=postgres://authenticator:test@$DBC:5432/postgres -e PGRST_DB_SCHEMAS=public -e PGRST_DB_ANON_ROLE=anon -e PGRST_JWT_SECRET=local-test-secret-local-test-secret-123 postgrest/postgrest:v12.2.3 >/dev/null
 # Compaction migration: verified, and repeatable.
 run_sql < database/workspace-compact-migration.sql 2>&1 | grep -o "Compaction verified.*"
