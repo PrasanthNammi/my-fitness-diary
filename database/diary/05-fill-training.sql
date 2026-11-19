@@ -237,10 +237,11 @@ begin
          jsonb_array_elements(case when jsonb_typeof(rt->'exercises') = 'array' then rt->'exercises' else '[]' end) r
     where only_workouts is null
     union all
-    -- Exercises the person made themselves are kept even when unused (auto-made "history" ones only when used).
+    -- Every exercise in "My exercises" has a row, used or not (also the ones the app made itself, "history:…"), so
+    -- the list comes back exactly as the app shows it.
     select e->>'id', btrim(e->>'name'), e->>'tracking'
     from jsonb_array_elements(case when jsonb_typeof(doc->'mfdExercises') = 'array' then doc->'mfdExercises' else '[]' end) e
-    where e->>'id' like 'custom:%';
+    where coalesce(btrim(e->>'name'), '') <> '';
 
   -- Own exercises: names from the person's own list when it has one for that id.
   -- MERGE runs the stamp trigger only for rows that are really added or changed, so sync numbers stay exact.

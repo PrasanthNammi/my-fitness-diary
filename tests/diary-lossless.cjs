@@ -18,7 +18,9 @@ function diary() {
   return {
     profile: {name: 'Alex', onboarded: true}, meals: [], weights: [], checkins: [], chat: [], folderOpen: {f1: true},
     folders: [{id: 'f1', name: 'Push Pull Legs'}, {id: 'f2', name: 'Arms', colour: 'orange'}],
-    mfdExercises: [{id: 'custom:band', name: 'Band Walk', tracking: 'reps', source: 'custom', muscle: 'Glutes'}, {id: 'custom:sled', name: 'Sled Push', tracking: 'distance_time', source: 'custom'}],
+    mfdExercises: [{id: 'custom:band', name: 'Band Walk', tracking: 'reps', source: 'custom', muscle: 'Glutes'}, {id: 'custom:sled', name: 'Sled Push', tracking: 'distance_time', source: 'custom'},
+      // made by the app from an import, used by no workout (production has ~170 of these)
+      {id: 'history:rowing%20(hevy)', name: 'Rowing (Hevy)', tracking: 'weight_reps', source: 'custom', equipment: '', instructions: null, mediaUrl: null, primaryMuscle: 'Back', secondaryMuscles: [], sourceRef: null}],
     routines: [
       {id: 'r1', name: 'Push A', folderId: 'f1', createdAt: 1, updatedAt: 2, exercises: [
         {name: 'Bench Press (Barbell)', catalogId: 'bench_press_barbell', catalogSource: 'MFD', sets: 2, reps: 8, kg: 80, rest: 120, notes: '', superset_id: null,
