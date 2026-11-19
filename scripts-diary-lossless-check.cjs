@@ -31,8 +31,9 @@ begin
         from (select v, i from jsonb_array_elements(o) with ordinality x(v, i)) oo full join (select v, i from jsonb_array_elements(b) with ordinality x(v, i)) bb using (i);
       else
         n_items := case when o is null and b is null then 0 else 1 end; n_diff := case when o is distinct from b then 1 else 0 end; ex := null;
-        -- (no running workout: the stored diary has "active": null, which is the same)
-        if coalesce(o, 'null'::jsonb) = coalesce(b, 'null'::jsonb) then n_diff := 0; end if;
+        -- (no running workout: the stored diary has "active": null, which is the same; a list the diary doesn't have at
+        -- all comes back empty: whether the list exists is kept by the switch in step 2b)
+        if coalesce(o, 'null'::jsonb) = coalesce(b, 'null'::jsonb) or (o is null and b = '[]'::jsonb) then n_diff := 0; end if;
       end if;
       if n_diff > 0 then bad := bad + 1; end if;
       rep := rep || rpad('person ' || r.i, 10) || rpad(k, 14) || lpad(n_items::text, 7) || lpad(n_diff::text, 7) || '  '

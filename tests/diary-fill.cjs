@@ -76,7 +76,7 @@ function diary() {
 
   // Exercises: built-in ones linked; own ones once per name; unused auto-made "history" ones left out.
   const ex = await all(`select e.name, e.source, e.legacy_id from diary.exercises e where e.user_id = $1 order by e.name`, [alice]);
-  assert.deepEqual(ex.map((e) => e.name), ['Band Walk', 'Face Pull (Cable)', 'Neck Curl']);
+  assert.deepEqual(ex.map((e) => e.name), ['Band Walk', 'Face Pull (Cable)', 'Neck Curl', 'Old Thing'], 'every exercise in My exercises, also unused auto-made ones (step 2a)');
   const bench = await one(`select count(*)::int n from diary.workout_exercises we join diary.exercises e on e.id = we.exercise_id where we.user_id = $1 and e.source = 'mfd' and e.source_ref = 'bench_press_barbell'`, [alice]);
   assert.equal(bench.n, 40, 'built-in exercises are linked, not copied');
   const r1 = await one(`select r.name, f.name folder, (select count(*)::int from diary.routine_sets s join diary.routine_exercises x on x.id = s.routine_exercise_id where x.routine_id = r.id) planned,
@@ -86,7 +86,7 @@ function diary() {
   assert.equal((await one(`select count(*)::int n from diary.workouts where routine_id is not null`)).n, 3, 'workouts keep their routine');
   assert.equal((await one(`select count(*)::int n from diary.workouts where source = 'hevy_import' and import_key is not null`)).n, 30);
   assert.deepEqual(await one(`select bpm, avg_bpm, max_bpm, source from diary.workout_heart_rate`), { bpm: [0, 120, 130, 145], avg_bpm: 132, max_bpm: 150, source: 'watch' });
-  console.log('PASS links: built-in exercises linked by library id; own exercises once per name (unused auto-made ones left out); routines keep folder and set types; heart rate kept');
+  console.log('PASS links: built-in exercises linked by library id; own exercises once per name (every one in My exercises); routines keep folder and set types; heart rate kept');
 
   // Filling again changes nothing (no new sync numbers).
   let v = await top();
