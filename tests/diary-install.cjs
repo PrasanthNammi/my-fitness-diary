@@ -66,12 +66,14 @@ const snapshot = async (db) => {
   const db = await fresh();
   assert.ok(parts.length >= 3 && parts[0].f === '1-tables.sql', parts.map((p) => p.f).join());
   for (const p of parts) assert.ok(p.sql.length < 260 * 1024, `${p.f} is ${p.sql.length} bytes`);
-  const res = await db.exec(parts[0].sql);
+  await db.exec(parts[0].sql);
+  assert.equal(parts[1].f, '2-tables-and-fill.sql');
+  const res = await db.exec(parts[1].sql);
   const report = res.filter((r) => r.rows.length && 'result' in r.rows[0]).pop().rows;
   assert.equal(report.length, 23);
   assert.deepEqual(report.filter((r) => r.result !== 'OK'), [], 'report has no DIFFERENT/LOOK lines');
   assert.equal(report.find((r) => r.item === 'foods (labels per person)').new, '2');
-  for (const p of parts.slice(1)) await db.exec(p.sql);
+  for (const p of parts.slice(2)) await db.exec(p.sql);
   const installed = await snapshot(db);
 
   // Same as running 01–11 in order and filling.

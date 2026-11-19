@@ -81,9 +81,10 @@ function diary(who) {
 
   const report = await run();
   const lines = report.split('\n').filter((l) => /\s(SAME|DIFFERENT|EXPECTED)( \(.*)?$/.test(l));
-  assert.equal(lines.length, 23, report);
-  assert.ok(/Expected\s+feed copies, older exercise id\s+0\s+2\s+EXPECTED/.test(report), report);
-  assert.ok(/Friends feed\s+workout copies\s+14\s+0\s+SAME/.test(report), report);
+  // (Since step 2a the tables give back the exact old exercise ids, so feed copies with "history:" ids match too.)
+  assert.equal(lines.length, 22, report);
+  assert.ok(!/feed copies, older exercise id/.test(report), report);
+  assert.ok(/Friends feed\s+workout copies\s+16\s+0\s+SAME/.test(report), report);
   assert.ok(/food entries\s+8\s+0\s+SAME/.test(report), report);
   assert.ok(/list_saved_foods\s+2\s+0\s+SAME/.test(report), report);
   assert.ok(/routines: name, folder, exercises\s+4\s+0\s+SAME/.test(report), report);

@@ -241,4 +241,15 @@ do $$ declare t text; begin
   end loop;
 end $$;
 
+
+-- What the app keeps on an item that the columns don't hold, word for word (the step to the tables becoming the
+-- original, 2026-11-19): an AI target's full shape, Hevy import bookkeeping, a running rest timer, details a newer
+-- app adds… plus the item's place in its list ("$pos") and the details the columns would add but the item didn't
+-- have ("$absent"). Rebuilding an item from the columns and then this gives back exactly what the app stored.
+do $$ declare t text; begin
+  foreach t in array array['routine_folders', 'routines', 'routine_exercises', 'routine_sets', 'workouts', 'workout_sets'] loop
+    execute format('alter table diary.%I add column if not exists extra jsonb check (jsonb_typeof(extra) = ''object'' and octet_length(extra::text) <= 200000)', t);
+  end loop;
+end $$;
+
 commit;

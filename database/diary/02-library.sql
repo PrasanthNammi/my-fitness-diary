@@ -121,4 +121,8 @@ grant select on diary.muscle_groups, diary.muscles, diary.equipment to authentic
 grant select, insert, update on diary.exercises to authenticated;
 grant select, insert, update, delete on diary.exercise_muscle_groups, diary.exercise_muscles, diary.exercise_equipment to authenticated;
 
+-- A person's own exercise as the app lists it ("My exercises"): what the columns don't hold, word for word, and its
+-- place in that list ("$pos"; no "$pos" = made from a set's name, not listed). See 03-training.sql.
+alter table diary.exercises add column if not exists extra jsonb check (jsonb_typeof(extra) = 'object' and octet_length(extra::text) <= 200000);
+
 commit;
