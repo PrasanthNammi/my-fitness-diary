@@ -1,12 +1,12 @@
--- Weekly encrypted backup of everything MFD keeps (the free Supabase plan keeps no backups).
+-- Daily encrypted backup of everything MFD keeps (the free Supabase plan keeps no backups).
 --
 -- How it works:
---   1. Every Sunday 01:00 UTC the database builds one backup itself (pg_cron, no time limit): every table in the
+--   1. Every night at 01:00 UTC the database builds one backup itself (pg_cron, no time limit): every table in the
 --      public, diary and mfd_mcp schemas as JSON, plus the accounts (id, email, sign-in providers, dates; never
 --      passwords or tokens). It is compressed and locked with the owner's PUBLIC key (OpenPGP, AES-256) before it is
 --      stored, so the database never holds anything that can open it. The last 2 are kept.
 --   2. A script in the owner's Google account (scripts/backup-google-apps-script.gs) fetches the newest one through
---      public.mfd_backup_latest(token) and saves it to Drive ("MFD backups", last 12 kept). The token only fetches
+--      public.mfd_backup_latest(token) and saves it to Drive ("MFD backups", last 30 kept). The token only fetches
 --      locked backups; its SHA-256 is stored here, the token itself only in that script and the owner's Keychain.
 --   3. Only the private key on the owner's Mac (passphrase in Keychain "MFD backup key") opens a backup:
 --      scripts/backup-open.sh <file.json.gpg>.
@@ -76,10 +76,11 @@ end $$;
 revoke all on function public.mfd_backup_latest(text) from public;
 grant execute on function public.mfd_backup_latest(text) to anon, authenticated;
 
--- Every Sunday 01:00 UTC (the Google script fetches it a few hours later).
+-- Every night at 01:00 UTC (the Google script fetches it a few hours later). Re-running updates the schedule.
 do $cron$ begin
   if exists (select 1 from pg_extension where extname = 'pg_cron') then
-    perform cron.schedule('mfd-weekly-backup', '0 1 * * 0', 'select mfd_backup.build()');
+    perform cron.unschedule(jobid) from cron.job where jobname = 'mfd-weekly-backup';
+    perform cron.schedule('mfd-daily-backup', '0 1 * * *', 'select mfd_backup.build()');
   end if;
 end $cron$;
 commit;
