@@ -107,6 +107,7 @@ function edit(d, k) {
   assert.deepEqual((await pull(alice, before.revision)).changes, [{revision: a.revision, ops: []}], 'phones: an empty change');
   assert.equal(Object.keys(await feed(alice)).length, 4, 'her feed stays');
   assert.equal((await sql(`select diary.move_to_tables($1) r`, [alice])).r.already, true);
+  assert.deepEqual((await sql(`select payload from diary.moved_payloads where user_id = $1`, [alice])).payload, (await sql(`select $1::jsonb p`, [JSON.stringify(before.payload)])).p, 'a safety copy of her diary as it was');
   console.log('PASS switch on: diary identical from the tables, an empty change for phones, feed kept; Bob unchanged');
 
   // The app saves; a second phone follows by downloading only the changes.
