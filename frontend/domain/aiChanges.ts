@@ -1,7 +1,8 @@
 // What ChatGPT or Claude changed besides adding entries (connector SQL database/mcp-ai-logging.sql), kept in the
 // diary's "aiChanges" so the AI list can show and undo them: water added to a day, goals and settings, a folder
-// created for routines, a routine moved into a folder.
+// created for routines, a routine moved into a folder, a routine edited (renamed, set counts, exercises added).
 import type { AddedBy, Folder, ID, ISODate, Profile, Routine, Settings } from './types';
+import { setFromRow } from './legacySets';
 
 type Change<K extends string, T> = { id: ID; kind: K; addedBy?: AddedBy } & T;
 export type SettingKey = 'goal' | 'activity' | 'training_days' | 'target_weight_kg' | 'height_cm' | 'age' | 'water_goal_ml' | 'weight_unit' | 'energy_unit' | 'length_unit' | 'default_rest_seconds';
@@ -9,7 +10,10 @@ export type AiChange =
   | Change<'water', { date: ISODate; ml: number }>
   | Change<'settings', { changes: Partial<Record<SettingKey, { from: string | number; to: string | number }>> }>
   | Change<'folder', { folderId: ID; name: string }>
-  | Change<'move', { routineId: ID; name: string; from?: ID; to: ID; createdFolder?: ID; folder: string }>;
+  | Change<'move', { routineId: ID; name: string; from?: ID; to: ID; createdFolder?: ID; folder: string }>
+  // `sets`: the exercise's sets before (as the diary stores them) and how many it had after; `added` exercises went at
+  // the end, leaving `count` in the routine.
+  | Change<'routine_edit', { routineId: ID; name: string; renamedFrom?: string; sets?: { index: number; exercise: string; before: unknown[]; after: number }[]; added?: number; addedNames?: string[]; count: number }>;
 
 export const SETTING_LABELS: Record<SettingKey, string> = {
   goal: 'Goal', activity: 'Activity', training_days: 'Training days', target_weight_kg: 'Target weight', height_cm: 'Height', age: 'Age',
@@ -18,10 +22,14 @@ export const SETTING_LABELS: Record<SettingKey, string> = {
 
 /** Only well-formed changes (the list comes from the synced diary). */
 export const aiChangeList = (v: unknown): AiChange[] =>
-  Array.isArray(v) ? v.filter((c): c is AiChange => !!c && typeof c === 'object' && typeof c.id === 'string' && ['water', 'settings', 'folder', 'move'].includes(c.kind)) : [];
+  Array.isArray(v) ? v.filter((c): c is AiChange => !!c && typeof c === 'object' && typeof c.id === 'string' && ['water', 'settings', 'folder', 'move', 'routine_edit'].includes(c.kind)) : [];
 
-/** "Water · 500 ml", "Settings · Goal, Activity", "Folder · Arms", "Push A → Arms". */
+/** "Water · 500 ml", "Settings · Goal, Activity", "Folder · Arms", "Push A → Arms", "Push Day · renamed, sets, +1 exercise". */
 export function aiChangeLabel(c: AiChange): string {
+  if (c.kind === 'routine_edit') {
+    const what = [c.renamedFrom ? 'renamed' : '', c.sets?.length ? 'sets' : '', c.added ? `+${c.added} exercise${c.added === 1 ? '' : 's'}` : ''].filter(Boolean);
+    return `${c.name} · ${what.join(', ') || 'edited'}`;
+  }
   if (c.kind === 'water') return `Water · ${c.ml} ml`;
   if (c.kind === 'settings') return `Settings · ${Object.keys(c.changes ?? {}).map((k) => SETTING_LABELS[k as SettingKey] ?? k).join(', ')}`;
   if (c.kind === 'folder') return `Folder · ${c.name}`;
@@ -41,7 +49,8 @@ export type UndoTarget = { profile: Profile | null; settings: Settings; water: R
 /**
  * Undoes one AI change in `d` (a draft) and drops it from the list. Something the person changed again since is
  * left as they set it: a setting only goes back while it still has the AI's value, a routine only moves back while
- * it is still in that folder, and a folder is only removed while it holds no other routine.
+ * it is still in that folder, a folder is only removed while it holds no other routine, and a routine edit only
+ * undoes the parts still as the AI left them (the name, an exercise's number of sets, the exercises at the end).
  */
 export function undoAiChange(d: UndoTarget, id: ID) {
   const c = d.aiChanges.find((x) => x.id === id);
@@ -54,7 +63,17 @@ export function undoAiChange(d: UndoTarget, id: ID) {
       else if (s && d.settings[s] === v.to) (d.settings as unknown as Record<string, unknown>)[s] = v.from;
     }
   } else if (c.kind === 'folder') removeFolder(d, c.folderId, true);
-  else {
+  else if (c.kind === 'routine_edit') {
+    const r = d.routines.find((x) => x.id === c.routineId);
+    if (r) {
+      if (c.added && r.exercises.length === c.count) r.exercises.splice(c.count - c.added, c.added);
+      for (const s of c.sets ?? []) {
+        const b = r.exercises[s.index];
+        if (b && b.sets.length === s.after && Array.isArray(s.before)) b.sets = s.before.map((row, i) => setFromRow(row, `${b.id}:${i}`));
+      }
+      if (c.renamedFrom && r.name === c.name) r.name = c.renamedFrom;
+    }
+  } else {
     const r = d.routines.find((x) => x.id === c.routineId);
     if (r && r.folderId === c.to) r.folderId = c.from ?? null;
     if (c.createdFolder) removeFolder(d, c.createdFolder, false);

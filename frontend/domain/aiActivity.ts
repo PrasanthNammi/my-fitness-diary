@@ -1,7 +1,7 @@
 import type { AddedBy } from './types';
 import { aiSource } from './aiSource';
 
-export type AiAddedKind = 'food' | 'workout' | 'weight' | 'routine' | 'measurement' | 'water' | 'settings' | 'folder' | 'move';
+export type AiAddedKind = 'food' | 'workout' | 'weight' | 'routine' | 'measurement' | 'water' | 'settings' | 'folder' | 'move' | 'routine_edit';
 export type AiAdded = { id: string; kind: AiAddedKind; label: string; by: string; at: number };
 export type AiCandidate = { id: string; kind: AiAddedKind; label: string; addedBy?: AddedBy };
 const DAY = 43200000; // 12 hours

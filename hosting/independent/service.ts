@@ -18,7 +18,7 @@ export function integrationUpstream(config: IntegrationConfig, fetcher: typeof f
 // enforces live session, Worker client, audience and this connection's section consent.
 /** Called after an AI app successfully adds something (used for phone notifications). */
 export type OnWrite = (userId: string, connection: string, operation: string, args: Record<string, unknown>) => Promise<void>;
-const ADDS = new Set(['log_workout', 'create_routine', 'log_meal', 'log_weight', 'suggest_workout_targets', 'start_workout', 'log_water', 'log_measurements', 'move_routine', 'change_settings']);
+const ADDS = new Set(['log_workout', 'create_routine', 'log_meal', 'log_weight', 'suggest_workout_targets', 'start_workout', 'log_water', 'log_measurements', 'move_routine', 'edit_routine', 'change_settings']);
 export function createConnectorMcpService(config: IntegrationConfig, fetcher: typeof fetch, gate: RateGate, onWrite?: OnWrite) {
   const raw = integrationUpstream(config, fetcher);
   const challenge = `Bearer error="invalid_token", resource_metadata="${config.authOrigin}/.well-known/oauth-protected-resource/mcp"`;
