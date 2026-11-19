@@ -155,6 +155,17 @@ revoke all on function public.forma_workspace_full() from public, anon;
 grant execute on function public.forma_workspace_full() to authenticated;
 
 -- ── Switching a person on and off ──
+-- A safety copy of each person's diary exactly as it was when they were switched on (kept until removed by hand,
+-- e.g. a few weeks later): a switch can always be undone from it, even if something unexpected happened since.
+create table if not exists diary.moved_payloads (
+  user_id    uuid primary key references auth.users(id) on delete cascade,
+  payload    jsonb not null,
+  revision   bigint not null,
+  moved_at   timestamptz not null default now()
+);
+alter table diary.moved_payloads enable row level security;
+revoke all on diary.moved_payloads from public, anon, authenticated;
+
 create or replace function diary.move_to_tables(u uuid) returns jsonb language plpgsql security definer set search_path = '' as $$
 declare stored jsonb; t jsonb; k text; present jsonb := '[]'; bad text[] := '{}';
 begin
@@ -170,6 +181,8 @@ begin
     end if;
   end loop;
   if cardinality(bad) > 0 then raise exception 'Not moved: % would not come back exactly (%)', u, array_to_string(bad, ', '); end if;
+  insert into diary.moved_payloads (user_id, payload, revision) select u, payload, revision from public.forma_workspaces where user_id = u
+    on conflict (user_id) do update set payload = excluded.payload, revision = excluded.revision, moved_at = now();
   insert into diary.table_people (user_id) values (u);
   update public.forma_workspaces set payload = (payload - diary.training_keys()) || jsonb_build_object('$training', present) where user_id = u;
   return jsonb_build_object('moved', true, 'training', present);

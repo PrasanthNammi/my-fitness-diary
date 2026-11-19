@@ -9,7 +9,9 @@
 // Update 3: 11-fill-account.sql, the date of birth (MFD 3.0 pop-up) is copied into user_profiles.birth_date.
 // Update 4: database/mcp-read-tables.sql, MFD 3.0 per person (diary.mfd3_people, mfd3_enabled, connector reads).
 // Then every diary is copied again (only rows that change are written) and a short report is shown.
-// Usage: node scripts-diary-update.cjs [update number, default 4] [out-file]
+// Update 5: the database move for training (02, 03, 05, 12, 13, 14, 15), then a check that every diary's training
+// comes back exactly (the whole update is undone otherwise).
+// Usage: node scripts-diary-update.cjs [update number, default 5] [out-file]
 const fs = require('fs'), os = require('os'), path = require('path');
 const strip = (sql) => sql.split('\n').filter((l) => !/^\s*(begin|commit);\s*$/i.test(l)).join('\n');
 const part = (f) => strip(fs.readFileSync(path.join(__dirname, f.includes('/') ? f : 'database/diary/' + f + '.sql'), 'utf8'));
@@ -34,8 +36,24 @@ select (select count(*) from diary.workout_exercises where tracking is not null)
        after: `select (select count(*) from diary.mfd3_people) as people_with_3_0,
        (select count(*) from pg_proc where proname = 'mfd3_enabled') as app_check_installed,
        (select count(*) from pg_proc p where p.proname in ('dispatch', 'recovery', 'routines_out') and pg_get_functiondef(p.oid) like '%mfd_mcp.read_doc(%') as connector_reads_switched;` },
+  5: { title: 'update 5 (2026-11-20): the database move, training (step 2a exact round trip + step 2b per-person switch; nobody switched yet)',
+       parts: ['02-library', '03-training', '05-fill-training', '12-read', '13-save-rows', '14-apply-training', '15-tables-switch'], fills: ['fill_training'],
+       after: `-- Every diary's training must come back exactly from the tables; otherwise this whole update is undone.
+do $exact$ declare r record; k text; bad text := ''; begin
+  for r in select f.user_id, f.payload p, diary.training_json(f.user_id) t from public.forma_workspaces f loop
+    foreach k in array diary.training_keys() loop
+      if r.p ? k and (r.p->k) is distinct from (r.t->k) and not (k = 'active' and r.p->k = 'null'::jsonb and r.t->k = 'null'::jsonb) then
+        bad := bad || left(r.user_id::text, 8) || ':' || k || ' '; end if;
+    end loop;
+  end loop;
+  if bad <> '' then raise exception 'Not exact, nothing was changed: %', bad; end if;
+end $exact$;
+select (select count(*) from public.forma_workspaces) as diaries, 'ALL EXACT' as training,
+       (select count(*) from pg_proc where proname in ('forma_save_changes', 'forma_workspace_full')) as app_calls_installed,
+       (select count(*) from diary.table_people) as switched_people,
+       (select count(*) from diary.fill_problems) as problems_left;` },
 };
-const n = Number(process.argv[2] || 4), u = updates[n];
+const n = Number(process.argv[2] || 5), u = updates[n];
 if (!u) throw new Error('Unknown update ' + n);
 const out = `-- MFD 3.0 database, ${u.title}. Paste all of it into the Supabase SQL editor (project Forma) and press Run.
 -- All or nothing; safe to run again; the app keeps working throughout.
