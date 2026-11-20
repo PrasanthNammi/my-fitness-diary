@@ -100,6 +100,8 @@ function editAreas(d, k) {
   for (const f of ['01-foundation', '02-library', '03-training', '04-catalogue', '05-fill-training', '06-nutrition', '07-fill-nutrition', '08-body', '09-fill-body',
     '10-account', '11-fill-account', '12-read', '13-save-rows', '14-apply-training', '15-tables-switch']) await db.exec(readFileSync(`database/diary/${f}.sql`, 'utf8'));
   await db.exec(readFileSync('database/diary/15-tables-switch.sql', 'utf8')); // safe to re-run
+  await db.exec(readFileSync('database/mcp-read-tables.sql', 'utf8'));
+  for (let i = 0; i < 2; i++) await db.exec(readFileSync('database/diary/16-everyone-3.sql', 'utf8')); // (and safe to re-run)
   await db.exec(`insert into mfd_mcp.clients values('worker'); update mfd_mcp.settings set resource_uri='${RES}', writes_enabled=true;`);
   for (const u of [alice, bob]) await db.query(`insert into public.forma_workspaces (user_id, payload) values ($1, $2)`, [u, JSON.stringify(diary())]);
 
@@ -290,6 +292,29 @@ function editAreas(d, k) {
   assert.equal(r.conflict, false); assert.equal((await full(dan)).payload.meals[0].name, 'Toast');
   assert.equal((await sql(`select count(*)::int n from diary.fill_problems where legacy_id like 'switch_new%'`)).n, 0);
   console.log('PASS new accounts start in the tables (training, food, body and settings) with their diary exactly as saved');
+
+  // MFD 3.0 for everyone (16-everyone-3.sql): new accounts join the list; a profile row only with a date of birth.
+  const erin = '55555555-5555-4555-8555-555555555555';
+  await sql(`insert into auth.users values ($1)`, [erin]);
+  assert.equal((await asUser(erin, `select public.mfd3_enabled() is_on`)).is_on, true, 'a new account has 3.0 (its set-up asks for the date of birth)');
+  assert.equal((await sql(`select count(*)::int n from auth.users u where not exists (select 1 from diary.mfd3_people p where p.user_id = u.id)`)).n, 0, 'every account has 3.0');
+  await sql(`insert into public.forma_workspaces (user_id, payload) values ($1, '{"profile":{},"meals":[],"weights":[],"checkins":[],"chat":[],"sessions":[],"routines":[]}')`, [erin]);
+  let e0 = await full(erin);
+  const setUp = {...e0.payload.profile, name: 'Erin', firstName: 'Erin', onboarded: true, height: 170, sex: 'female', activity: 'light', cal: 2000, protein: 120, carbs: 200, fat: 60, days: 3};
+  await assert.rejects(save(erin, [{k: 'profile', v: setUp}], e0.revision), /birth_date/, 'a set-up without a date of birth (older app) is refused');
+  assert.deepEqual((await full(erin)).payload, e0.payload, 'nothing saved');
+  e0 = await full(erin);
+  r = await save(erin, [{k: 'profile', v: {...setUp, birthDate: '1995-04-12', age: 31}}], e0.revision);
+  assert.equal(r.conflict, false);
+  assert.equal((await sql(`select birth_date::text d from diary.user_profiles where user_id = $1`, [erin])).d, '1995-04-12', 'the profile row with the date of birth');
+  e0 = await full(erin);
+  const {birthDate, ...noDob} = e0.payload.profile;
+  r = await save(erin, [{k: 'profile', v: noDob}], e0.revision);
+  assert.equal(r.conflict, false, 'an older app dropping the date of birth still saves');
+  assert.equal((await sql(`select birth_date::text d from diary.user_profiles where user_id = $1`, [erin])).d, '1995-04-12', 'the date of birth is kept');
+  assert.deepEqual((await full(erin)).payload.profile, noDob, 'the diary as saved');
+  await assert.rejects(sql(`update diary.user_profiles set birth_date = null where user_id = $1`, [erin]), /null value|not-null/);
+  console.log('PASS 3.0 for everyone: new accounts join (set-up asks the date of birth); date of birth required, a set-up without one waits for it');
 
   // An older app (old save) can't save training or food for Alice.
   const now = await full(alice);
