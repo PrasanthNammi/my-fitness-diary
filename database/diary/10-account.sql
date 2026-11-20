@@ -9,7 +9,7 @@
 --   ai_suggestions  suggested targets for a routine's next session, from ChatGPT or Claude.
 --
 -- birth_date may be empty until the person answers MFD 3.0's date-of-birth pop-up; once every account has one,
--- a small follow-up makes it required (lesson 10: collect first, then enforce).
+-- a small follow-up makes it required (lesson 10: collect first, then enforce): 16-everyone-3.sql.
 --
 -- Run after 09-fill-body.sql. Safe to re-run.
 begin;
