@@ -17,9 +17,20 @@
 -- Everyone else works exactly as before (forma_save_changes passes their saves to forma_save_workspace_patch).
 --
 -- diary.move_to_tables(u) switches a person on: it refills their training, checks it comes back exactly, and only
--- then moves training out of the document (phones see no change). diary.move_back(u) undoes it.
+-- then moves training out of the document (phones see no change). diary.move_areas(u) then does the same for food,
+-- body and settings (meals, My foods, favourites, water, weights, check-ins, profile, settings, AI suggestions and
+-- changes; kept exact by small per-part patches, diary.doc_patches). The document then keeps only the chat.
+-- New accounts start fully in the tables (diary.switch_new). diary.move_back(u) undoes both.
 -- Run after 14-apply-training.sql and the connector files. Safe to re-run.
 begin;
+
+-- Whether a switched person's food, body and account have moved too (diary.move_areas), and so which parts of the
+-- diary live in the tables for them (whether the diary has them yet or not).
+alter table diary.table_people add column if not exists areas boolean not null default false;
+create or replace function diary.moved_keys(u uuid) returns text[] language sql stable security definer set search_path = '' as $$
+  select case when p.areas then diary.table_keys() else diary.training_keys() end from diary.table_people p where p.user_id = u
+$$;
+revoke all on function diary.moved_keys(uuid) from public, anon, authenticated;
 
 -- The whole diary as its writers expect it (the stored document for everyone not switched).
 create or replace function diary.full_payload(u uuid, stored jsonb) returns jsonb language sql stable security definer set search_path = '' as $$
@@ -57,7 +68,7 @@ begin
 end $$;
 
 -- What a phone applies to go from the old to the new diary: for a switched person, the document's own changes
--- (not training, not "$training") followed by the training operations of this save.
+-- (not the parts kept in the tables, not "$training") followed by the table operations of this save.
 create or replace function diary.change_ops(u uuid, old_doc jsonb, new_doc jsonb) returns jsonb language plpgsql security definer set search_path = '' as $$
 declare ops jsonb := mfd_private.workspace_diff(old_doc, new_doc); t jsonb;
 begin
@@ -65,22 +76,28 @@ begin
   t := coalesce(nullif(current_setting('diary.training_ops', true), '')::jsonb, '[]');
   perform set_config('diary.training_ops', '', true);
   return coalesce((select jsonb_agg(op order by n) from jsonb_array_elements(ops) with ordinality x(op, n)
-                   where not (op->>'k' = any (diary.training_keys()) or op->>'k' = '$training')), '[]') || t;
+                   where not (op->>'k' = '$training' or op->>'k' = any (diary.moved_keys(u)))), '[]') || t;
 end $$;
 revoke all on function diary.change_ops(uuid, jsonb, jsonb) from public, anon, authenticated;
 
 -- Every write of a switched person's document: training goes to the tables, never into the document.
 create or replace function diary.split_training() returns trigger language plpgsql security definer set search_path = '' as $$
-declare keys text[]; old_doc jsonb; ops jsonb := '[]'; present jsonb; k text; item jsonb; before jsonb; after jsonb;
+declare keys text[]; old_doc jsonb; ops jsonb := '[]'; present jsonb; k text; item jsonb; before jsonb; after jsonb; cur jsonb;
 begin
   if tg_op <> 'UPDATE' or not diary.in_tables(new.user_id) then return new; end if;
-  select array_agg(x) into keys from unnest(diary.training_keys()) x where new.payload ? x;
+  -- (only parts that have moved out of the document; a part still in the document is written there as before)
+  select array_agg(x) into keys from unnest(diary.table_keys()) x
+  where new.payload ? x and x = any (diary.moved_keys(new.user_id));
   if keys is null then return new; end if;
   present := coalesce(old.payload->'$training', '[]');
   if new.payload ? '$training' then
     -- Changed in place: the items given are added or replaced (and the running workout set).
     foreach k in array keys loop
       if k = 'active' then ops := ops || jsonb_build_array(jsonb_build_object('k', 'active', 'v', new.payload->'active'));
+      elsif k in ('profile', 'mfdSettings', 'water') then
+        -- A record changed in place ("set the water goal"): merged into the current one.
+        cur := diary.area_values(new.user_id, array[k])->k;
+        ops := ops || jsonb_build_array(jsonb_build_object('k', k, 'v', case when jsonb_typeof(cur) = 'object' and jsonb_typeof(new.payload->k) = 'object' then cur || (new.payload->k) else new.payload->k end));
       elsif jsonb_typeof(new.payload->k) = 'array' then
         if not present ? k then ops := ops || jsonb_build_array(jsonb_build_object('k', k, 'v', '[]'::jsonb)); end if;
         for item in select value from jsonb_array_elements(new.payload->k) loop
@@ -88,20 +105,21 @@ begin
         end loop;
       end if;
     end loop;
-    present := diary.apply_training_ops(new.user_id, ops, present);
+    present := diary.apply_table_ops(new.user_id, ops, present);
     perform diary.stash_training_ops(diary.compact_ops(ops));
   else
     -- The whole diary written back: apply what differs from the tables.
     old_doc := diary.workspace_doc(new.user_id, old.payload);
-    select coalesce(jsonb_object_agg(x, old_doc->x), '{}') into before from unnest(diary.training_keys()) x where old_doc ? x;
-    select coalesce(jsonb_object_agg(x, new.payload->x), '{}') into after from unnest(diary.training_keys()) x where new.payload ? x;
+    select coalesce(jsonb_object_agg(x, old_doc->x), '{}') into before from unnest(keys) x where old_doc ? x;
+    select coalesce(jsonb_object_agg(x, new.payload->x), '{}') into after from unnest(keys) x where new.payload ? x;
     ops := mfd_private.workspace_diff(before, after);
-    present := diary.apply_training_ops(new.user_id, ops, present);
+    present := diary.apply_table_ops(new.user_id, ops, present);
     -- The log gets what the tables now hold (compact), exactly.
     old_doc := diary.workspace_doc(new.user_id, jsonb_build_object('$training', present));
-    perform diary.stash_training_ops(mfd_private.workspace_diff(before, old_doc - '$training'));
+    select coalesce(jsonb_object_agg(x, old_doc->x), '{}') into after from unnest(keys) x where old_doc ? x;
+    perform diary.stash_training_ops(mfd_private.workspace_diff(before, after));
   end if;
-  new.payload := (new.payload - diary.training_keys()) || jsonb_build_object('$training', present);
+  new.payload := (new.payload - keys) || jsonb_build_object('$training', present);
   if new.revision <= old.revision and coalesce(nullif(current_setting('diary.training_ops', true), ''), '[]') <> '[]' then new.revision := old.revision + 1; end if;
   return new;
 end $$;
@@ -125,12 +143,14 @@ begin
     perform mfd_observability.record_sync('conflict', extract(epoch from clock_timestamp() - started)::double precision);
     return query select null::bigint, true, false; return;
   end if;
-  select coalesce(jsonb_agg(op order by n) filter (where op->>'k' = any (diary.training_keys())), '[]'),
-         coalesce(jsonb_agg(op order by n) filter (where not op->>'k' = any (diary.training_keys()) and op->>'k' <> '$training'), '[]')
+  -- Parts that live in the tables go there; the rest (and parts not moved yet) to the document.
+  select coalesce(jsonb_agg(op order by n) filter (where op->>'k' = any (diary.moved_keys(v_user))), '[]'),
+         coalesce(jsonb_agg(op order by n) filter (where not op->>'k' = any (diary.moved_keys(v_user)) and op->>'k' <> '$training'), '[]')
     into t_ops, o_ops from jsonb_array_elements(ops) with ordinality x(op, n);
-  present := diary.apply_training_ops(v_user, t_ops, coalesce(stored->'$training', '[]'));
+  present := diary.apply_table_ops(v_user, t_ops, coalesce(stored->'$training', '[]'));
   next := mfd_private.workspace_apply(stored - '$training', o_ops);
-  if jsonb_typeof(next->'profile') is distinct from 'object' or exists (select 1 from unnest(array['meals', 'weights', 'checkins', 'chat']) l where jsonb_typeof(next->l) is distinct from 'array')
+  if (not present ? 'profile' and jsonb_typeof(next->'profile') is distinct from 'object')
+     or exists (select 1 from unnest(array['meals', 'weights', 'checkins', 'chat']) l where not present ? l and jsonb_typeof(next->l) is distinct from 'array')
      or not (present ? 'sessions' and present ? 'routines') then
     raise exception 'Invalid workspace document' using errcode = '22023'; end if;
   logged := diary.compact_ops(t_ops);
@@ -165,6 +185,14 @@ create table if not exists diary.moved_payloads (
 );
 alter table diary.moved_payloads enable row level security;
 revoke all on diary.moved_payloads from public, anon, authenticated;
+-- One copy per move ('training' when training moved, 'areas' when food, body and account moved).
+alter table diary.moved_payloads add column if not exists what text not null default 'training';
+do $pk$ begin
+  if not exists (select 1 from pg_constraint where conname = 'moved_payloads_pkey' and array_length(conkey, 1) = 2) then
+    alter table diary.moved_payloads drop constraint if exists moved_payloads_pkey;
+    alter table diary.moved_payloads add primary key (user_id, what);
+  end if;
+end $pk$;
 
 create or replace function diary.move_to_tables(u uuid) returns jsonb language plpgsql security definer set search_path = '' as $$
 declare stored jsonb; t jsonb; k text; present jsonb := '[]'; bad text[] := '{}';
@@ -181,13 +209,52 @@ begin
     end if;
   end loop;
   if cardinality(bad) > 0 then raise exception 'Not moved: % would not come back exactly (%)', u, array_to_string(bad, ', '); end if;
-  insert into diary.moved_payloads (user_id, payload, revision) select u, payload, revision from public.forma_workspaces where user_id = u
-    on conflict (user_id) do update set payload = excluded.payload, revision = excluded.revision, moved_at = now();
+  insert into diary.moved_payloads (user_id, what, payload, revision) select u, 'training', payload, revision from public.forma_workspaces where user_id = u
+    on conflict (user_id, what) do update set payload = excluded.payload, revision = excluded.revision, moved_at = now();
   insert into diary.table_people (user_id) values (u);
   update public.forma_workspaces set payload = (payload - diary.training_keys()) || jsonb_build_object('$training', present) where user_id = u;
   return jsonb_build_object('moved', true, 'training', present);
 end $$;
 revoke all on function diary.move_to_tables(uuid) from public, anon, authenticated;
+
+-- Food, body and account of a person whose training is already in the tables: refilled from the document, checked
+-- to come back exactly (with their patches), a safety copy kept, then moved out of the document (phones see no change).
+create or replace function diary.move_areas(u uuid) returns jsonb language plpgsql security definer set search_path = '' as $$
+declare stored jsonb; keys text[]; doc jsonb;
+begin
+  if not diary.in_tables(u) then raise exception 'Training of % is not in the tables yet (diary.move_to_tables first)', u; end if;
+  if (select areas from diary.table_people where user_id = u) then return jsonb_build_object('already', true); end if;
+  select payload into stored from public.forma_workspaces where user_id = u for update;
+  select array_agg(k) into keys from unnest(diary.area_keys()) k where stored ? k;
+  select coalesce(jsonb_object_agg(k, stored->k), '{}') into doc from unnest(coalesce(keys, '{}')) k;
+  perform diary.set_areas(u, doc);
+  if diary.area_values(u, keys) is distinct from doc then raise exception 'Not moved: % would not come back exactly', u; end if;
+  insert into diary.moved_payloads (user_id, what, payload, revision) select u, 'areas', payload, revision from public.forma_workspaces where user_id = u
+    on conflict (user_id, what) do update set payload = excluded.payload, revision = excluded.revision, moved_at = now();
+  update diary.table_people set areas = true where user_id = u;
+  update public.forma_workspaces set payload = (payload - coalesce(keys, '{}')) || jsonb_build_object('$training', coalesce(payload->'$training', '[]') || coalesce(to_jsonb(keys), '[]')) where user_id = u;
+  return jsonb_build_object('moved', true, 'parts', coalesce(to_jsonb(keys), '[]'));
+end $$;
+revoke all on function diary.move_areas(uuid) from public, anon, authenticated;
+
+-- New accounts start with everything in the tables (once switching is in use). Never blocks a sign-up: if it
+-- can't be done, the account simply stays on the document and the reason is written down.
+create or replace function diary.switch_new() returns trigger language plpgsql security definer set search_path = '' as $$
+begin
+  if not exists (select 1 from diary.table_people) then return null; end if;   -- nobody switched yet: stay on the document
+  begin
+    perform diary.move_to_tables(new.user_id);
+    perform diary.move_areas(new.user_id);
+  exception when others then
+    insert into diary.fill_problems (user_id, kind, legacy_id, detail)
+    values (new.user_id, 'error', 'switch_new ' || to_char(now(), 'YYYY-MM-DD"T"HH24:MI:SS'), left(sqlerrm, 500)) on conflict do nothing;
+  end;
+  return null;
+end $$;
+revoke all on function diary.switch_new() from public, anon, authenticated;
+-- (AFTER triggers run in name order: after the diary_1…4 copies)
+drop trigger if exists diary_9_switch_new on public.forma_workspaces;
+create trigger diary_9_switch_new after insert on public.forma_workspaces for each row execute function diary.switch_new();
 
 create or replace function diary.move_back(u uuid) returns jsonb language plpgsql security definer set search_path = '' as $$
 declare whole jsonb;
@@ -195,6 +262,7 @@ begin
   if not diary.in_tables(u) then return jsonb_build_object('already', true); end if;
   select diary.workspace_doc(u, payload) into whole from public.forma_workspaces where user_id = u for update;
   delete from diary.table_people where user_id = u;
+  delete from diary.doc_patches where user_id = u;
   update public.forma_workspaces set payload = whole where user_id = u;
   return jsonb_build_object('moved_back', true);
 end $$;
@@ -228,7 +296,19 @@ begin
     ('mfd_mcp.suggest(jsonb)', 'select payload into doc from public.forma_workspaces where user_id=u for update;',
      'select diary.full_payload(user_id,payload) into doc from public.forma_workspaces where user_id=u for update;'),
     ('mfd_mcp.undo_entries(uuid,text,text[])', 'select payload into doc from public.forma_workspaces where user_id=u for update;',
-     'select diary.full_payload(user_id,payload) into doc from public.forma_workspaces where user_id=u for update;')
+     'select diary.full_payload(user_id,payload) into doc from public.forma_workspaces where user_id=u for update;'),
+    ('mfd_mcp.change_settings(jsonb)', 'else (select payload from public.forma_workspaces where user_id=w.u) end;',
+     'else (select diary.full_payload(user_id,payload) from public.forma_workspaces where user_id=w.u) end;'),
+    -- What the AI assistants added recently (the app's AI activity), read from the whole diary.
+    ('mfd_mcp.recent_ai_entries(uuid,text)', 'from public.forma_workspaces w, unnest(',
+     'from (select user_id, diary.full_payload(user_id,payload) payload from public.forma_workspaces where user_id=u) w, unnest('),
+    -- Writers that replace a whole list or record in place write the whole diary instead (exact for moved parts).
+    ('mfd_mcp.suggest(jsonb)', 'set payload=jsonb_set(payload,''{aiSuggestions}'',kept)',
+     'set payload=jsonb_set(diary.full_payload(user_id,payload),''{aiSuggestions}'',kept)'),
+    ('mfd_mcp.dispatch(text,jsonb)', 'set payload=jsonb_set(payload,''{profile}'',',
+     'set payload=jsonb_set(diary.full_payload(user_id,payload),''{profile}'','),
+    ('mfd_mcp.dispatch(text,jsonb)', 'coalesce(payload->''profile'',''{}'')||jsonb_build_object(''waterGoalMl''',
+     'coalesce(diary.full_payload(user_id,payload)->''profile'',''{}'')||jsonb_build_object(''waterGoalMl''')
   ) v(fn, old, new) loop
     -- (a database without the AI connector or the Friends feed, e.g. a test server: nothing to change there)
     fn := to_regprocedure(fname);

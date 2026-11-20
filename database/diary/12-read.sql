@@ -95,10 +95,10 @@ create or replace function diary.training_json(u uuid) returns jsonb language sq
 $$;
 revoke all on function diary.training_json(uuid) from public, anon, authenticated;
 
-create or replace function diary.as_envelope(u uuid) returns jsonb
+-- Food, body and account (everything but training) as the tables hold it, without empty values.
+create or replace function diary.area_json(u uuid) returns jsonb
 language sql stable security definer set search_path = '' as $$
-  -- Training exactly as stored (empty values kept where the app had them); the other areas without empty values.
-  select diary.training_json(u) || jsonb_strip_nulls(jsonb_build_object(
+  select jsonb_strip_nulls(jsonb_build_object(
     'meals', coalesce((select jsonb_agg(jsonb_strip_nulls(jsonb_build_object(
         'id', coalesce(m.legacy_id, m.id::text), 'date', m.local_date::text, 'meal', initcap(m.meal), 'name', m.name,
         'amount', trim_scale(m.amount), 'unit', m.unit, 'cal', trim_scale(m.kcal), 'p', trim_scale(m.protein_g), 'c', trim_scale(m.carbs_g), 'f', trim_scale(m.fat_g),
@@ -159,6 +159,13 @@ language sql stable security definer set search_path = '' as $$
         'addedBy', diary.added_by(a.id)) order by a.created_at)
       from diary.ai_actions a where a.user_id = u and a.undone_at is null and a.deleted_at is null
         and a.action in ('log_water', 'change_settings', 'create_folder', 'move_routine')), '[]')))
+$$;
+revoke all on function diary.area_json(uuid) from public, anon, authenticated;
+
+create or replace function diary.as_envelope(u uuid) returns jsonb
+language sql stable security definer set search_path = '' as $$
+  -- Training exactly as stored (empty values kept where the app had them); the other areas without empty values.
+  select diary.training_json(u) || diary.area_json(u)
 $$;
 revoke all on function diary.as_envelope(uuid) from public, anon, authenticated;
 

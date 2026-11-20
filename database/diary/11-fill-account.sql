@@ -10,11 +10,13 @@
 -- Run after 10-account.sql. Safe to re-run.
 begin;
 
-create or replace function diary.fill_account(u uuid) returns void
+-- (src: the account part of the diary to copy instead of the stored document; see 14-apply-training.sql)
+drop function if exists diary.fill_account(uuid);
+create or replace function diary.fill_account(u uuid, src jsonb default null) returns void
 language plpgsql security definer set search_path = '' as $$
-declare doc jsonb; p jsonb; s jsonb;
+declare doc jsonb := src; p jsonb; s jsonb;
 begin
-  select payload into doc from public.forma_workspaces where user_id = u;
+  if doc is null then select payload into doc from public.forma_workspaces where user_id = u; end if;
   if doc is null then return; end if;
   p := case when jsonb_typeof(doc->'profile') = 'object' then doc->'profile' else '{}' end;
   s := case when jsonb_typeof(doc->'mfdSettings') = 'object' then doc->'mfdSettings' else '{}' end;
@@ -120,12 +122,14 @@ begin
     where user_id = u and deleted_at is null and legacy_id is not null and legacy_id not in (
       select x->>'id' from jsonb_array_elements(case when jsonb_typeof(doc->'aiSuggestions') = 'array' then doc->'aiSuggestions' else '[]' end) x where x->>'id' is not null);
 end $$;
-revoke all on function diary.fill_account(uuid) from public, anon, authenticated;
+revoke all on function diary.fill_account(uuid, jsonb) from public, anon, authenticated;
 
 create or replace function diary.follow_account() returns trigger
 language plpgsql security definer set search_path = '' as $$
 begin
   begin
+    -- Account data that lives in the tables is written there directly, never copied from here.
+    if new.payload->'$training' ? 'profile' then return null; end if;
     if tg_op = 'UPDATE' and (old.payload->'profile', old.payload->'mfdSettings', old.payload->'aiSuggestions', old.payload->'aiChanges', old.payload->'routines')
        is not distinct from (new.payload->'profile', new.payload->'mfdSettings', new.payload->'aiSuggestions', new.payload->'aiChanges', new.payload->'routines') then
       return null;                                     -- nothing in account or AI changed

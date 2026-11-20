@@ -11,7 +11,9 @@
 // Then every diary is copied again (only rows that change are written) and a short report is shown.
 // Update 5: the database move for training (02, 03, 05, 12, 13, 14, 15), then a check that every diary's training
 // comes back exactly (the whole update is undone otherwise).
-// Usage: node scripts-diary-update.cjs [update number, default 5] [out-file]
+// Update 6: the database move for food, body and settings (07, 09, 11, 12, 14, 15), then a check that every diary's
+// food, body and settings come back exactly (undone otherwise). Moving people is a separate file (mfd-move-areas.sql).
+// Usage: node scripts-diary-update.cjs [update number, default 6] [out-file]
 const fs = require('fs'), os = require('os'), path = require('path');
 const strip = (sql) => sql.split('\n').filter((l) => !/^\s*(begin|commit);\s*$/i.test(l)).join('\n');
 const part = (f) => strip(fs.readFileSync(path.join(__dirname, f.includes('/') ? f : 'database/diary/' + f + '.sql'), 'utf8'));
@@ -52,8 +54,28 @@ select (select count(*) from public.forma_workspaces) as diaries, 'ALL EXACT' as
        (select count(*) from pg_proc where proname in ('forma_save_changes', 'forma_workspace_full')) as app_calls_installed,
        (select count(*) from diary.table_people) as switched_people,
        (select count(*) from diary.fill_problems) as problems_left;` },
+  6: { title: 'update 6 (2026-11-20): the database move, food, body and settings (installed and checked; nobody moved yet; new accounts start in the tables)',
+       parts: ['07-fill-nutrition', '09-fill-body', '11-fill-account', '12-read', '14-apply-training', '15-tables-switch'], fills: [],
+       after: `-- Every diary's food, body and settings must come back exactly from the tables (with their small patches);
+-- otherwise this whole update is undone. (Rows refilled from each stored diary; nothing is moved yet.)
+do $exact$ declare r record; keys text[]; doc jsonb; bad text := ''; begin
+  for r in select user_id, payload p from public.forma_workspaces loop
+    select array_agg(k) into keys from unnest(diary.area_keys()) k where r.p ? k;
+    select coalesce(jsonb_object_agg(k, r.p->k), '{}') into doc from unnest(coalesce(keys, '{}')) k;
+    perform diary.set_areas(r.user_id, doc);
+    if diary.area_values(r.user_id, keys) is distinct from doc then bad := bad || left(r.user_id::text, 8) || ' '; end if;
+  end loop;
+  if bad <> '' then raise exception 'Not exact, nothing was changed: %', bad; end if;
+end $exact$;
+select (select count(*) from public.forma_workspaces) as diaries, 'ALL EXACT' as food_body_settings,
+       (select count(*) from diary.doc_patches) as small_patches,
+       (select count(*) from pg_proc p where p.oid in (to_regprocedure('mfd_mcp.suggest(jsonb)'), to_regprocedure('mfd_mcp.dispatch(text,jsonb)'),
+          to_regprocedure('mfd_mcp.change_settings(jsonb)'), to_regprocedure('mfd_mcp.recent_ai_entries(uuid,text)')) and pg_get_functiondef(p.oid) like '%diary.full_payload(%') as ai_writers_changed,
+       (select count(*) from pg_trigger where tgname = 'diary_9_switch_new') as new_accounts_switch,
+       (select count(*) from diary.table_people where areas) as moved_people,
+       (select count(*) from diary.fill_problems) as problems_left;` },
 };
-const n = Number(process.argv[2] || 5), u = updates[n];
+const n = Number(process.argv[2] || 6), u = updates[n];
 if (!u) throw new Error('Unknown update ' + n);
 const out = `-- MFD 3.0 database, ${u.title}. Paste all of it into the Supabase SQL editor (project Forma) and press Run.
 -- All or nothing; safe to run again; the app keeps working throughout.
