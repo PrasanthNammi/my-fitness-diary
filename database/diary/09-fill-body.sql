@@ -8,11 +8,13 @@
 -- rows that changed. Run after 08-body.sql. Safe to re-run.
 begin;
 
-create or replace function diary.fill_body(u uuid) returns void
+-- (src: the body part of the diary to copy instead of the stored document; see 14-apply-training.sql)
+drop function if exists diary.fill_body(uuid);
+create or replace function diary.fill_body(u uuid, src jsonb default null) returns void
 language plpgsql security definer set search_path = '' as $$
-declare doc jsonb; now_ts timestamptz := now();
+declare doc jsonb := src; now_ts timestamptz := now();
 begin
-  select payload into doc from public.forma_workspaces where user_id = u;
+  if doc is null then select payload into doc from public.forma_workspaces where user_id = u; end if;
   if doc is null then return; end if;
 
   -- ── Weigh-ins ──
@@ -125,12 +127,14 @@ begin
     and not case site when 'arms' then diary.num(x->site) between 15 and 80 when 'waist' then diary.num(x->site) between 40 and 200 else diary.num(x->site) between 50 and 200 end
   on conflict do nothing;
 end $$;
-revoke all on function diary.fill_body(uuid) from public, anon, authenticated;
+revoke all on function diary.fill_body(uuid, jsonb) from public, anon, authenticated;
 
 create or replace function diary.follow_body() returns trigger
 language plpgsql security definer set search_path = '' as $$
 begin
   begin
+    -- Body data that lives in the tables is written there directly, never copied from here.
+    if new.payload->'$training' ? 'weights' then return null; end if;
     if tg_op = 'UPDATE' and (old.payload->'weights', old.payload->'checkins') is not distinct from (new.payload->'weights', new.payload->'checkins') then
       return null;                                     -- nothing in body changed
     end if;

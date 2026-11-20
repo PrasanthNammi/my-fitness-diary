@@ -23,12 +23,102 @@ create or replace function diary.training_keys() returns text[] language sql imm
   select array['sessions', 'active', 'folders', 'routines', 'mfdExercises']
 $$;
 
--- The whole diary as the app knows it, for a person whose training lives in the tables.
-create or replace function diary.workspace_doc(u uuid, stored jsonb) returns jsonb language sql stable set search_path = '' as $$
-  select (stored - '$training') || coalesce((select jsonb_object_agg(k, t->k)
-    from jsonb_array_elements_text(case when jsonb_typeof(stored->'$training') = 'array' then stored->'$training' else '[]' end) k,
-         (select diary.training_json(u) t) x), '{}')
+-- ── Food, body and account (database move, step 2c) ──
+-- The rest of the diary: food (meals, products = My foods, foodFavorites, water), body (weights, checkins) and
+-- account (profile, mfdSettings, aiSuggestions, aiChanges). Their facts live in the tables as usual
+-- (06–11-*.sql). What the app stored that the tables don't rebuild exactly is kept per part as an "exact patch"
+-- (diary.doc_patches: the change operations that turn the rebuilt part into the stored one), so the part comes
+-- back exactly, whatever its shape. A change to any of these parts redoes the (small) food, body and account rows
+-- and refreshes the patches.
+create or replace function diary.area_keys() returns text[] language sql immutable set search_path = '' as $$
+  select array['meals', 'products', 'foodFavorites', 'water', 'weights', 'checkins', 'profile', 'mfdSettings', 'aiSuggestions', 'aiChanges']
 $$;
+-- Everything that lives in the tables (the "$training" list in the stored document names which of these a diary has).
+create or replace function diary.table_keys() returns text[] language sql immutable set search_path = '' as $$
+  select array['sessions', 'active', 'folders', 'routines', 'mfdExercises', 'meals', 'products', 'foodFavorites', 'water', 'weights', 'checkins',
+               'profile', 'mfdSettings', 'aiSuggestions', 'aiChanges']
+$$;
+
+create table if not exists diary.doc_patches (
+  user_id uuid not null references auth.users(id) on delete cascade,
+  part    text not null,
+  ops     jsonb not null check (jsonb_typeof(ops) = 'array'),
+  primary key (user_id, part)
+);
+alter table diary.doc_patches enable row level security;
+revoke all on diary.doc_patches from public, anon, authenticated;
+
+-- The parts `keys` exactly as the app stored them: rebuilt from the tables, then each part's patch.
+create or replace function diary.area_values(u uuid, keys text[]) returns jsonb language plpgsql stable security definer set search_path = '' as $$
+declare built jsonb := diary.area_json(u); out jsonb := '{}'; k text; one jsonb; fix jsonb;
+begin
+  foreach k in array coalesce(keys, '{}') loop
+    one := case when built ? k then jsonb_build_object(k, built->k) else '{}' end;
+    select p.ops into fix from diary.doc_patches p where p.user_id = u and p.part = k;
+    if fix is not null then one := mfd_private.workspace_apply(one, fix); end if;
+    out := out || one;
+    fix := null;
+  end loop;
+  return out;
+end $$;
+revoke all on function diary.area_values(uuid, text[]) from public, anon, authenticated;
+
+-- Makes the food, body and account parts exactly `doc` (the parts it has; parts it lacks are emptied): the rows are
+-- redone from it and the patches refreshed.
+create or replace function diary.set_areas(u uuid, doc jsonb) returns void language plpgsql security definer set search_path = '' as $$
+declare built jsonb; k text; fix jsonb;
+begin
+  perform diary.fill_nutrition(u, null, doc);
+  perform diary.fill_body(u, doc);
+  perform diary.fill_account(u, doc);
+  built := diary.area_json(u);
+  foreach k in array diary.area_keys() loop
+    fix := case when doc ? k then mfd_private.workspace_diff(case when built ? k then jsonb_build_object(k, built->k) else '{}' end, jsonb_build_object(k, doc->k)) end;
+    if fix is null or fix = '[]'::jsonb then delete from diary.doc_patches where user_id = u and part = k;
+    else insert into diary.doc_patches (user_id, part, ops) values (u, k, fix) on conflict (user_id, part) do update set ops = excluded.ops; end if;
+  end loop;
+end $$;
+revoke all on function diary.set_areas(uuid, jsonb) from public, anon, authenticated;
+
+-- Applies the food, body and account operations in `ops` (the document's own rules and refusals); returns the new
+-- "$training" list.
+create or replace function diary.apply_area_ops(u uuid, ops jsonb, present jsonb) returns jsonb language plpgsql security definer set search_path = '' as $$
+declare a_ops jsonb; keys text[] := array(select jsonb_array_elements_text(coalesce(present, '[]'))); doc jsonb; l text;
+begin
+  select coalesce(jsonb_agg(e order by n), '[]') into a_ops from jsonb_array_elements(ops) with ordinality t(e, n) where e->>'k' = any (diary.area_keys());
+  if a_ops = '[]'::jsonb then return present; end if;
+  doc := diary.area_values(u, array(select x from unnest(keys) x where x = any (diary.area_keys())));
+  doc := mfd_private.workspace_apply(doc, a_ops);
+  -- The same shape rules as a whole saved diary.
+  if (doc ? 'profile' and jsonb_typeof(doc->'profile') is distinct from 'object')
+     or exists (select 1 from unnest(array['meals', 'weights', 'checkins']) l2 where doc ? l2 and jsonb_typeof(doc->l2) is distinct from 'array') then
+    raise exception 'Invalid workspace document' using errcode = '22023'; end if;
+  perform diary.set_areas(u, doc);
+  return to_jsonb(array(select x from unnest(keys) x where not x = any (diary.area_keys()))
+                  || array(select x from jsonb_object_keys(doc) x where x = any (diary.area_keys())));
+end $$;
+revoke all on function diary.apply_area_ops(uuid, jsonb, jsonb) from public, anon, authenticated;
+
+-- Every moved part: training first, then food, body and account.
+create or replace function diary.apply_table_ops(u uuid, ops jsonb, present jsonb) returns jsonb language plpgsql security definer set search_path = '' as $$
+begin
+  return diary.apply_area_ops(u, ops, diary.apply_training_ops(u, ops, present));
+end $$;
+revoke all on function diary.apply_table_ops(uuid, jsonb, jsonb) from public, anon, authenticated;
+
+-- The whole diary as the app knows it, for a person whose training (and food, body, account) lives in the tables:
+-- the stored document (app state) plus every moved part listed in its "$training" list.
+create or replace function diary.workspace_doc(u uuid, stored jsonb) returns jsonb language plpgsql stable security definer set search_path = '' as $$
+declare keys text[] := array(select jsonb_array_elements_text(case when jsonb_typeof(stored->'$training') = 'array' then stored->'$training' else '[]' end));
+  t jsonb; out jsonb := stored - '$training';
+begin
+  if keys && diary.training_keys() then
+    t := diary.training_json(u);
+    out := out || coalesce((select jsonb_object_agg(k, t->k) from unnest(keys) k where k = any (diary.training_keys())), '{}');
+  end if;
+  if keys && diary.area_keys() then out := out || diary.area_values(u, array(select k from unnest(keys) k where k = any (diary.area_keys()))); end if;
+  return out;
+end $$;
 revoke all on function diary.workspace_doc(uuid, jsonb) from public, anon, authenticated;
 
 -- The current plans and "My exercises" (small lists) as the app knows them.

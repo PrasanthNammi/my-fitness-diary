@@ -10,11 +10,13 @@
 -- Run after 06-nutrition.sql and 05-fill-training.sql. Safe to re-run.
 begin;
 
-create or replace function diary.fill_nutrition(u uuid, only_entries text[] default null) returns void
+-- (src: the food part of the diary to copy instead of the stored document; see 14-apply-training.sql)
+drop function if exists diary.fill_nutrition(uuid, text[]);
+create or replace function diary.fill_nutrition(u uuid, only_entries text[] default null, src jsonb default null) returns void
 language plpgsql security definer set search_path = '' as $$
-declare doc jsonb; now_ts timestamptz := now(); my text[]; favs text[];
+declare doc jsonb := src; now_ts timestamptz := now(); my text[]; favs text[];
 begin
-  select payload into doc from public.forma_workspaces where user_id = u;
+  if doc is null then select payload into doc from public.forma_workspaces where user_id = u; end if;
   if doc is null then return; end if;
   select coalesce(array_agg(p->>'id'), '{}') into my from jsonb_array_elements(case when jsonb_typeof(doc->'products') = 'array' then doc->'products' else '[]' end) p where p->>'id' is not null;
   select coalesce(array_agg(f), '{}') into favs from jsonb_array_elements_text(case when jsonb_typeof(doc->'foodFavorites') = 'array' then doc->'foodFavorites' else '[]' end) f;
@@ -143,7 +145,7 @@ begin
     where user_id = u and deleted_at is null and legacy_id is not null
       and legacy_id not in (select d from jsonb_each(case when jsonb_typeof(doc->'water') = 'object' then doc->'water' else '{}' end) w(d, v) where diary.num(v) between 1 and 10000);
 end $$;
-revoke all on function diary.fill_nutrition(uuid, text[]) from public, anon, authenticated;
+revoke all on function diary.fill_nutrition(uuid, text[], jsonb) from public, anon, authenticated;
 
 -- After every save: redo only the entries that changed; My foods, favourites and water are small and redone whole.
 create or replace function diary.follow_nutrition() returns trigger
@@ -151,6 +153,8 @@ language plpgsql security definer set search_path = '' as $$
 declare changed text[];
 begin
   begin
+    -- Food that lives in the tables is written there directly (14-apply-training.sql), never copied from here.
+    if new.payload->'$training' ? 'meals' then return null; end if;
     if tg_op = 'INSERT' then perform diary.fill_nutrition(new.user_id); return null; end if;
     if (old.payload->'meals', old.payload->'products', old.payload->'foodFavorites', old.payload->'water', old.payload->'mfdSettings'->'favouriteFoods')
        is not distinct from (new.payload->'meals', new.payload->'products', new.payload->'foodFavorites', new.payload->'water', new.payload->'mfdSettings'->'favouriteFoods') then

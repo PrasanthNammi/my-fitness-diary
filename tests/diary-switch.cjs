@@ -6,6 +6,9 @@
 //     save both phones and the server's full download are exactly the same diary.
 //   * The AI connector (log a workout, start a workout) and the other ways of writing (the whole diary written back, a
 //     list changed in place) land in the tables; the second phone gets them too; the feed follows the tables.
+//   * Food, body and settings move too (diary.move_areas): identical diary, 250 random saves of meals, water, weights,
+//     check-ins, settings, My foods and suggestions on two phones; the AI connector's food, weight, water, settings,
+//     suggestion and water-goal writes, its activity list and undo; new accounts start fully in the tables.
 //   * An older app's save of training is refused for Alice; switching back puts everything in the document again.
 const {PGlite} = require('@electric-sql/pglite');
 const {readFileSync} = require('node:fs');
@@ -44,6 +47,32 @@ function edit(d, k) {
   else if (r < 0.9) d.mfdExercises.push({id: id('history:x'), name: id('Move '), tracking: 'reps', source: 'custom'});
   else if (r < 0.93) d.folderOpen.f1 = !d.folderOpen.f1;
   else if (d.sessions.length) pick(d.sessions).name = 'Renamed';
+  return JSON.parse(JSON.stringify(d));
+}
+
+// Food, body and settings edits the app makes (after they move to the tables too): odd values and unknown details kept.
+const AREAS = ['meals', 'products', 'foodFavorites', 'water', 'weights', 'checkins', 'profile', 'mfdSettings', 'aiSuggestions', 'aiChanges'];
+function editAreas(d, k) {
+  const r = rnd(), L = (key) => (d[key] = Array.isArray(d[key]) ? d[key] : []);
+  if (r < 0.15) L('meals').push({id: id('m'), date: day(k % 5), meal: pick(['Breakfast', 'Lunch', 'Snack']), name: pick(['Skyr', 'Dal', 'Rice']), amount: pick([200, 75.5, 1]),
+    unit: pick(['g', 'ml', 'serving']), cal: pick([120, 333.33, 0]), p: 22, c: 8, f: 0.4, ...(rnd() < 0.3 ? {labelFood: {id: id('lf'), name: 'Skyr', basis: 100, unit: 'g', cal: 60}} : {}), ...(rnd() < 0.2 ? {fiber: 2.5, x: {odd: [1, null]}} : {})});
+  else if (r < 0.25 && d.meals.length) { const m = pick(d.meals); m.amount = pick([150, 99.9]); if (rnd() < 0.3) delete m.f; if (rnd() < 0.3) m.note = 'extra'; }
+  else if (r < 0.3 && d.meals.length) d.meals.splice(Math.floor(rnd() * d.meals.length), 1);
+  else if (r < 0.33 && d.meals.length > 1) d.meals.reverse();
+  else if (r < 0.42) { d.water = d.water || {}; const w = day(k % 4); if (rnd() < 0.2) delete d.water[w]; else d.water[w] = (d.water[w] || 0) + pick([250, 330, 0.5]); }
+  else if (r < 0.5) L('weights').push({id: id('k'), date: day(k % 9), kg: pick([80, 79.45, 81.2]), ...(rnd() < 0.3 ? {waist: 82, note: ''} : {})});
+  else if (r < 0.54 && d.weights.length) { const w = pick(d.weights); w.kg = pick([78.9, 80]); }
+  else if (r < 0.57 && d.weights.length) d.weights.splice(0, 1);
+  else if (r < 0.62) L('checkins').push({id: id('c'), date: day(k % 6), sleep: pick([6.5, 8, null]), energy: pick([3, 4]), soreness: {legs: 2}});
+  else if (r < 0.7) { d.profile = d.profile || {}; const f = pick(['cal', 'protein', 'name', 'waterGoalMl', 'days', 'unknownThing']); if (rnd() < 0.2) delete d.profile[f]; else d.profile[f] = pick([2500, 'Alex B', 3000, 5, {a: 1}, null]); }
+  else if (r < 0.76) { d.mfdSettings = d.mfdSettings || {}; const f = pick(['weightUnit', 'defaultRestSec', 'theme']); d.mfdSettings[f] = pick(['lb', 'kg', 120, 'dark', null]); }
+  else if (r < 0.82) L('products').push({id: id('p'), name: pick(['Oats', 'Whey']), basis: 100, unit: 'g', cal: pick([389, 120.5]), p: 13, c: 66, f: 7, ...(rnd() < 0.3 ? {barcode: '4001234567890'} : {})});
+  else if (r < 0.85 && d.products?.length) pick(d.products).cal = 400;
+  else if (r < 0.88 && d.products?.length) d.products.splice(0, 1);
+  else if (r < 0.92) { d.foodFavorites = Array.isArray(d.foodFavorites) ? d.foodFavorites : []; d.foodFavorites.push(pick(['Skyr', 'Oats', `lf:${k}`])); }
+  else if (r < 0.95) L('aiSuggestions').push({id: id('s'), routineId: 'r1', createdAt: T0 + k, status: 'pending', exercises: [{name: 'Bench Press (Barbell)', sets: [{kg: 82.5, reps: 8}]}]});
+  else if (r < 0.97 && d.aiSuggestions?.length) pick(d.aiSuggestions).status = 'dismissed';
+  else edit(d, k);
   return JSON.parse(JSON.stringify(d));
 }
 
@@ -167,7 +196,102 @@ function edit(d, k) {
   assert.deepEqual(await feed(alice), await feedFromTables(alice), 'feed = the tables');
   console.log('PASS other writers: AI log_workout and start_workout, the whole diary written back, a list appended in place: all in the tables, the other phone follows, feed follows');
 
-  // An older app (old save) can't save training for Alice.
+  // ── Food, body and settings move to the tables too ──
+  const beforeAreas = await full(alice), storedBefore = (await sql(`select payload from public.forma_workspaces where user_id = $1`, [alice])).payload;
+  r = await sql(`select diary.move_areas($1) r`, [alice]);
+  assert.equal(r.r.moved, true);
+  const st3 = (await sql(`select payload from public.forma_workspaces where user_id = $1`, [alice])).payload;
+  assert.ok([...TRAINING, ...AREAS].every((k) => !(k in st3)), `the document keeps only the rest: ${Object.keys(st3)}`);
+  a = await full(alice);
+  assert.deepEqual(a.payload, beforeAreas.payload, 'her diary comes back identical');
+  assert.deepEqual((await pull(alice, beforeAreas.revision)).changes.map((c) => c.ops), [[]], 'phones: an empty change');
+  await follow('areas moved');
+  assert.equal((await sql(`select diary.move_areas($1) r`, [alice])).r.already, true);
+  assert.deepEqual((await sql(`select payload from diary.moved_payloads where user_id = $1 and what = 'areas'`, [alice])).payload, storedBefore, 'a safety copy of the document as it was');
+  console.log('PASS areas moved: food, body and settings out of the document, diary identical, an empty change for phones, safety copy');
+
+  phone = JSON.parse(JSON.stringify(a.payload)); rev = a.revision; saves = 0;
+  for (let k = 0; k < 250; k++) {
+    const next = editAreas(JSON.parse(JSON.stringify(phone)), k);
+    const ops = W.diff(phone, next);
+    if (!ops.length) continue;
+    r = await save(alice, ops, rev);
+    assert.equal(r.conflict, false, `area save ${k}`);
+    saves++;
+    const now = await full(alice);
+    phone = r.adjusted ? now.payload : next; rev = r.saved_revision;
+    assert.deepEqual(phone, now.payload, `area save ${k}: the phone's copy = the server's diary; ops ${JSON.stringify(ops).slice(0, 400)}`);
+    await follow(`area save ${k}`);
+  }
+  const st4 = (await sql(`select payload from public.forma_workspaces where user_id = $1`, [alice])).payload;
+  assert.ok([...TRAINING, ...AREAS].every((k) => !(k in st4)), 'still nothing moved in the document');
+  assert.equal((await sql(`select count(*)::int n from diary.fill_problems where kind = 'error'`)).n, 0);
+  console.log(`PASS area saves: ${saves} saves of food, water, weights, check-ins, settings, My foods and suggestions, both phones and the server always the same diary`);
+
+  // The AI connector writes food, body and settings; the app lists and undoes them.
+  await asUser(alice, `select public.mfd_mcp('consent', $1)`, [JSON.stringify({client_id: 'app-a', permissions: ['workouts', 'routines', 'nutrition', 'progress', 'profile', 'log_workouts', 'log_routines', 'log_nutrition', 'log_progress', 'log_settings'], timezone: 'UTC'})]);
+  // (the random edits above left odd goals; a set-up profile first, as the AI connector requires)
+  r = await save(alice, [{k: 'profile', v: {...phone.profile, name: 'Alex', cal: 2400, protein: 160, carbs: 250, fat: 70, days: 4}}], rev);
+  assert.equal(r.conflict, false); await follow('profile set up');
+  let n = (await full(alice)).payload;
+  await mcp('log_meal', {meal: 'lunch', name: 'AI Dal', amount: 250, unit: 'g', kcal: 300, protein: 15, date: day(0)});
+  d = await follow('log_meal');
+  assert.equal(d.meals.length, n.meals.length + 1); assert.equal(d.meals.at(-1).name, 'AI Dal');
+  assert.deepEqual(d.weights, n.weights, 'nothing else changed');
+  await mcp('log_weight', {kg: 79.3, date: day(0)});
+  d = await follow('log_weight');
+  assert.equal(d.weights.at(-1).kg, 79.3); assert.equal(d.meals.length, n.meals.length + 1);
+  const water0 = Number(d.water?.[day(0)] || 0);
+  await mcp('log_water', {ml: 300, date: day(0), request_id: 'w1'});
+  d = await follow('log_water');
+  assert.equal(d.water[day(0)], water0 + 300);
+  const step1 = (await mcp('change_settings', {default_rest_seconds: 150})).r;
+  assert.equal(step1.saved, false); assert.ok(step1.confirm_token, JSON.stringify(step1));
+  await mcp('change_settings', {default_rest_seconds: 150, confirm_token: step1.confirm_token});
+  d = await follow('change_settings');
+  assert.equal(d.mfdSettings.defaultRestSec, 150); assert.equal(d.profile.name, n.profile.name, 'the profile kept');
+  const list = (await asUser(alice, `select public.mfd_mcp('ai_entries', $1) r`, [JSON.stringify({client_id: 'app-a'})])).r;
+  for (const kind of ['sessions', 'meals', 'weights']) assert.ok(list.some((e) => e.kind === kind), `AI activity lists ${kind}: ${JSON.stringify(list).slice(0, 300)}`);
+  const meal = list.find((e) => e.kind === 'meals');
+  await asUser(alice, `select public.mfd_mcp('undo', $1) r`, [JSON.stringify({client_id: 'app-a', ids: [meal.id]})]);
+  d = await follow('undo meal');
+  assert.ok(!d.meals.some((m) => m.id === meal.id), 'the AI meal undone'); assert.equal(d.weights.at(-1).kg, 79.3);
+  // In-place writers: the AI suggestion list and the water goal.
+  const sg = (await full(alice)).payload.aiSuggestions?.length || 0;
+  const sr = (await mcp('suggest_workout_targets', {routine: n.routines[0].name, exercises: [{exercise: 'Bench Press (Barbell)', sets: [{kg: 85, reps: 6}]}]})).r;
+  d = await follow('suggest');
+  assert.equal(d.aiSuggestions.at(-1).id, sr.id); assert.equal(d.aiSuggestions.length, Math.min(sg + 1, 30));
+  assert.ok(d.meals.length === n.meals.length && d.weights.length === n.weights.length + 1 && d.profile.cal === 2400, 'suggestions: nothing else lost');
+  // The water goal (proposed by the AI, approved in the app, then set): the profile record changed in place.
+  const cur = await full(alice);
+  const prop = (await mcp('propose_water_goal', {water_goal_ml: 3200, expected_revision: cur.revision})).r;
+  await asUser(alice, `select public.mfd_mcp('approve', $1) r`, [JSON.stringify({proposal_id: prop.proposal_id})]);
+  await mcp('apply_water_goal', {proposal_id: prop.proposal_id});
+  d = await follow('water goal');
+  assert.deepEqual(d.profile, {...cur.payload.profile, waterGoalMl: 3200}, 'the water goal set, the rest of the profile kept');
+  for (const f of ['mfd_mcp.dispatch(text,jsonb)', 'mfd_mcp.suggest(jsonb)', 'mfd_mcp.change_settings(jsonb)', 'mfd_mcp.recent_ai_entries(uuid,text)'])
+    assert.match((await sql(`select pg_get_functiondef($1::regprocedure) d`, [f])).d, /diary\.full_payload/, `${f} reads the whole diary`);
+  const tb = (await sql(`select payload from public.forma_workspaces where user_id = $1`, [alice])).payload;
+  assert.ok([...TRAINING, ...AREAS].every((k) => !(k in tb)), 'the AI writes left the document small');
+  console.log('PASS AI connector: log_meal, log_weight, log_water, change_settings (two steps), suggestions, the water goal, the app\'s AI list and undo, all from the tables; the other phone follows');
+
+  // New accounts start in the tables (switching is in use), and an empty sign-up works too.
+  const carol = '33333333-3333-4333-8333-333333333333', dan = '44444444-4444-4444-8444-444444444444';
+  await sql(`insert into auth.users values ($1), ($2)`, [carol, dan]);
+  const cd = diary();
+  await sql(`insert into public.forma_workspaces (user_id, payload) values ($1, $2)`, [carol, JSON.stringify(cd)]);
+  const cs = (await sql(`select payload from public.forma_workspaces where user_id = $1`, [carol])).payload;
+  assert.ok([...TRAINING, ...AREAS].every((k) => !(k in cs)) && Array.isArray(cs.$training), 'Carol starts in the tables');
+  assert.deepEqual((await full(carol)).payload, (await sql(`select $1::jsonb p`, [JSON.stringify(cd)])).p, 'her diary as she saved it');
+  await sql(`insert into public.forma_workspaces (user_id, payload) values ($1, '{"profile":{},"meals":[],"weights":[],"checkins":[],"chat":[],"sessions":[],"routines":[]}')`, [dan]);
+  const dn = await full(dan);
+  assert.deepEqual(dn.payload, {profile: {}, meals: [], weights: [], checkins: [], chat: [], sessions: [], routines: []});
+  r = await save(dan, [{k: 'meals', i: 'm-d', v: {id: 'm-d', date: day(0), meal: 'Lunch', name: 'Toast', amount: 1, unit: 'serving', cal: 90}}], dn.revision);
+  assert.equal(r.conflict, false); assert.equal((await full(dan)).payload.meals[0].name, 'Toast');
+  assert.equal((await sql(`select count(*)::int n from diary.fill_problems where legacy_id like 'switch_new%'`)).n, 0);
+  console.log('PASS new accounts start in the tables (training, food, body and settings) with their diary exactly as saved');
+
+  // An older app (old save) can't save training or food for Alice.
   const now = await full(alice);
   await assert.rejects(asUser(alice, `select * from public.forma_save_workspace_patch($1, $2)`, [JSON.stringify([{k: 'sessions', i: now.payload.sessions[0].id, d: true}]), now.revision]), /Not a list|Invalid workspace/);
   assert.deepEqual((await full(alice)).payload, now.payload, 'nothing changed');
