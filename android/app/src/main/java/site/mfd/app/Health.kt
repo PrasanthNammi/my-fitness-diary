@@ -13,6 +13,8 @@ import androidx.health.connect.client.units.Energy
 import androidx.health.connect.client.units.Mass
 import site.mfd.shared.HealthWrite
 import androidx.health.connect.client.records.HeartRateRecord
+import androidx.health.connect.client.records.MenstruationFlowRecord
+import androidx.health.connect.client.records.MenstruationPeriodRecord
 import androidx.health.connect.client.records.HeartRateVariabilityRmssdRecord
 import androidx.health.connect.client.records.Record
 import androidx.health.connect.client.records.RestingHeartRateRecord
@@ -62,6 +64,32 @@ object Health {
     const val MAX_DAYS = 31L
 
     /** "ready", "install" (Health Connect needs installing or updating) or "unsupported". */
+    /** Cycle & Health: period days (asked for separately, only when the person switches it on there). */
+    val CYCLE = setOf(HealthPermission.getReadPermission(MenstruationPeriodRecord::class), HealthPermission.getReadPermission(MenstruationFlowRecord::class))
+
+    /** Period days between `from` and `to` (inclusive): days inside a period record or with a flow entry, with the
+     *  flow when one was recorded ("light" / "medium" / "heavy"). Spotting-only entries are not periods. */
+    suspend fun periods(ctx: Context, from: LocalDate, to: LocalDate): Map<LocalDate, String?> {
+        val client = HealthConnectClient.getOrCreate(ctx)
+        val zone = ZoneId.systemDefault()
+        val range = TimeRangeFilter.between(from.atStartOfDay(zone).toInstant(), to.plusDays(1).atStartOfDay(zone).toInstant())
+        val granted = client.permissionController.getGrantedPermissions()
+        val out = sortedMapOf<LocalDate, String?>()
+        if (HealthPermission.getReadPermission(MenstruationPeriodRecord::class) in granted)
+            for (p in readAll(client, MenstruationPeriodRecord::class, range, 2000)) {
+                var d = p.startTime.atZone(zone).toLocalDate()
+                val last = p.endTime.minusMillis(1).atZone(zone).toLocalDate()
+                var n = 0
+                while (!d.isAfter(last) && n++ < 20) { if (!d.isBefore(from) && !d.isAfter(to)) out.putIfAbsent(d, null); d = d.plusDays(1) }
+            }
+        if (HealthPermission.getReadPermission(MenstruationFlowRecord::class) in granted)
+            for (f in readAll(client, MenstruationFlowRecord::class, range, 5000)) {
+                val flow = when (f.flow) { MenstruationFlowRecord.FLOW_LIGHT -> "light"; MenstruationFlowRecord.FLOW_MEDIUM -> "medium"; MenstruationFlowRecord.FLOW_HEAVY -> "heavy"; else -> null } ?: continue
+                out[f.time.atZone(zone).toLocalDate()] = flow
+            }
+        return out
+    }
+
     fun availability(ctx: Context): String = when (HealthConnectClient.getSdkStatus(ctx, PROVIDER)) {
         HealthConnectClient.SDK_AVAILABLE -> "ready"
         HealthConnectClient.SDK_UNAVAILABLE_PROVIDER_UPDATE_REQUIRED -> "install"

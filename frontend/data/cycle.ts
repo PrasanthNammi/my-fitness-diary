@@ -42,8 +42,20 @@ export const cycle = {
   },
   dayOf: (date: ISODate) => getDB().cycle.days.find((x) => x.date === date) ?? null,
   /** Saves one day's log (replacing that day's). Nothing set = the day is removed again ("not logged"). */
+  /** Period days read from Health Connect: added only on dates without a log in MFD (never overwrites one). Returns
+   *  how many were added. */
+  importHealthPeriods(list: { date: ISODate; flow?: CycleDay['flow'] }[]) {
+    const have = new Set(getDB().cycle.days.map((x) => x.date)), add = new Map<ISODate, CycleDay>();
+    for (const p of list) if (!have.has(p.date) && /^\d{4}-\d{2}-\d{2}$/.test(p.date))
+      add.set(p.date, { id: p.date, date: p.date, bleeding: 'period', ...(p.flow ? { flow: p.flow } : {}), source: 'health_connect' });
+    if (!add.size) return 0;   // nothing new: no save
+    update((d) => { d.cycle.days.push(...[...add.values()].filter((x) => !d.cycle.days.some((y) => y.date === x.date))); d.cycle.days.sort((a, b) => a.date.localeCompare(b.date)); });
+    return add.size;
+  },
   saveDay(day: CycleDay) {
-    const next = clean(day);
+    // A day changed in MFD is the person's own log from then on (no longer "from Health Connect").
+    const { source: _from, ...own } = day;
+    const next = clean(own as CycleDay);
     update((d) => {
       const i = d.cycle.days.findIndex((x) => x.date === next.date);
       if (!dayHasData(next)) { if (i >= 0) d.cycle.days.splice(i, 1); return; }

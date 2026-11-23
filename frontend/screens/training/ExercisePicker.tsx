@@ -12,7 +12,7 @@ import { TRACKING_LABEL, trackingFields } from '../../domain/training';
 import { EQUIPMENT, MUSCLES, SOURCE_LABEL, SOURCE_ORDER } from '../../data/exerciseCatalog';
 import { exercises, newBlock, TRACKING_MODES } from '../../data/repositories';
 import { Empty, Field, InfoButton, Notice, SelectField, Sheet } from '../../components/ui';
-import { useDB } from '../../data/store';
+import { catalogueLoaded, useDB } from '../../data/store';
 import { mss, parseDecimal, parseMss, toKg } from '../../lib/format';
 
 export function ExerciseDetail({ex}:{ex:Exercise}){return <ExerciseGuide exercise={ex}/>}
@@ -90,7 +90,7 @@ export function ExercisePicker({ open, onClose, onAdd, browse, replace = false, 
   const settings = useDB((d) => d.settings);
   const [q, setQ] = useState('');
   const [loading,setLoading]=useState(!getCatalogue()),[loadError,setLoadError]=useState(false);
-  const load=()=>{setLoading(true);setLoadError(false);loadMfdCatalogue().then(()=>{const e=engine();if(e?.peek().ready&&!e.peek().reconciling)installNativeCatalogue(e);setLoading(false)}).catch(()=>{setLoading(false);setLoadError(true)})};
+  const load=()=>{setLoading(true);setLoadError(false);loadMfdCatalogue().then(()=>{const e=engine();if(e?.peek().ready&&!e.peek().reconciling){installNativeCatalogue(e);catalogueLoaded()}setLoading(false)}).catch(()=>{setLoading(false);setLoadError(true)})};
   // The picker is created closed; the catalogue may have loaded elsewhere since, so check again on every open.
   useEffect(()=>{if(!open)return;if(getCatalogue())setLoading(false);else load()},[open]);
 

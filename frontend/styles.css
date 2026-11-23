@@ -2232,3 +2232,40 @@ input.switch:focus-visible { outline: 3px solid var(--accent); outline-offset: 2
 .cy-cal-nav { display: flex; align-items: center; gap: 2px; }
 .cy-cal-nav .cy-link { margin-right: 6px; }
 .cy-d.out { color: var(--faint); cursor: default; }
+.cy-inrange { margin-top: 18px; display: flex; flex-direction: column; gap: 12px; }
+.cy-inrange .cy-sech { margin-bottom: 0; }
+.cy-insights .progress-range { margin-bottom: 14px; }
+
+/* Cycle & Health: report for the doctor (on screen, and printed alone) */
+.cy-report-screen .cy-print { margin: 12px 0 16px; }
+.cy-report { background: var(--surface); border: 1px solid var(--line); border-radius: 20px; padding: 18px; color: var(--ink); }
+.cy-report h1 { font-size: 22px; margin: 0 0 4px; }
+.cy-report h2 { font-size: 16px; margin: 18px 0 6px; }
+.cy-report p, .cy-report li { font-size: 14px; margin: 4px 0; }
+.cy-report ul { padding-left: 18px; margin: 4px 0; }
+.cy-report .cy-rmeta { color: var(--muted); }
+.cy-report .cy-rnote { color: var(--muted); font-size: 12.5px; }
+.cy-report table { width: 100%; border-collapse: collapse; font-size: 13px; margin: 6px 0; }
+.cy-report th, .cy-report td { text-align: left; padding: 6px 6px; border-bottom: 1px solid var(--line); vertical-align: top; }
+.cy-report th { font-weight: 700; color: var(--muted); font-size: 12px; }
+@media print {
+  html, body, #root, .main, .screen { background: #fff !important; box-shadow: none !important; }
+  body * { visibility: hidden !important; }
+  .cy-report, .cy-report * { visibility: visible !important; color: #000 !important; }
+  .cy-report { position: absolute; left: 0; top: 0; width: 100%; border: 0; border-radius: 0; padding: 0; background: #fff; }
+  .cy-report th, .cy-report td { border-bottom: 1px solid #ccc; }
+}
+.cy-settings .cy-seteyebrow { margin: 18px 4px 8px; display: flex; align-items: center; gap: 6px; }
+.cy-settings .cy-set .cy-row + .cy-row { border-top: 1px solid var(--line); }
+.cy-settings .cy-set .segmented { margin: 4px 0 12px; }
+.cy-settings .cy-time { border: 1px solid var(--line); border-radius: 10px; padding: 6px 8px; background: var(--surface-2); color: var(--ink); font: inherit; font-size: 14px; }
+.cy-settings .cy-stylerow { cursor: default; }
+.cy-settings .cy-preview { display: flex; flex-direction: column; margin: 8px 0; padding: 10px 12px; border-radius: 14px; background: var(--surface-2); color: var(--ink) !important; font-size: 14px !important; }
+.cy-settings .cy-preview i { font-style: normal; font-weight: 800; font-size: 13px; }
+.cy-settings .cy-linkrow { width: 100%; background: none; border: 0; text-align: left; font: inherit; color: inherit; }
+.cy-settings .cy-linkrow:disabled { opacity: .5; }
+.cy-settings .cy-ic { width: 36px; height: 36px; }
+.cy-privacy-page .card { margin-bottom: 12px; }
+.cy-privacy-page h3 { margin: 0 0 6px; font-size: 16px; }
+.cy-privacy-page p { margin: 6px 0; font-size: 14px; color: var(--muted); }
+.cy-signup .cy-consent { font-size: 12.5px; color: var(--muted); margin: 8px 0 10px; }

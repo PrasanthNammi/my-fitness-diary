@@ -28,6 +28,8 @@ import { BodyIcon, CycleIcon, ExercisesIcon, StatsIcon, SummaryIcon } from '../c
 import type { ReactNode } from 'react';
 import { CycleHome } from '../cycle/CycleHome';
 import { cycleOn } from '../../data/cycle';
+import { getProgressRange, setProgressRange } from '../../lib/progressRange';
+import { RangePicker } from './RangePicker';
 
 type Tab = 'summary' | 'exercises' | 'body' | 'muscles' | 'cycle';
 // Icons so five tabs fit (the chosen one also shows its name); Cycle only for women who switched it on.
@@ -36,12 +38,10 @@ const TABS: { value: Tab; label: string; icon: ReactNode }[] = [{ value: 'summar
 const CYCLE_TAB = { value: 'cycle' as Tab, label: 'Cycle', icon: <CycleIcon /> };
 const day = (iso: string) => new Date(iso + 'T12:00:00').toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' });
 
-// The range stays the same across the four tabs (each tab is its own route) for this visit.
-let lastRange: RangeDays = 90;
 
 export function ProgressHome({ tab = 'summary', view }: { tab?: Tab; view?: string }) {
-  const [range, setRangeState] = useState<RangeDays>(lastRange);
-  const setRange = (r: RangeDays) => { lastRange = r; setRangeState(r); };
+  const [range, setRangeState] = useState<RangeDays>(getProgressRange());
+  const setRange = (r: RangeDays) => { setProgressRange(r); setRangeState(r); };
   const from = rangeStart(range);
   const go = (t: Tab) => navigate(t === 'summary' ? '/progress' : t === 'muscles' ? `/progress/muscles/${view ?? 'chart'}` : `/progress/${t}`, { replace: true });
   const showCycle = useDB((d) => cycleOn(d));
@@ -53,11 +53,9 @@ export function ProgressHome({ tab = 'summary', view }: { tab?: Tab; view?: stri
         ? <button className="icon-btn cy-gear" aria-label="Cycle & Health settings" title="Cycle & Health settings" onClick={() => navigate('/settings/cycle')}><Settings /></button>
         : <button className="icon-btn" aria-label="Import workouts" title="Import workouts" onClick={() => openTool('import')}><Library /></button>} />
       <div className="screen progress-home">
-        {!cycleTab && <div className="progress-range" role="group" aria-label="Time range">
-          {RANGES.map((r) => <button key={r.days} type="button" aria-pressed={range === r.days} onClick={() => setRange(r.days)}>{r.label}</button>)}
-        </div>}
+        <RangePicker value={range} onChange={setRange} />
         <IconTabs label="Progress view" value={cycleTab ? 'cycle' : tab === 'cycle' ? 'summary' : tab} options={tabs} onChange={go} />
-        {cycleTab && <CycleHome />}
+        {cycleTab && <CycleHome range={range} />}
         {(tab === 'summary' || (tab === 'cycle' && !showCycle)) && <Summary from={from} />}
         {tab === 'exercises' && <Exercises from={from} />}
         {tab === 'body' && <Body from={from} />}

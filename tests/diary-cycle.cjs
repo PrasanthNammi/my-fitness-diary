@@ -33,7 +33,7 @@ function edit(d, k) {
       ...(rnd() < 0.6 ? {mood: 1 + Math.floor(rnd() * 5), energy: 1 + Math.floor(rnd() * 5), stress: 3, focus: 4} : {}),
       ...(rnd() < 0.2 ? {feelings: ['Calm']} : {}), ...(rnd() < 0.2 ? {sleepNotes: ['Woke often']} : {}),
       ...(rnd() < 0.25 ? {fertility: {lh: pick(['negative', 'positive', 'unclear']), ...(rnd() < 0.5 ? {bbt: pick([36.42, 36.7, 50])} : {}), mucus: pick(['dry', 'egg_white'])}} : {}),
-      ...(rnd() < 0.2 ? {note: SECRET} : {}), ...(rnd() < 0.05 ? {pain: 99, odd: {x: [1, null]}} : {})};
+      ...(rnd() < 0.2 ? {note: SECRET} : {}), ...(rnd() < 0.1 ? {source: 'health_connect'} : {}), ...(rnd() < 0.05 ? {pain: 99, odd: {x: [1, null]}} : {})};
     if (i >= 0) days[i] = v; else { days.push(v); days.sort((a, b) => a.date.localeCompare(b.date)); }
   }
   else if (r < 0.48 && d.cycleDays?.length) d.cycleDays.splice(Math.floor(rnd() * d.cycleDays.length), 1);
@@ -71,6 +71,7 @@ function edit(d, k) {
   await db.exec(readFileSync('database/mcp-read-tables.sql', 'utf8'));
   await db.exec(readFileSync('database/diary/16-everyone-3.sql', 'utf8'));
   for (let i = 0; i < 2; i++) await db.exec(readFileSync('database/diary/17-cycle.sql', 'utf8'));   // (and safe to re-run)
+  for (let i = 0; i < 2; i++) await db.exec(readFileSync('database/mcp-cycle.sql', 'utf8'));
   await db.exec(`insert into mfd_mcp.clients values('worker'); update mfd_mcp.settings set resource_uri='${RES}', writes_enabled=true;`);
   for (const u of [alice, bob]) await db.query(`insert into public.forma_workspaces (user_id, payload) values ($1, $2)`, [u, JSON.stringify(base())]);
   for (const u of [alice, bob]) await db.query(`select diary.move_to_tables($1), diary.move_areas($1)`, [u]);
@@ -110,8 +111,8 @@ function edit(d, k) {
   const days = phone.cycleDays || [];
   assert.equal((await sql(`select count(*)::int n from diary.cycle_days where user_id = $1 and deleted_at is null`, [alice])).n, new Set(days.map((x) => x.date)).size, 'one row per logged day');
   for (const x of days.slice(0, 15)) {
-    const row = await sql(`select bleeding, pain, nothing, mood, bbt_c::float bbt from diary.cycle_days where user_id = $1 and local_date = $2 and deleted_at is null`, [alice, x.date]);
-    assert.equal(row.bleeding, x.bleeding ?? null); assert.equal(row.nothing, !!x.nothing); assert.equal(row.mood, x.mood ?? null);
+    const row = await sql(`select bleeding, pain, nothing, mood, bbt_c::float bbt, source from diary.cycle_days where user_id = $1 and local_date = $2 and deleted_at is null`, [alice, x.date]);
+    assert.equal(row.bleeding, x.bleeding ?? null); assert.equal(row.source, x.source ?? null, 'where the day came from'); assert.equal(row.nothing, !!x.nothing); assert.equal(row.mood, x.mood ?? null);
     assert.equal(row.pain, x.pain >= 0 && x.pain <= 10 ? x.pain : null, 'pain 0–10 only'); assert.equal(row.bbt, x.fertility?.bbt >= 34 && x.fertility?.bbt <= 43 ? x.fertility.bbt : null, 'temperature 34–43 °C only');
   }
   const meds = phone.cycleMeds || [], doses = phone.cycleDoses || [];
@@ -152,6 +153,27 @@ function edit(d, k) {
     }
   }
   console.log('PASS AI: the connector\'s diary and its answers contain nothing from Cycle & Health');
+
+  // get_cycle: only with the "cycle" tick on that connection AND the person's own switch in MFD.
+  const cycleCall = (u, conn, args = {}) => asUser(u, `select public.mfd_mcp('cycle', $1::jsonb)::text t`, [JSON.stringify({connection: conn, ...args})], true).then((r) => JSON.parse(r[0].t));
+  await assert.rejects(cycleCall(alice, 'app-a'), /Consent required/, 'without the cycle tick: nothing');
+  await asUser(alice, `select public.mfd_mcp('consent', $1)`, [JSON.stringify({client_id: 'app-c', permissions: ['cycle'], timezone: 'UTC'})]);
+  await sql(`update diary.cycle_settings set ai_access = false, enabled = true where user_id = $1`, [alice]);
+  await assert.rejects(cycleCall(alice, 'app-c'), /not shared with AI assistants/, 'switch off in MFD: nothing');
+  await sql(`update diary.cycle_settings set ai_access = true where user_id = $1`, [alice]);
+  const all = phone.cycleDays || [], first = all[0]?.date ?? '2026-01-01', last = all.at(-1)?.date ?? '2026-01-01';
+  const got = await cycleCall(alice, 'app-c', {from: first, to: last});
+  assert.equal(got.days.length, all.length, 'every day in the range'); assert.ok(got.days.every((d) => !('id' in d)), 'no internal ids');
+  const per = all.filter((d) => d.bleeding === 'period').length;
+  assert.ok(per === 0 ? got.periods.length === 0 : got.periods.length >= 1, 'periods from period days');
+  assert.ok(got.periods.every((p) => p.bleeding_days >= 1 && (p.cycle_length_days === undefined || p.cycle_length_days > 7)), 'a new period only after a gap of more than 7 days');
+  assert.equal(got.medicines.length, (phone.cycleMeds || []).length); assert.equal(got.conditions.length, (phone.cycleConditions || []).length);
+  assert.ok(got.notes.some((n) => /Do not infer fertile days/.test(n)) && !/"fertile_window"|"ovulation_day"/.test(JSON.stringify(got)), 'never fertile days');
+  await assert.rejects(cycleCall(alice, 'app-c', {from: '2020-01-01', to: '2026-01-01'}), /At most 400 days/);
+  await assert.rejects(cycleCall(bob, 'app-c'), /Consent required|Active session required/, 'another person: nothing');
+  await sql(`update diary.cycle_settings set ai_access = false where user_id = $1`, [alice]);
+  await assert.rejects(cycleCall(alice, 'app-c'), /not shared/, 'switching off in MFD stops it at once');
+  console.log('PASS AI permission: get_cycle answers only with the cycle tick on that connection and the person\'s own switch in MFD; ranges limited; no ids; never fertile days');
 
   // Deleting everything removes the rows (soft-deleted, then cleared like other rows).
   a = await full(alice);
