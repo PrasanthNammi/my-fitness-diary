@@ -111,6 +111,13 @@ function Calendar({ days, today, est, weekStart }: { days: CycleDay[]; today: IS
       <div className="cy-key">
         <span><i className="k-per" />Period</span><span><i className="k-spot" />Spotting</span><span><i className="k-est" />Estimated</span>
         <span><i className="k-sym" />Symptoms</span><span><i className="k-ok" />Nothing to note</span>
+        <InfoButton title="The calendar" label="About the calendar" lines={[
+          'Period (solid orange): a day you logged as your period.',
+          'Spotting (dots in a circle): light bleeding outside your period. It never starts a new cycle.',
+          'Estimated (dashed circle): when your next period is likely, from the estimate. Not a logged day.',
+          'Symptoms (grey dot): a logged day without bleeding where you noted a symptom or pain.',
+          'Nothing to note (green dot): you logged that the day was fine.',
+          'No mark: not logged, so unknown (never counted as “no symptoms”). Tap a past day to log it.']} />
       </div>
     </section>
   );
