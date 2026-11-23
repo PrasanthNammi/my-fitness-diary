@@ -26,7 +26,7 @@ setup(){
   for f in mcp-suggest-targets mcp-start-workout mcp-recovery mcp-ai-logging mcp-routine-edit; do run_sql < database/$f.sql >/dev/null 2>&1; done
   for f in diary/01-foundation diary/02-library diary/03-training diary/04-catalogue diary/05-fill-training diary/06-nutrition diary/07-fill-nutrition diary/08-body \
            diary/09-fill-body diary/10-account diary/11-fill-account diary/12-read mcp-read-tables diary/13-save-rows diary/14-apply-training diary/15-tables-switch \
-           diary/16-everyone-3 mcp-routine-folders; do
+           diary/16-everyone-3 mcp-routine-folders diary/17-cycle; do
     run_sql < database/$f.sql >/dev/null 2>&1 || { echo "install $f failed"; run_sql < database/$f.sql 2>&1 | grep -v NOTICE | tail -3; exit 1; }
   done
   local t0=$SECONDS

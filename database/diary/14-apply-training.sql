@@ -31,12 +31,17 @@ $$;
 -- back exactly, whatever its shape. A change to any of these parts redoes the (small) food, body and account rows
 -- and refreshes the patches.
 create or replace function diary.area_keys() returns text[] language sql immutable set search_path = '' as $$
-  select array['meals', 'products', 'foodFavorites', 'water', 'weights', 'checkins', 'profile', 'mfdSettings', 'aiSuggestions', 'aiChanges']
+  select array['meals', 'products', 'foodFavorites', 'water', 'weights', 'checkins', 'profile', 'mfdSettings', 'aiSuggestions', 'aiChanges',
+               'cycleSettings', 'cycleDays', 'cycleMeds', 'cycleDoses', 'cycleLabs', 'cycleConditions']
+$$;
+-- Cycle & Health (17-cycle.sql): private parts that are never in the AI connector's diary (diary.area_json).
+create or replace function diary.cycle_keys() returns text[] language sql immutable set search_path = '' as $$
+  select array['cycleSettings', 'cycleDays', 'cycleMeds', 'cycleDoses', 'cycleLabs', 'cycleConditions']
 $$;
 -- Everything that lives in the tables (the "$training" list in the stored document names which of these a diary has).
 create or replace function diary.table_keys() returns text[] language sql immutable set search_path = '' as $$
   select array['sessions', 'active', 'folders', 'routines', 'mfdExercises', 'meals', 'products', 'foodFavorites', 'water', 'weights', 'checkins',
-               'profile', 'mfdSettings', 'aiSuggestions', 'aiChanges']
+               'profile', 'mfdSettings', 'aiSuggestions', 'aiChanges', 'cycleSettings', 'cycleDays', 'cycleMeds', 'cycleDoses', 'cycleLabs', 'cycleConditions']
 $$;
 
 create table if not exists diary.doc_patches (
@@ -70,7 +75,8 @@ create or replace function diary.area_needs(touched text[]) returns text[] langu
   select array(select distinct x from unnest(
     case when touched && array['meals', 'products', 'foodFavorites', 'water', 'mfdSettings'] then array['meals', 'products', 'foodFavorites', 'water', 'mfdSettings'] else '{}' end
     || case when touched && array['weights', 'checkins'] then array['weights', 'checkins', 'profile'] else '{}' end
-    || case when touched && array['profile', 'mfdSettings', 'aiSuggestions', 'aiChanges'] then array['profile', 'mfdSettings', 'aiSuggestions', 'aiChanges'] else '{}' end) x)
+    || case when touched && array['profile', 'mfdSettings', 'aiSuggestions', 'aiChanges'] then array['profile', 'mfdSettings', 'aiSuggestions', 'aiChanges'] else '{}' end
+    || case when touched && diary.cycle_keys() then diary.cycle_keys() else '{}' end) x)
 $$;
 
 -- Makes the parts in `parts` (all food, body and account parts when null) exactly as in `doc` (a part `doc` lacks is
@@ -87,6 +93,7 @@ begin
   if redo && array['meals', 'products', 'foodFavorites', 'water', 'mfdSettings'] then perform diary.fill_nutrition(u, only_entries, doc); end if;
   if redo && array['weights', 'checkins'] then perform diary.fill_body(u, doc); end if;
   if redo && array['profile', 'mfdSettings', 'aiSuggestions', 'aiChanges'] then perform diary.fill_account(u, doc); end if;
+  if redo && diary.cycle_keys() and to_regprocedure('diary.fill_cycle(uuid,jsonb)') is not null then perform diary.fill_cycle(u, doc); end if;
   foreach k in array need loop
     built := jsonb_strip_nulls(jsonb_build_object(k, diary.area_part(u, k)));
     fix := case when doc ? k then mfd_private.workspace_diff(built, jsonb_build_object(k, doc->k)) end;
