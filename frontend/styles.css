@@ -2035,3 +2035,135 @@ button.watch-strip { cursor: pointer; }
 .ro-empty { padding: 24px 8px; text-align: center; }
 .reorder-foot { padding: 12px 16px 16px; border-top: 1px solid var(--line); background: var(--bg); }
 @media (prefers-reduced-motion: reduce) { .ro-row.anim { transition: none; } }
+
+/* Progress tabs as icons (the chosen one also shows its name) */
+.icon-tabs { display: flex; gap: 6px; margin: 4px 0 12px; }
+.icon-tabs button { flex: none; height: 42px; min-width: 42px; display: flex; align-items: center; justify-content: center; gap: 8px; padding: 0 12px; border-radius: 999px; border: 1px solid var(--line); background: var(--surface); color: var(--muted); font: inherit; font-size: 14px; font-weight: 700; cursor: pointer; }
+.icon-tabs button svg { width: 19px; height: 19px; }
+.icon-tabs button.on { flex: 1; background: var(--ink); border-color: var(--ink); color: var(--on-ink); }
+
+/* Cycle & Health: home */
+.cycle-home { display: flex; flex-direction: column; gap: 18px; padding-bottom: 12px; }
+.cy-daylbl { font-size: 12px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; color: var(--muted); }
+.cy-daynum { font-size: 64px; line-height: .95; font-weight: 800; letter-spacing: -.04em; margin: 6px 0 4px; }
+.cy-daynum small { font-size: 18px; font-weight: 700; letter-spacing: 0; color: var(--muted); margin-left: 8px; }
+.cy-empty-title { font-size: 26px; font-weight: 800; margin: 6px 0 4px; }
+.cy-range { color: var(--muted); font-size: 14px; }
+.cy-line { display: block; width: 100%; height: auto; margin: 16px 0 6px; }
+.cy-est { display: flex; align-items: center; gap: 8px; font-size: 14px; color: var(--muted); margin-top: 6px; }
+.cy-est b { color: var(--accent); font-weight: 800; }
+.cy-est .grow { flex: 1; min-width: 0; }
+.cy-dash { width: 22px; height: 12px; border: 1.5px dashed var(--brand); border-radius: 7px; flex: none; }
+.cy-acts { display: grid; grid-template-columns: 1.25fr 1fr 1fr; gap: 10px; }
+.cy-act { display: flex; flex-direction: column; align-items: flex-start; justify-content: space-between; gap: 12px; min-height: 92px; border: 1px solid var(--line); border-radius: 20px; background: var(--surface); box-shadow: var(--shadow); padding: 12px; font: inherit; font-size: 14px; font-weight: 800; color: var(--ink); cursor: pointer; text-align: left; }
+.cy-act .ai, .cy-wd .ai { width: 36px; height: 36px; border-radius: 12px; background: var(--accent-soft); color: var(--accent); display: grid; place-items: center; }
+.cy-act .ai svg, .cy-wd .ai svg { width: 20px; height: 20px; }
+.cy-act.main { background: var(--brand); border-color: var(--brand); color: #fff; }
+.cy-act.main .ai { background: rgba(255, 255, 255, .22); color: #fff; }
+.cy-cal-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; }
+.cy-cal-head h3 { margin: 0; font-size: 18px; font-weight: 800; }
+.cy-grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); row-gap: 4px; text-align: center; }
+.cy-dw { font-size: 11px; font-weight: 700; color: var(--faint); padding-bottom: 4px; }
+.cy-d { position: relative; height: 44px; border: 0; background: none; padding: 0; display: grid; place-items: center; font: inherit; font-size: 14px; font-weight: 600; color: var(--ink); cursor: pointer; }
+.cy-d .c { width: 36px; height: 36px; border-radius: 50%; display: grid; place-items: center; }
+.cy-d.future { color: var(--faint); cursor: default; }
+.cy-d.m-period .c { background: var(--brand); color: #fff; font-weight: 800; }
+.cy-d.m-spotting .c, .cy-key .k-spot { box-shadow: inset 0 0 0 1.5px var(--brand-2);
+  background: radial-gradient(circle at 24% 30%, var(--brand-2) 1.8px, transparent 2.3px), radial-gradient(circle at 76% 28%, var(--brand-2) 1.6px, transparent 2.1px), radial-gradient(circle at 30% 76%, var(--brand-2) 1.6px, transparent 2.1px), radial-gradient(circle at 74% 74%, var(--brand-2) 1.8px, transparent 2.3px); }
+.cy-d.m-other-bleed .c { box-shadow: inset 0 0 0 2px var(--brand); }
+.cy-d.est .c { border: 1.5px dashed var(--brand); color: var(--accent); }
+.cy-d.today .c { background: var(--ink); color: var(--on-ink); }
+.cy-d.m-period.today .c { background: var(--brand); box-shadow: 0 0 0 2px var(--bg), 0 0 0 4px var(--ink); }
+.cy-d.m-symptoms::after, .cy-d.m-nothing::after { content: ""; position: absolute; bottom: 1px; left: 50%; margin-left: -2.5px; width: 5px; height: 5px; border-radius: 50%; background: var(--muted); }
+.cy-d.m-nothing::after { background: var(--success); }
+.cy-key { display: flex; flex-wrap: wrap; gap: 8px 14px; margin-top: 12px; font-size: 12px; color: var(--muted); }
+.cy-key i { display: inline-block; width: 14px; height: 14px; border-radius: 50%; vertical-align: -3px; margin-right: 5px; }
+.cy-key .k-per { background: var(--brand); }
+.cy-key .k-est { border: 1.5px dashed var(--brand); }
+.cy-key .k-sym { width: 6px; height: 6px; background: var(--muted); margin-left: 4px; }
+.cy-key .k-ok { width: 6px; height: 6px; background: var(--success); margin-left: 4px; }
+
+/* Cycle & Health: log */
+.cy-logtools { display: flex; }
+.cy-log { display: flex; flex-direction: column; gap: 0; padding-bottom: 96px; }
+.cy-logsub { margin: 0 0 6px; color: var(--muted); font-size: 13px; font-weight: 600; }
+.cy-nothing { display: flex; align-items: center; gap: 12px; padding: 14px 16px; border-radius: 20px; border: 0; background: var(--success-soft); color: var(--success); font: inherit; font-size: 15px; font-weight: 800; text-align: left; cursor: pointer; }
+.cy-nothing svg { width: 24px; height: 24px; flex: none; }
+.cy-nothing small { display: block; font-weight: 600; color: var(--muted); font-size: 12px; }
+.cy-nothing.on { box-shadow: inset 0 0 0 2.5px var(--success); }
+.cy-q { padding-top: 22px; }
+.cy-q h4 { margin: 0 0 12px; font-size: 17px; font-weight: 800; display: flex; align-items: center; gap: 8px; }
+.cy-q h4 > span { font-size: 13px; font-weight: 600; color: var(--muted); }
+.cy-q h4 .info-btn { margin-left: auto; width: 32px; height: 32px; }
+.cy-tiles { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.cy-tiles button { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; min-height: 88px; border-radius: 16px; border: 1px solid var(--line); background: var(--surface); font: inherit; font-size: 13px; font-weight: 700; color: var(--ink); cursor: pointer; white-space: nowrap; padding: 8px 4px; }
+.cy-tiles button svg { width: 26px; height: 26px; color: var(--muted); }
+.cy-tiles button.on { background: var(--brand); border-color: var(--brand); color: #fff; }
+.cy-tiles button.on svg { color: #fff; }
+.cy-tiles button.on.soft { background: var(--accent-soft); color: var(--accent); border-color: var(--accent); }
+.cy-tiles button.on.soft svg { color: var(--accent); }
+.cy-flows { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.cy-flows button { display: flex; align-items: center; gap: 10px; height: 48px; padding: 0 14px; border-radius: 14px; border: 1px solid var(--line); background: var(--surface); font: inherit; font-size: 14px; font-weight: 700; color: var(--ink); cursor: pointer; }
+.cy-flows button:disabled { opacity: .45; cursor: default; }
+.cy-flows .dd { display: flex; width: 50px; color: var(--brand); }
+.cy-flows .dd svg { width: 12px; height: 12px; margin-right: -1px; }
+.cy-flows button.on { background: var(--accent-soft); border-color: var(--brand); box-shadow: inset 0 0 0 1.5px var(--brand); }
+.cy-scale { display: grid; grid-template-columns: repeat(11, minmax(0, 1fr)); gap: 4px; }
+.cy-scale button { height: 44px; border-radius: 12px; border: 1px solid var(--line); background: var(--surface); font: inherit; font-weight: 800; font-size: 14px; color: var(--ink); cursor: pointer; padding: 0; }
+.cy-scale button.on { background: var(--brand); border-color: var(--brand); color: #fff; }
+.cy-chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.cy-gap { margin-top: 12px; }
+.cy-chips button { border-radius: 999px; border: 1px solid var(--line); background: var(--surface); padding: 10px 14px; font: inherit; font-size: 14px; font-weight: 600; color: var(--ink); cursor: pointer; }
+.cy-chips button.on { background: var(--accent-soft); color: var(--accent); border-color: var(--accent); }
+.cy-chips button.add { background: transparent; border-style: dashed; color: var(--muted); }
+.cy-chips .star { color: var(--brand); margin-right: 4px; }
+.cy-chips .sev { margin-left: 5px; letter-spacing: 1px; }
+.cy-faces .row { display: grid; grid-template-columns: 64px repeat(5, minmax(0, 1fr)); gap: 4px; align-items: center; margin-bottom: 8px; }
+.cy-faces .lab { font-size: 14px; font-weight: 700; }
+.cy-faces button { height: 44px; border: 0; background: none; border-radius: 14px; display: grid; place-items: center; color: var(--faint); cursor: pointer; padding: 0; }
+.cy-faces button svg { width: 32px; height: 32px; }
+.cy-faces button.on { background: var(--accent-soft); color: var(--accent); }
+.cy-widgets { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.cy-wd { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; min-height: 100px; border-radius: 20px; border: 1px solid var(--line); background: var(--surface); padding: 14px; font: inherit; color: var(--ink); cursor: pointer; text-align: left; }
+.cy-wd b { font-size: 15px; }
+.cy-wd .s { font-size: 12.5px; color: var(--muted); }
+.cy-wd.done .ai { background: var(--success-soft); color: var(--success); }
+.cy-savebar { position: fixed; left: 0; right: 0; bottom: 0; padding: 12px 16px calc(14px + env(safe-area-inset-bottom, 0px)); background: linear-gradient(transparent, var(--bg) 30%); z-index: 20; }
+@media (min-width: 900px) { .cy-savebar { left: auto; right: auto; width: min(560px, 100%); margin: 0 auto; } }
+.cy-sheet { display: flex; flex-direction: column; gap: 12px; }
+.cy-hint { margin: 0; font-size: 13px; color: var(--muted); line-height: 1.5; }
+.cy-field { display: flex; align-items: center; justify-content: space-between; gap: 10px; background: var(--surface-2); border-radius: 14px; padding: 10px 14px; font-weight: 700; font-size: 14px; }
+.cy-field input, .cy-field select { width: 140px; border: 1px solid var(--line); background: var(--surface); border-radius: 10px; padding: 8px; font: inherit; font-weight: 600; color: var(--ink); text-align: right; }
+.cy-field > span { font-weight: 600; color: var(--muted); text-align: right; }
+.cy-two { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.cy-two .cy-field input, .cy-two .cy-field select { width: 80px; }
+.cy-choice > span { display: block; font-weight: 700; font-size: 14px; margin-bottom: 8px; }
+.cy-note { width: 100%; min-height: 160px; border: 1px solid var(--line); border-radius: 14px; background: var(--surface-2); padding: 12px; font: inherit; color: var(--ink); resize: vertical; }
+.cy-med { display: flex; align-items: center; gap: 8px; background: var(--surface-2); border-radius: 14px; padding: 10px 12px; }
+.cy-med .grow { flex: 1; min-width: 0; }
+.cy-med b { display: block; }
+.cy-med .grow > span { font-size: 12.5px; color: var(--muted); }
+.cy-med button { border: 1px solid var(--line); background: var(--surface); border-radius: 999px; padding: 8px 12px; font: inherit; font-size: 13px; font-weight: 700; color: var(--muted); cursor: pointer; }
+.cy-med button.miss.on { background: var(--surface-3); color: var(--ink); }
+.cy-med .tick { width: 44px; height: 44px; padding: 0; display: grid; place-items: center; border-radius: 50%; }
+.cy-med .tick.on { background: var(--success); border-color: var(--success); color: #fff; }
+.cy-addmed { display: flex; flex-direction: column; gap: 8px; }
+
+/* Cycle & Health: settings and sign-up */
+.cy-set { padding: 4px 14px; }
+.cy-row { display: flex; align-items: center; gap: 12px; padding: 10px 0; cursor: pointer; }
+.cy-row .grow { flex: 1; min-width: 0; }
+.cy-row b { display: block; }
+.cy-row span span, .cy-row .grow > span { font-size: 13px; color: var(--muted); }
+input.switch { appearance: none; -webkit-appearance: none; width: 50px; height: 30px; border-radius: 999px; background: var(--surface-3); position: relative; cursor: pointer; flex: none; margin: 0; transition: background .15s; }
+input.switch::after { content: ""; position: absolute; top: 3px; left: 3px; width: 24px; height: 24px; border-radius: 50%; background: #fff; box-shadow: 0 1px 3px rgba(0, 0, 0, .25); transition: transform .15s; }
+input.switch:checked { background: var(--brand); }
+input.switch:checked::after { transform: translateX(20px); }
+input.switch:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+.cy-privacy { font-size: 13px; color: var(--muted); line-height: 1.5; margin: 12px 4px; }
+.cy-delete { color: var(--danger); margin-top: 8px; }
+.cy-signup { margin-top: 16px; }
+.cy-signup h2 { margin: 0 0 6px; font-size: 18px; }
+.cy-signup p { margin: 0 0 8px; color: var(--muted); font-size: 14px; line-height: 1.5; }
+.cy-signup ul { margin: 0 0 12px; padding-left: 18px; font-size: 13.5px; line-height: 1.6; }
+@media (prefers-reduced-motion: reduce) { input.switch, input.switch::after { transition: none; } }

@@ -3,7 +3,9 @@ import { MFD3 } from '../lib/release';
 import { appVersion } from '../lib/appUpdate';
 import {ExercisePicker} from './training/ExercisePicker';
 import {useRef,useState,useSyncExternalStore,type ReactNode} from 'react';
-import {Timer,UserRound,Ruler,Goal,Library,Database,ShieldUser,Utensils,Dumbbell,Flag,Download,Upload,Archive,LogOut,RefreshCw,Bell,Palette,Bot,ChevronRight,HeartPulse} from 'lucide-react';
+import {Timer,UserRound,Ruler,Goal,Library,Database,ShieldUser,Utensils,Dumbbell,Flag,Download,Upload,Archive,LogOut,RefreshCw,Bell,Palette,Bot,ChevronRight,HeartPulse,Droplet} from 'lucide-react';
+import {CycleSettingsPage} from './cycle/CycleSettings';
+import {cycleAllowed} from '../data/cycle';
 import {HealthDevices} from './settings/HealthDevices';
 import {healthSupported} from '../lib/health';
 import {AppearanceSettings} from './settings/AppearanceSettings';
@@ -30,7 +32,7 @@ function appearance(){try{const v=localStorage.getItem('mfd-appearance');return 
 export function SettingsLive({section}:{section:string|null}){
  const [importing,setImporting]=useState(false),[leaving,setLeaving]=useState(false),[exporting,setExporting]=useState(false);
  const syncState=useSyncExternalStore(fn=>engine()?.subscribe(fn)||(()=>{}),syncKey);const [sync,syncText]=syncState.split('|') as [string,string];
- const profile=useDB(d=>d.profile),settings=useDB(d=>d.settings),account=useDB(d=>d.account),t=useTargets()?.targets;
+ const profile=useDB(d=>d.profile),settings=useDB(d=>d.settings),account=useDB(d=>d.account),t=useTargets()?.targets,cycleSettings=useDB(d=>d.cycle.settings);
  const file=useRef<HTMLInputElement>(null);
  // Closing the exercise list steps back (it used to open Catalogue again, so the back arrow returned to Exercises).
  if(section==='exercises')return <ExercisePicker browse open onClose={()=>goBack('/settings/catalogue')} onAdd={()=>{}}/>;
@@ -38,6 +40,7 @@ export function SettingsLive({section}:{section:string|null}){
  if(section==='notifications')return <NotificationSettings/>;
  if(section==='appearance')return <AppearanceSettings/>;
  if(section==='health')return <HealthDevices/>;
+ if(section==='cycle')return <CycleSettingsPage/>;
  const go=(p:string)=>()=>navigate('/settings/'+p);
  const pages:Record<string,{title:string;items:Item[]}>={
   catalogue:{title:'Exercise & food catalogue',items:[
@@ -57,6 +60,7 @@ export function SettingsLive({section}:{section:string|null}){
   {title:'You',items:[
    {icon:<UserRound/>,label:'Profile',sub:profile?[profile.name,`${fmtInt(profile.heightCm)} cm`,`${fmtNum(kgTo(profile.weightKg,settings.weightUnit),1)} ${settings.weightUnit}`].filter(Boolean).join(' · '):'Set up your profile',onClick:go('profile')},
    {icon:<Goal/>,label:'Targets',sub:t?`${fmtInt(energyValue(t.kcal,settings.energyUnit))} ${settings.energyUnit} · P ${t.protein} · C ${t.carbs} · F ${t.fat}`:undefined,onClick:go('targets')},
+   ...(cycleAllowed(profile)?[{icon:<Droplet/>,label:'Cycle & Health',sub:cycleSettings?.enabled?'On · private to you':'Off',onClick:go('cycle')}]:[]),
    {icon:<Ruler/>,label:'Units',sub:[settings.weightUnit,settings.energyUnit,settings.lengthUnit ?? 'cm',settings.weekStart===0?'week from Sun':settings.weekStart===6?'week from Sat':''].filter(Boolean).join(' · '),onClick:go('units')}]},
   {title:'App',items:[
    {icon:<Palette/>,label:'Appearance',sub:appearance(),onClick:go('appearance')},

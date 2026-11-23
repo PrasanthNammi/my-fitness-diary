@@ -265,6 +265,15 @@ export function TabChips<T extends string>({ value, options, onChange, label, fi
   );
 }
 
+/** Tabs as icons; the selected one also shows its name (fits five tabs on a phone). */
+export function IconTabs<T extends string>({ value, options, onChange, label }: { value: T; options: { value: T; label: string; icon: ReactNode }[]; onChange: (v: T) => void; label: string }) {
+  return (
+    <div className="icon-tabs" role="tablist" aria-label={label}>
+      {options.map((o) => <button key={o.value} type="button" role="tab" aria-selected={value === o.value} aria-label={o.label} title={o.label} className={value === o.value ? 'on' : ''} onClick={() => onChange(o.value)}>{o.icon}{value === o.value && <span>{o.label}</span>}</button>)}
+    </div>
+  );
+}
+
 export function Segmented<T extends string>({
   value, options, onChange, label,
 }: { value: T; options: { value: T; label: string }[]; onChange: (v: T) => void; label: string }) {
