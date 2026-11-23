@@ -82,6 +82,38 @@ export const training = {
       if (f) f.collapsed = !f.collapsed;
     });
   },
+  /** Pin a folder to the top (or unpin it). */
+  pinFolder(id: ID, pinned: boolean) {
+    update((d) => {
+      const f = d.folders.find((x) => x.id === id);
+      if (f) { if (pinned) f.pinned = true; else delete f.pinned; }
+    });
+  },
+  /** One place up or down among the folders shown with it (pinned ones, or the others). */
+  moveFolder(id: ID, dir: -1 | 1) {
+    update((d) => {
+      const i = d.folders.findIndex((x) => x.id === id);
+      if (i < 0) return;
+      const group = (f: Folder) => !!f.pinned === !!d.folders[i]!.pinned;
+      let j = i + dir;
+      while (j >= 0 && j < d.folders.length && !group(d.folders[j]!)) j += dir;
+      if (j < 0 || j >= d.folders.length) return;
+      [d.folders[i], d.folders[j]] = [d.folders[j]!, d.folders[i]!];
+    });
+  },
+  /** One place up or down among the routines of the same folder (or of no folder). */
+  moveRoutineOrder(id: ID, dir: -1 | 1) {
+    update((d) => {
+      const home = (r: Routine) => (r.folderId && d.folders.some((f) => f.id === r.folderId) ? r.folderId : null);
+      const i = d.routines.findIndex((x) => x.id === id);
+      if (i < 0) return;
+      const where = home(d.routines[i]!);
+      let j = i + dir;
+      while (j >= 0 && j < d.routines.length && home(d.routines[j]!) !== where) j += dir;
+      if (j < 0 || j >= d.routines.length) return;
+      [d.routines[i], d.routines[j]] = [d.routines[j]!, d.routines[i]!];
+    });
+  },
   /** Deleting a folder moves its routines to the root rather than deleting them. */
   deleteFolder(id: ID, deleteRoutines: boolean) {
     update((d) => {

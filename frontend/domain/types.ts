@@ -105,6 +105,8 @@ export interface Folder {
   name: string;
   collapsed: boolean;
   createdAt: number;
+  /** Pinned folders are listed first (in their own order). */
+  pinned?: boolean;
 }
 
 /** Set when an AI assistant added the entry through the connector (kept as stored). */

@@ -3,7 +3,7 @@ import {useDB} from '../../data/store';
 import {ExercisePage} from './ExercisePage';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
-  Crown, ArrowDown, Disc3, Sparkles, ArrowUp, Check, Info, TriangleAlert, Link2, Link2Off, NotebookPen, Plus, Repeat, Ruler, Timer, Trash2, X,
+  Crown, ArrowDown, Disc3, Sparkles, ArrowUp, Check, Info, TriangleAlert, Link2, Link2Off, ListOrdered, NotebookPen, Plus, Repeat, Ruler, Timer, Trash2, X,
 } from 'lucide-react';
 import type { ExerciseBlock, RestTimer, SetEntry, Workout } from '../../domain/types';
 import {
@@ -137,6 +137,8 @@ export interface BlockProps {
   onRemove: () => void;
   onReplace: () => void;
   onMove: (dir: -1 | 1) => void;
+  /** Opens the Reorder page (drag exercises into place). */
+  onReorder?: () => void;
   onSuperset: () => void;
   onUnsuperset: () => void;
   // active only
@@ -205,6 +207,7 @@ export function ExerciseBlockView(p: BlockProps) {
       : { label: 'Superset with…', icon: Link2, onSelect: p.onSuperset, disabled: p.count < 2 },
     { label: 'Move up', icon: ArrowUp, onSelect: () => p.onMove(-1), disabled: p.index === 0 },
     { label: 'Move down', icon: ArrowDown, onSelect: () => p.onMove(1), disabled: p.index === p.count - 1 },
+    ...(p.onReorder ? [{ label: 'Reorder exercises', icon: ListOrdered, onSelect: p.onReorder, disabled: p.count < 2 }] : []),
     { label: 'Remove exercise', icon: Trash2, onSelect: p.onRemove, danger: true },
   ];
 
@@ -232,9 +235,6 @@ export function ExerciseBlockView(p: BlockProps) {
         <button className="tool" onClick={() => setNoteOpen((v) => !v)} aria-expanded={noteOpen}>
           <NotebookPen /> Note{block.note && !noteOpen ? ' •' : ''}
         </button>
-        {block.tracking !== (ex?.tracking ?? block.tracking) && (
-          <button className="tool" onClick={() => setTrackOpen(true)}><Repeat /> Tracking</button>
-        )}
       </div>
 
       {noteOpen ? (

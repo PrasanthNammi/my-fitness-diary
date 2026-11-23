@@ -13,6 +13,7 @@ import { useNow, useWakeLock } from '../../lib/hooks';
 import { acceptedCount, activeSuggestion } from '../../domain/aiSuggestions';
 import { openSuggestion, suggestionSource } from './SuggestionReview';
 import { goBack, navigate } from '../../lib/router';
+import { applyReorder, ReorderPage } from './ReorderPage';
 import { ExerciseBlockView } from './ExerciseBlockView';
 import { ExercisePicker } from './ExercisePicker';
 import {
@@ -37,6 +38,7 @@ export function ActiveWorkoutScreen() {
   const [pickerOpen, setPickerOpen] = useState(false);
   const [replaceId, setReplaceId] = useState<string | null>(null);
   const [ssFor, setSsFor] = useState<string | null>(null);
+  const [reorderOpen, setReorderOpen] = useState(false);
   const [confirmDiscard, setConfirmDiscard] = useState(false);
   const [finishOpen, setFinishOpen] = useState(false);
   const [renameOpen, setRenameOpen] = useState(false);
@@ -135,6 +137,7 @@ export function ActiveWorkoutScreen() {
               onReplace={() => setReplaceId(b.id)}
               onRemove={() => setBlocks((l) => leaveSuperset(l, b.id).filter((x) => x.id !== b.id))}
               onMove={(dir) => setBlocks((l) => moveBlock(l, i, dir))}
+              onReorder={() => setReorderOpen(true)}
               onSuperset={() => setSsFor(b.id)}
               onUnsuperset={() => setBlocks((l) => leaveSuperset(l, b.id))}
               onToggleDone={(setId) => { const was = b.sets.find((x) => x.id === setId)?.done; workouts.toggleDone(b.id, setId); if (!was && vibrate) navigator.vibrate?.(35); }}
@@ -154,6 +157,7 @@ export function ActiveWorkoutScreen() {
         workouts.mutate(w => { w.exercises = replaceExerciseBlock(w.exercises, replaceId, prepareActiveBlock(b), true); delete w.timers[replaceId]; for (const x of w.exercises) if (!w.timers[x.id]) w.timers[x.id] = { durationSec: x.restSec, endsAt: null, pausedRemainingSec: null }; });
         setReplaceId(null); toast('Exercise replaced');
       }} />}
+      <ReorderPage open={reorderOpen} blocks={a.exercises} onClose={() => setReorderOpen(false)} onDone={(draft, opened) => { setBlocks((l) => applyReorder(l, opened, draft)); setReorderOpen(false); }} />
       <SupersetSheet open={!!ssFor} onClose={() => setSsFor(null)} list={a.exercises} forId={ssFor} onPick={(o) => ssFor && setBlocks((l) => joinSuperset(l, ssFor, o))} />
       <ConfirmSheet open={!!removingSuggestion} onClose={() => setRemovingSuggestion(null)} danger title="Remove AI suggestions?"
         body="The suggested targets will be taken out of this workout, and you can't use this suggestion again." confirmLabel="Remove"

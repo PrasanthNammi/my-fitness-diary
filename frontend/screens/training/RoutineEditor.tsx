@@ -8,6 +8,7 @@ import { useDB } from '../../data/store';
 import { training } from '../../data/repositories';
 import { goBack, navigate } from '../../lib/router';
 import { uid } from '../../lib/format';
+import { applyReorder, ReorderPage } from './ReorderPage';
 import { ExerciseBlockView } from './ExerciseBlockView';
 import { ExercisePicker } from './ExercisePicker';
 import {
@@ -32,6 +33,7 @@ export function RoutineEditor({ routineId, folderId }: { routineId: string | nul
   const [pickerOpen, setPickerOpen] = useState(false);
   const [replaceId, setReplaceId] = useState<string | null>(null);
   const [ssFor, setSsFor] = useState<string | null>(null);
+  const [reorderOpen, setReorderOpen] = useState(false);
   const [tried, setTried] = useState(false);
   const [confirmLeave, setConfirmLeave] = useState(false);
 
@@ -119,6 +121,7 @@ export function RoutineEditor({ routineId, folderId }: { routineId: string | nul
                 onReplace={() => setReplaceId(b.id)}
               onRemove={() => setBlocks((l) => leaveSuperset(l, b.id).filter((x) => x.id !== b.id))}
                 onMove={(dir) => setBlocks((l) => moveBlock(l, i, dir))}
+              onReorder={() => setReorderOpen(true)}
                 onSuperset={() => setSsFor(b.id)}
                 onUnsuperset={() => setBlocks((l) => leaveSuperset(l, b.id))}
               />
@@ -136,6 +139,7 @@ export function RoutineEditor({ routineId, folderId }: { routineId: string | nul
         setBlocks(l => replaceExerciseBlock(l, replaceId, b, false));
         setReplaceId(null); toast('Exercise replaced');
       }} />}
+      <ReorderPage open={reorderOpen} blocks={blocks} onClose={() => setReorderOpen(false)} onDone={(draft, opened) => { setBlocks((l) => applyReorder(l, opened, draft)); setReorderOpen(false); }} />
       <SupersetSheet open={!!ssFor} onClose={() => setSsFor(null)} list={blocks} forId={ssFor} onPick={(other) => ssFor && setBlocks((l) => joinSuperset(l, ssFor, other))} />
       <ConfirmSheet
         open={confirmLeave}
