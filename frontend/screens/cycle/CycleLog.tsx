@@ -20,7 +20,7 @@ const MIND: { k: 'mood' | 'energy' | 'stress' | 'focus'; label: string; words: s
   { k: 'mood', label: 'Mood', words: ['awful', 'low', 'okay', 'good', 'great'] }, { k: 'energy', label: 'Energy', words: ['drained', 'low', 'okay', 'good', 'full'] },
   { k: 'stress', label: 'Stress', words: ['very stressed', 'stressed', 'some', 'little', 'calm'] }, { k: 'focus', label: 'Focus', words: ['scattered', 'hard', 'okay', 'good', 'sharp'] }];
 
-function Dots() { return <svg viewBox="0 0 24 24" aria-hidden="true"><g fill="currentColor"><circle cx="8" cy="9" r="1.8" /><circle cx="15" cy="8" r="1.4" /><circle cx="11" cy="14" r="1.6" /><circle cx="16" cy="15" r="1.2" /></g></svg>; }
+function Dots() { return <svg viewBox="0 0 24 24" aria-hidden="true"><g fill="currentColor"><circle cx="7.5" cy="8.5" r="2.4" /><circle cx="15.5" cy="7.5" r="2" /><circle cx="10.5" cy="15" r="2.2" /><circle cx="17" cy="15.5" r="1.8" /></g></svg>; }
 function Face({ level }: { level: number }) {
   const mouth = ['M8 17c2-2.6 6-2.6 8 0', 'M8.5 16.5c2-1.3 5-1.3 7 0', 'M8.5 15.5h7', 'M8.5 14.5c2 1.5 5 1.5 7 0', 'M8 14c2 3 6 3 8 0'][level];
   return <svg viewBox="0 0 24 24" aria-hidden="true"><g fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"><circle cx="12" cy="12" r="9.5" /><path d={mouth} /></g><circle cx="9" cy="10" r="1.2" fill="currentColor" /><circle cx="15" cy="10" r="1.2" fill="currentColor" /></svg>;
@@ -151,12 +151,14 @@ function OwnSymptom({ onAdd, favourites, all, onFav }: { onAdd: (s: string) => v
 
 function dueTimes(m: { times: string[] }) { return m.times.length ? m.times : [undefined as unknown as string]; }
 function MedWidget({ day, onOpen }: { day: ISODate; onOpen: () => void }) {
-  const meds = useDB((d) => d.cycle.meds.filter((m) => (!m.start || m.start <= day) && (!m.end || m.end >= day))), doses = useDB((d) => d.cycle.doses);
+  const allMeds = useDB((d) => d.cycle.meds), doses = useDB((d) => d.cycle.doses);
+  const meds = useMemo(() => allMeds.filter((m) => (!m.start || m.start <= day) && (!m.end || m.end >= day)), [allMeds, day]);
   const due = meds.flatMap((m) => dueTimes(m).map((t) => ({ m, t }))), taken = due.filter(({ m, t }) => doses.some((x) => x.medId === m.id && x.date === day && (x.time ?? undefined) === (t || undefined) && x.status === 'taken')).length;
   return <button className={`cy-wd${due.length && taken === due.length ? ' done' : ''}`} onClick={onOpen}><span className="ai"><Pill /></span><b>Medicines</b><span className="s">{due.length ? `${taken} of ${due.length} taken` : 'None added'}</span></button>;
 }
 function MedSheet({ day }: { day: ISODate }) {
-  const meds = useDB((d) => d.cycle.meds.filter((m) => (!m.start || m.start <= day) && (!m.end || m.end >= day))), doses = useDB((d) => d.cycle.doses);
+  const allMeds = useDB((d) => d.cycle.meds), doses = useDB((d) => d.cycle.doses);
+  const meds = useMemo(() => allMeds.filter((m) => (!m.start || m.start <= day) && (!m.end || m.end >= day)), [allMeds, day]);
   const [adding, setAdding] = useState(false), [form, setForm] = useState({ name: '', dose: '', unit: 'mg', time: '08:00' });
   return <div className="cy-sheet">
     {meds.length === 0 && !adding && <Empty title="No medicines yet">Add a medicine to tick it off each day.</Empty>}
@@ -173,9 +175,4 @@ function MedSheet({ day }: { day: ISODate }) {
     </div> : <button className="btn btn-soft btn-block" onClick={() => setAdding(true)}><Plus aria-hidden="true" />Add medicine</button>}
     <p className="cy-hint">Taken and missed are saved straight away. Manage medicines in Records.</p>
   </div>;
-}
-
-/** Insights and Records come in the next steps of the build. */
-export function CycleSoon({ page }: { page: string }) {
-  return <><TopBar title={page === 'insights' ? 'Insights' : 'Health records'} back="/progress/cycle" /><div className="screen"><Empty title="Coming in this release">This page is being built.</Empty></div></>;
 }
