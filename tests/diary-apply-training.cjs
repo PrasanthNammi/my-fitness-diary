@@ -95,12 +95,15 @@ function edit(d, k) {
     saves++; opsTotal += ops.length;
     const stored = (await q(`update scratch set doc = (mfd_private.workspace_compact(mfd_private.workspace_apply(doc, $1))).document where n = 1 returning doc`, [JSON.stringify(ops)])).doc;
     present = (await q(`select diary.apply_training_ops($1, $2, $3) p`, [alice, JSON.stringify(ops), JSON.stringify(present)])).p;
+    if (k % 25 === 0) assert.equal((await q(`select diary.plans_doc($1) = (select jsonb_build_object('folders', t->'folders', 'routines', t->'routines', 'mfdExercises', t->'mfdExercises') from (select diary.training_json($1) t) x) ok`, [alice])).ok, true, `plans_doc, edit ${k}`);
     const fromTables = (await q(`select diary.workspace_doc($1, $2) d`, [alice, JSON.stringify({profile: {}, $training: present})])).d;
     for (const key of TRAINING) assert.deepEqual(fromTables[key], stored[key], `save ${saves} (edit ${k}), ${key}; ops ${JSON.stringify(ops).slice(0, 300)}`);
     assert.equal((await q(`select (select doc from scratch) - 'profile' - 'meals' - 'weights' - 'checkins' - 'chat' = diary.workspace_doc($1, $2) - 'profile' ok`,
       [alice, JSON.stringify({profile: {}, $training: present})])).ok, true, `save ${saves}: equal as JSON`);
   }
   assert.ok(saves > 300, `${saves} saves`);
+  // The plans built on their own (fast) are exactly the plans of the whole rebuild.
+  assert.equal((await q(`select diary.plans_doc($1) = (select jsonb_build_object('folders', t->'folders', 'routines', t->'routines', 'mfdExercises', t->'mfdExercises') from (select diary.training_json($1) t) x) ok`, [alice])).ok, true, 'plans_doc = training_json plans');
   assert.equal((await q(`select count(*)::int n from diary.fill_problems where kind = 'error'`)).n, 0);
 
   // A key the diary doesn't have comes back missing, and an operation that doesn't fit is refused like the document's.

@@ -122,8 +122,17 @@ end $$;
 revoke all on function diary.workspace_doc(uuid, jsonb) from public, anon, authenticated;
 
 -- The current plans and "My exercises" (small lists) as the app knows them.
+-- (built on its own, exactly as in diary.training_json: rebuilding every workout just for these was what made each
+-- save during a workout take seconds)
 create or replace function diary.plans_doc(u uuid) returns jsonb language sql stable set search_path = '' as $$
-  select jsonb_build_object('folders', t->'folders', 'routines', t->'routines', 'mfdExercises', t->'mfdExercises') from (select diary.training_json(u) t) x
+  select jsonb_build_object(
+    'folders', coalesce((select jsonb_agg(diary.with_extra(diary.folder_base(f), f.extra) order by f.position, f.id)
+                         from diary.routine_folders f where f.user_id = u and f.deleted_at is null), '[]'),
+    'routines', coalesce((select jsonb_agg(diary.routine_json(r) order by r.position, r.id)
+                          from diary.routines r where r.user_id = u and r.deleted_at is null), '[]'),
+    'mfdExercises', coalesce((select jsonb_agg(diary.with_extra(diary.own_exercise_base(e), e.extra) order by diary.pos(e.extra), e.name)
+                              from diary.exercises e where e.user_id = u and e.deleted_at is null and e.archived_at is null
+                                and jsonb_typeof(e.extra->'$pos') = 'number'), '[]'))
 $$;
 
 -- One workout's place in the list.
