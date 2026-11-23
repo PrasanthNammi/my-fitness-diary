@@ -62,7 +62,7 @@ export function SettingsLive({section}:{section:string|null}){
    {icon:<Palette/>,label:'Appearance',sub:appearance(),onClick:go('appearance')},
    {icon:<Timer/>,label:'Workout',sub:`Screen, vibration, rest ${mss(settings.defaultRestSec)}`,onClick:go('workout')},
    {icon:<Bell/>,label:'Notifications',sub:'Rest timers, AI entries',onClick:go('notifications')},
-   ...(healthSupported()?[{icon:<HeartPulse/>,label:'Health & devices',sub:'Samsung Health, Galaxy Watch, app version',onClick:go('health')}]:[]),
+   ...(healthSupported()?[{icon:<HeartPulse/>,label:'Health & devices',sub:'Health Connect, Galaxy Watch, app version',onClick:go('health')}]:[]),
    {icon:<Library/>,label:'Exercise & food catalogue',sub:'Exercises, foods',onClick:go('catalogue')},
    {icon:<Bot/>,label:'AI assistants',sub:'ChatGPT and Claude',onClick:()=>navigate('/coach')}]},
   {title:'Data & account',items:[

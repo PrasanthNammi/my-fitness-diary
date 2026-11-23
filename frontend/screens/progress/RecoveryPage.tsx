@@ -110,7 +110,7 @@ export function RecoveryPage() {
   const rhr = series('restingHr'), hrv = series('hrv');
 
   if (!history.length) {
-    return (<><TopBar title="Recovery" back="/progress/body" bordered /><div className="screen"><Empty icon={Moon} title="No recovery yet">Check in on Progress → Body, or connect Samsung Health in Settings → Health &amp; devices.</Empty></div></>);
+    return (<><TopBar title="Recovery" back="/progress/body" bordered /><div className="screen"><Empty icon={Moon} title="No recovery yet">Check in on Progress → Body, or connect Health Connect in Settings → Health &amp; devices.</Empty></div></>);
   }
   return (
     <>

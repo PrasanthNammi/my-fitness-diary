@@ -138,7 +138,7 @@ fun CheckinScreen(t: Today, onSave: (Int, Int) -> Unit) {
                 }
             }
             val sleep = t.sleep?.let { "Sleep ${num(it)} h" }; val steps = t.steps?.let { "%,d steps".format(it) }
-            Text(listOfNotNull(sleep, steps).joinToString(" · ").ifEmpty { "Sleep and steps come from Samsung Health" }, color = C.muted, fontSize = 11.sp, textAlign = TextAlign.Center, modifier = Modifier.padding(top = 6.dp))
+            Text(listOfNotNull(sleep, steps).joinToString(" · ").ifEmpty { "Sleep and steps come from Health Connect" }, color = C.muted, fontSize = 11.sp, textAlign = TextAlign.Center, modifier = Modifier.padding(top = 6.dp))
         }
         EdgeAction("Save", Modifier.align(Alignment.BottomCenter)) { onSave(energy, soreness) }
     }
