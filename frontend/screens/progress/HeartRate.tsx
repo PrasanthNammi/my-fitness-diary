@@ -21,7 +21,7 @@ function usePerson(w: Workout | undefined) {
 }
 
 export function SourceLine({ source }: { source: HeartRateSeries['source'] }) {
-  return <p className="hr-source"><Watch aria-hidden="true" />From {source === 'watch' ? 'Galaxy Watch' : 'Samsung Health'}</p>;
+  return <p className="hr-source"><Watch aria-hidden="true" />From {source === 'watch' ? 'Galaxy Watch' : 'Health Connect'}</p>;
 }
 
 export function ZoneBar({ seconds }: { seconds: number[] }) {

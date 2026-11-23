@@ -24,7 +24,7 @@ export function RecoveryToday({ date }: { date: string }) {
       </div>
       {!day ? (
         <button className="recovery-empty" onClick={() => editCheckIn(date)}>
-          <span className="grow"><b>{isToday ? 'How do you feel today?' : 'No check-in on this day'}</b><span className="small muted">Sleep, energy and soreness. Samsung Health fills sleep and steps.</span></span>
+          <span className="grow"><b>{isToday ? 'How do you feel today?' : 'No check-in on this day'}</b><span className="small muted">Sleep, energy and soreness. Health Connect fills sleep and steps.</span></span>
           <span className="btn btn-secondary btn-sm">Check in</span>
         </button>
       ) : (

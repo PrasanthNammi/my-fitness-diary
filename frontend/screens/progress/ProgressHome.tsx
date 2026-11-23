@@ -372,7 +372,7 @@ function RecoveryCard({ from }: { from: string | null }) {
     setLinking(true);
     try {
       const r = await connectHealth();
-      toast(r === 'connected' ? 'Samsung Health connected' : r === 'install' ? 'Install Health Connect from the Play Store, then tap again.' : r === 'unsupported' ? 'Health Connect isn’t available on this phone.' : 'Sleep and steps weren’t allowed.');
+      toast(r === 'connected' ? 'Health Connect connected' : r === 'install' ? 'Install Health Connect from the Play Store, then tap again.' : r === 'unsupported' ? 'Health Connect isn’t available on this phone.' : 'Sleep and steps weren’t allowed.');
     } catch { toast('Couldn’t connect. Please try again.'); }
     finally { setLinking(false); refreshHealth(); }
   };
@@ -394,7 +394,7 @@ function RecoveryCard({ from }: { from: string | null }) {
       {steps !== null && !existing?.sleepStages && checkinNumber(existing?.restingHr) === null && checkinNumber(existing?.hrv) === null && <p className="small muted tnum" style={{ margin: 0 }}>{fmtInt(steps)} steps{health === 'on' ? ' · from Health Connect' : ''}</p>}
       {(health === 'off' || health === 'reconnect') && (
         <button type="button" className="btn btn-secondary btn-block" disabled={linking} onClick={() => void link()}>
-          <Moon aria-hidden="true" />{health === 'reconnect' ? 'Reconnect Samsung Health' : 'Get sleep, steps & heart rate from Samsung Health'}
+          <Moon aria-hidden="true" />{health === 'reconnect' ? 'Reconnect to Health Connect' : 'Get sleep, steps & heart rate from Health Connect'}
         </button>
       )}
       <input className="input" aria-label="Note" placeholder="Note (optional)" value={v.note} onChange={(e) => setV({ ...v, note: e.target.value })} />

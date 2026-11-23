@@ -9,7 +9,7 @@ const clock = (ms: number) => new Date(ms).toLocaleTimeString([], { hour: '2-dig
 const hm = (min: number) => `${Math.floor(min / 60)}h ${String(Math.round(min % 60)).padStart(2, '0')}m`;
 
 export function SourceBadge() {
-  return <span className="health-badge">Samsung Health</span>;
+  return <span className="health-badge">Health Connect</span>;
 }
 
 export function Sparkline({ values, color }: { values: number[]; color: string }) {
@@ -64,7 +64,7 @@ export function RecoveryVitals({ date }: { date: string }) {
       )}
       {resting.length > 0 && <VitalRow icon={<HeartPulse />} label="Resting heart rate" unit="bpm" values={resting} color="var(--failure)" />}
       {hrv.length > 0 && <VitalRow icon={<Waves />} label="HRV" unit="ms" values={hrv} color="var(--ai)" />}
-      <p className="vitals-note">From Samsung Health · compared with your last 6 days</p>
+      <p className="vitals-note">From Health Connect · compared with your last 6 days</p>
     </div>
   );
 }
