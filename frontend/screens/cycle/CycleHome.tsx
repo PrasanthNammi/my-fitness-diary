@@ -1,6 +1,7 @@
 // Cycle & Health home (in Progress): cycle day and timeline, the estimate line (step 5 fills it), three actions
 // (Log today, Insights, Records) and the month calendar. Recorded, estimated and unknown always look different.
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { syncCyclePeriods } from '../../lib/cycleHealth';
 import { BarChart3, CalendarCheck, ChevronLeft, ChevronRight, Droplet, FileHeart, MoveHorizontal, Plus, RefreshCw, Sparkles } from 'lucide-react';
 import { useDB } from '../../data/store';
 import { navigate } from '../../lib/router';
@@ -20,6 +21,7 @@ export function CycleHome({ range = 90 }: { range?: RangeDays }) {
   const today = localToday();
   const now = useMemo(() => cycleNow(days, today), [days, today]);
   const est = useMemo(() => estimateNext(days, today), [days, today]);
+  useEffect(() => { syncCyclePeriods().catch(() => {}); }, []);   // period days from Health Connect, when switched on
   return (
     <div className="cycle-home">
       <section className="cy-hero">

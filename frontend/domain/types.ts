@@ -330,6 +330,8 @@ export interface CycleDay {
   /** Recorded only: MFD never turns these into fertile days. */
   fertility?: { lh?: 'negative' | 'positive' | 'unclear'; bbt?: number; mucus?: 'dry' | 'sticky' | 'creamy' | 'watery' | 'egg_white'; pregnancy?: 'negative' | 'positive' };
   note?: string;
+  /** Set when the day was read from Health Connect (a period day); a day the person logs in MFD has none. */
+  source?: 'health_connect';
 }
 export interface Medication { id: string; name: string; dose?: number; unit?: string; times: string[]; days?: string; start?: ISODate; end?: ISODate; reminder: boolean; notes?: string }
 export interface MedicationDose { id: string; medId: string; date: ISODate; time?: string; status: 'taken' | 'missed'; note?: string }

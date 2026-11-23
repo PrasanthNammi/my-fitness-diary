@@ -33,6 +33,7 @@ import { ProgressHome } from './screens/progress/ProgressHome';
 import { CycleLog } from './screens/cycle/CycleLog';
 import { CycleInsights } from './screens/cycle/CycleInsights';
 import { CycleRecords } from './screens/cycle/CycleRecords';
+import { CycleReport } from './screens/cycle/CycleReport';
 import { WorkoutEditor } from './screens/progress/WorkoutEditor';
 import { CoachScreen } from './screens/coach/CoachScreen';
 import { AiAssistants } from './screens/ai/AiAssistants';
@@ -102,6 +103,7 @@ function Routes({ route }: { route: string[] }) {
       if (b === 'cycle' && c === 'log') return <CycleLog key={d ?? 'today'} date={d} />;
       if (b === 'cycle' && c === 'records') return <CycleRecords />;
       if (b === 'cycle' && c === 'insights') return <CycleInsights />;
+      if (b === 'cycle' && c === 'report') return <CycleReport />;
       if (b === 'cycle') return <ProgressHome tab="cycle" />;
       // Old links: workout history now lives under Training.
       if (b === 'session' && c && d === 'edit') return <WorkoutEditor key={c} id={c} />;

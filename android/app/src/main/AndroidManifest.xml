@@ -27,6 +27,10 @@
     <uses-permission android:name="android.permission.health.READ_HEART_RATE_VARIABILITY" />
     <uses-permission android:name="android.permission.health.READ_WEIGHT" />
     <uses-permission android:name="android.permission.health.READ_BODY_FAT" />
+    <!-- Cycle & Health: period days, only when the person switches "Periods from Health Connect" on. -->
+    <uses-permission android:name="android.permission.health.READ_MENSTRUATION" />
+    <!-- Cycle & Health reminders are set again after the phone restarts. -->
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <!-- MFD 2.0: saving workouts (with the watch's heart rate) and food to Health Connect, when turned on. -->
     <uses-permission android:name="android.permission.health.WRITE_EXERCISE" />
     <uses-permission android:name="android.permission.health.WRITE_HEART_RATE" />
@@ -127,6 +131,15 @@
         <receiver
             android:name=".InstallStatusReceiver"
             android:exported="false" />
+        <!-- Cycle & Health reminders: local alarms, set again after a restart or an update. -->
+        <receiver
+            android:name=".CycleReminderReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+            </intent-filter>
+        </receiver>
         <receiver
             android:name=".UpdatedReceiver"
             android:exported="false">

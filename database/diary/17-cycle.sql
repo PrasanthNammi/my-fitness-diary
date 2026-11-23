@@ -60,12 +60,14 @@ create table if not exists diary.cycle_days (
   mucus          text check (mucus in ('dry', 'sticky', 'creamy', 'watery', 'egg_white')),
   pregnancy_test text check (pregnancy_test in ('negative', 'positive')),
   note           text check (char_length(note) <= 4000),
+  source         text check (source in ('health_connect')),   -- null = logged in MFD; 'health_connect' = a period day read from Health Connect
   created_at     timestamptz not null default now(),
   updated_at     timestamptz not null default now(),
   version        bigint not null default 0,
   deleted_at     timestamptz,
   primary key (user_id, local_date)
 );
+alter table diary.cycle_days add column if not exists source text check (source in ('health_connect'));
 
 create table if not exists diary.medications (
   id          uuid primary key default gen_random_uuid(),
@@ -214,22 +216,23 @@ begin
       diary.txts(x->'feelings', 40, 20) feelings, diary.txts(x->'sleepNotes', 40, 20) sleep_notes,
       diary.pick(x->'fertility'->'lh', array['negative', 'positive', 'unclear']) lh_test, round(diary.within(diary.num(x->'fertility'->'bbt'), 34, 43), 2) bbt_c,
       diary.pick(x->'fertility'->'mucus', array['dry', 'sticky', 'creamy', 'watery', 'egg_white']) mucus,
-      diary.pick(x->'fertility'->'pregnancy', array['negative', 'positive']) pregnancy_test, diary.txt(x->'note', 4000) note
+      diary.pick(x->'fertility'->'pregnancy', array['negative', 'positive']) pregnancy_test, diary.txt(x->'note', 4000) note,
+      diary.pick(x->'source', array['health_connect']) source
     from (select x, n, diary.day(x->>'date') d from jsonb_array_elements(case when jsonb_typeof(doc->'cycleDays') = 'array' then doc->'cycleDays' else '[]' end) with ordinality e(x, n)) z
     where d is not null
     order by d, n desc
   ) s on t.user_id = s.user_id and t.local_date = s.local_date
   when matched and (t.position, t.nothing, t.bleeding, t.flow, t.clots, t.products, t.pain, t.pain_sites, t.pain_limits, t.symptoms, t.mood, t.energy, t.stress, t.focus,
-                    t.feelings, t.sleep_notes, t.lh_test, t.bbt_c, t.mucus, t.pregnancy_test, t.note, t.deleted_at)
+                    t.feelings, t.sleep_notes, t.lh_test, t.bbt_c, t.mucus, t.pregnancy_test, t.note, t.source, t.deleted_at)
     is distinct from (s.position, s.nothing, s.bleeding, s.flow, s.clots, s.products, s.pain, s.pain_sites, s.pain_limits, s.symptoms, s.mood, s.energy, s.stress, s.focus,
-                      s.feelings, s.sleep_notes, s.lh_test, s.bbt_c, s.mucus, s.pregnancy_test, s.note, null::timestamptz)
+                      s.feelings, s.sleep_notes, s.lh_test, s.bbt_c, s.mucus, s.pregnancy_test, s.note, s.source, null::timestamptz)
     then update set position = s.position, nothing = s.nothing, bleeding = s.bleeding, flow = s.flow, clots = s.clots, products = s.products, pain = s.pain,
       pain_sites = s.pain_sites, pain_limits = s.pain_limits, symptoms = s.symptoms, mood = s.mood, energy = s.energy, stress = s.stress, focus = s.focus,
-      feelings = s.feelings, sleep_notes = s.sleep_notes, lh_test = s.lh_test, bbt_c = s.bbt_c, mucus = s.mucus, pregnancy_test = s.pregnancy_test, note = s.note, deleted_at = null
+      feelings = s.feelings, sleep_notes = s.sleep_notes, lh_test = s.lh_test, bbt_c = s.bbt_c, mucus = s.mucus, pregnancy_test = s.pregnancy_test, note = s.note, source = s.source, deleted_at = null
   when not matched then insert (user_id, local_date, position, nothing, bleeding, flow, clots, products, pain, pain_sites, pain_limits, symptoms, mood, energy, stress, focus,
-      feelings, sleep_notes, lh_test, bbt_c, mucus, pregnancy_test, note)
+      feelings, sleep_notes, lh_test, bbt_c, mucus, pregnancy_test, note, source)
     values (s.user_id, s.local_date, s.position, s.nothing, s.bleeding, s.flow, s.clots, s.products, s.pain, s.pain_sites, s.pain_limits, s.symptoms, s.mood, s.energy, s.stress, s.focus,
-      s.feelings, s.sleep_notes, s.lh_test, s.bbt_c, s.mucus, s.pregnancy_test, s.note);
+      s.feelings, s.sleep_notes, s.lh_test, s.bbt_c, s.mucus, s.pregnancy_test, s.note, s.source);
   update diary.cycle_days t set deleted_at = now_ts
     where t.user_id = u and t.deleted_at is null and t.local_date not in (
       select diary.day(x->>'date') from jsonb_array_elements(case when jsonb_typeof(doc->'cycleDays') = 'array' then doc->'cycleDays' else '[]' end) x where diary.day(x->>'date') is not null);
@@ -339,7 +342,7 @@ begin
       'painLimits', d.pain_limits, 'symptoms', d.symptoms, 'mood', d.mood, 'energy', d.energy, 'stress', d.stress, 'focus', d.focus,
       'feelings', to_jsonb(d.feelings), 'sleepNotes', to_jsonb(d.sleep_notes),
       'fertility', nullif(jsonb_strip_nulls(jsonb_build_object('lh', d.lh_test, 'bbt', trim_scale(d.bbt_c), 'mucus', d.mucus, 'pregnancy', d.pregnancy_test)), '{}'),
-      'note', d.note)) order by d.position nulls last, d.local_date)
+      'note', d.note, 'source', d.source)) order by d.position nulls last, d.local_date)
     from diary.cycle_days d where d.user_id = u and d.deleted_at is null), '[]'); end if;
   if k = 'cycleMeds' then return coalesce((
     select jsonb_agg(jsonb_strip_nulls(jsonb_build_object('id', coalesce(m.legacy_id, m.id::text), 'name', m.name, 'dose', trim_scale(m.dose), 'unit', m.unit,

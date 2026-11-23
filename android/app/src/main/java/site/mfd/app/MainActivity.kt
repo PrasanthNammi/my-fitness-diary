@@ -280,6 +280,33 @@ class MainActivity : ComponentActivity() {
                     answer(result)
                 }
             }
+            "cycleReminders" -> CycleReminders.save(applicationContext, m.optString("plan"))
+            // The page as it is now (its print styles show only the report), through Android's print screen ("Save as PDF").
+            "print" -> runOnUiThread {
+                val name = m.optString("name").take(60).ifEmpty { "MFD" }
+                val ok = try { getSystemService(android.print.PrintManager::class.java).print(name, web.createPrintDocumentAdapter(name), null); true } catch (e: Exception) { false }
+                answer(JSONObject().put("ok", ok))
+            }
+            "healthCycleConnect" -> lifecycleScope.launch {
+                if (Health.availability(this@MainActivity) != "ready") return@launch answer(JSONObject().put("granted", false).put("state", Health.availability(this@MainActivity)))
+                val have = try { HealthConnectClient.getOrCreate(this@MainActivity).permissionController.getGrantedPermissions() } catch (e: Exception) { emptySet() }
+                if (have.containsAll(Health.CYCLE)) answer(JSONObject().put("granted", true))
+                else {
+                    pendingHealth = Triple(id, reply, Health.CYCLE)
+                    try { healthPermission.launch(Health.CYCLE) } catch (e: Exception) { pendingHealth = null; answer(JSONObject().put("granted", false)) }
+                }
+            }
+            "healthCycleRead" -> {
+                val from = parseDay(m.optString("from")); val to = parseDay(m.optString("to"))
+                if (from == null || to == null || from.isAfter(to) || from.isBefore(to.minusDays(800))) return answer(JSONObject().put("error", "invalid"))
+                lifecycleScope.launch {
+                    answer(try {
+                        val days = org.json.JSONArray()
+                        for ((d, flow) in Health.periods(this@MainActivity, from, to)) days.put(JSONObject().put("date", d.toString()).put("flow", flow ?: JSONObject.NULL))
+                        JSONObject().put("days", days)
+                    } catch (e: SecurityException) { JSONObject().put("error", "permission") } catch (e: Exception) { JSONObject().put("error", "read") })
+                }
+            }
             "healthHeart" -> {
                 // A finished workout's start and end (epoch ms), within the last 30 days.
                 val start = m.optLong("from", 0); val end = m.optLong("to", 0); val now = System.currentTimeMillis()

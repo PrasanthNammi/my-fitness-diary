@@ -33,7 +33,7 @@ function edit(d, k) {
       ...(rnd() < 0.6 ? {mood: 1 + Math.floor(rnd() * 5), energy: 1 + Math.floor(rnd() * 5), stress: 3, focus: 4} : {}),
       ...(rnd() < 0.2 ? {feelings: ['Calm']} : {}), ...(rnd() < 0.2 ? {sleepNotes: ['Woke often']} : {}),
       ...(rnd() < 0.25 ? {fertility: {lh: pick(['negative', 'positive', 'unclear']), ...(rnd() < 0.5 ? {bbt: pick([36.42, 36.7, 50])} : {}), mucus: pick(['dry', 'egg_white'])}} : {}),
-      ...(rnd() < 0.2 ? {note: SECRET} : {}), ...(rnd() < 0.05 ? {pain: 99, odd: {x: [1, null]}} : {})};
+      ...(rnd() < 0.2 ? {note: SECRET} : {}), ...(rnd() < 0.1 ? {source: 'health_connect'} : {}), ...(rnd() < 0.05 ? {pain: 99, odd: {x: [1, null]}} : {})};
     if (i >= 0) days[i] = v; else { days.push(v); days.sort((a, b) => a.date.localeCompare(b.date)); }
   }
   else if (r < 0.48 && d.cycleDays?.length) d.cycleDays.splice(Math.floor(rnd() * d.cycleDays.length), 1);
@@ -110,8 +110,8 @@ function edit(d, k) {
   const days = phone.cycleDays || [];
   assert.equal((await sql(`select count(*)::int n from diary.cycle_days where user_id = $1 and deleted_at is null`, [alice])).n, new Set(days.map((x) => x.date)).size, 'one row per logged day');
   for (const x of days.slice(0, 15)) {
-    const row = await sql(`select bleeding, pain, nothing, mood, bbt_c::float bbt from diary.cycle_days where user_id = $1 and local_date = $2 and deleted_at is null`, [alice, x.date]);
-    assert.equal(row.bleeding, x.bleeding ?? null); assert.equal(row.nothing, !!x.nothing); assert.equal(row.mood, x.mood ?? null);
+    const row = await sql(`select bleeding, pain, nothing, mood, bbt_c::float bbt, source from diary.cycle_days where user_id = $1 and local_date = $2 and deleted_at is null`, [alice, x.date]);
+    assert.equal(row.bleeding, x.bleeding ?? null); assert.equal(row.source, x.source ?? null, 'where the day came from'); assert.equal(row.nothing, !!x.nothing); assert.equal(row.mood, x.mood ?? null);
     assert.equal(row.pain, x.pain >= 0 && x.pain <= 10 ? x.pain : null, 'pain 0–10 only'); assert.equal(row.bbt, x.fertility?.bbt >= 34 && x.fertility?.bbt <= 43 ? x.fertility.bbt : null, 'temperature 34–43 °C only');
   }
   const meds = phone.cycleMeds || [], doses = phone.cycleDoses || [];
