@@ -1,7 +1,7 @@
 // Cycle & Health → Report for your doctor: one printable page (Print / Save as PDF) with what the person recorded in
 // the chosen range: cycles, conditions, medicines, lab results with each report's own range, and frequent symptoms.
 // It states facts only: no interpretation, no diagnosis, no fertile days (docs/cycle/EVIDENCE.md).
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Printer } from 'lucide-react';
 import { useDB } from '../../data/store';
 import { TopBar, toast } from '../../components/ui';
@@ -40,7 +40,17 @@ export function CycleReport() {
   const since90 = new Date(Date.now() - 89 * 864e5).toISOString().slice(0, 10);
   const meds = c.meds.map((m) => { const ds = c.doses.filter((x) => x.medId === m.id && x.date >= since90); return { m, taken: ds.filter((x) => x.status === 'taken').length, missed: ds.filter((x) => x.status === 'missed').length }; });
 
+  // Printing uses a copy of the report placed directly in <body>, with everything else hidden (display: none), so the
+  // rest of the app takes no space (no blank second page). The copy is kept while this page is open (Android's print
+  // screen may lay the page out again) and removed when leaving.
+  useEffect(() => () => document.getElementById('print-root')?.remove(), []);
+  const preparePrint = () => {
+    document.getElementById('print-root')?.remove();
+    const src = document.querySelector('.cy-report'); if (!src) return;
+    const root = document.createElement('div'); root.id = 'print-root'; root.appendChild(src.cloneNode(true)); document.body.appendChild(root);
+  };
   async function print() {
+    preparePrint();
     if (!inApp()) return window.print();
     if (!cycleAppSupported()) return toast('Update the MFD app to print (Settings → Health & devices → Phone app)');
     try { await ask('print', { name: 'MFD cycle report' }); } catch { toast('Could not open printing'); }

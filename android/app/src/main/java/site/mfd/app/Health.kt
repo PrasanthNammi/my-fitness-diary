@@ -229,6 +229,14 @@ object Health {
         fun day(t: Instant) = t.atZone(zone).toLocalDate()
         val resting = if (RESTING !in allowed) emptyMap() else readAll(client, RestingHeartRateRecord::class, dayRange, 2000)
             .filter { it.beatsPerMinute in 25..150 }.groupBy { day(it.time) }.mapValues { (_, l) -> l.maxBy { it.time }.beatsPerMinute }
+        // Samsung Health doesn't write resting heart rate to Health Connect: for nights without one, the lowest
+        // 30-minute average of the heart rate during that night's main sleep (site.mfd.shared.RestingRate).
+        val sleepResting: Map<LocalDate, Long> = if (HEART !in allowed) emptyMap() else stagesByDay
+            .filterKeys { LocalDate.parse(it) !in resting.keys }
+            .mapNotNull { (d, night) ->
+                val heart = try { readAll(client, HeartRateRecord::class, TimeRangeFilter.between(night.start, night.end), 200) } catch (e: Exception) { emptyList() }
+                site.mfd.shared.RestingRate.lowest30(heart.flatMap { r -> r.samples.map { it.time.toEpochMilli() to it.beatsPerMinute } })?.let { LocalDate.parse(d) to it }
+            }.toMap()
         val hrv = if (HRV !in allowed) emptyMap() else readAll(client, HeartRateVariabilityRmssdRecord::class, dayRange, 5000)
             .filter { it.heartRateVariabilityMillis in 1.0..300.0 }.groupBy { day(it.time) }
             .mapValues { (_, l) -> Math.round(l.map { it.heartRateVariabilityMillis }.average() * 10) / 10.0 }
@@ -255,7 +263,7 @@ object Health {
             val steps = if (STEPS !in allowed) null else bySource[d]?.takeIf { it > 0 } ?: stepsByDay[d]?.takeIf { it > 0 }
             // Under 30 minutes is a stray record, not a night's sleep; over 18 hours is an error.
             val hours = SleepMath.hours(nights[d.toString()]?.asleepMs)
-            days += Day(d, hours, steps?.takeIf { it in 1..200_000 }, resting[d], hrv[d], weight[d], fat[d], stagesByDay[d.toString()])
+            days += Day(d, hours, steps?.takeIf { it in 1..200_000 }, resting[d] ?: sleepResting[d], hrv[d], weight[d], fat[d], stagesByDay[d.toString()])
             d = d.plusDays(1)
         }
         return days

@@ -2,7 +2,9 @@
 // water, settings and folders from aiChanges), minus what the user
 // hid. Shared by the AI assistants sheet and the single banner on Overview. Hiding never undoes anything; the
 // hidden list syncs with the settings and keeps only keys that are still recent, so it stays tiny.
-import { useDB } from '../data/store';
+import { getDB, useDB } from '../data/store';
+import { navigate } from './router';
+import { selectDay } from './daySelection';
 import { entryNutrients } from '../data/selectors';
 import { profileRepo } from '../data/repositories';
 import { aiAdded, aiAddedRecently, type AiAdded, type AiCandidate } from '../domain/aiActivity';
@@ -30,10 +32,10 @@ export function useAiActivity(now = Date.now()) {
   return { all, recent: recent.filter((a) => !hidden.has(aiKey(a))), recentAll: recent };
 }
 
-/** Hide entries from the AI lists (no undo). Keeps only keys of entries that are still recent. */
+/** Hide entries from the AI lists (no undo). Keeps only keys of entries that are still recent (and hidden suggestions). */
 export function hideAiActivity(items: AiAdded[], recentAll: AiAdded[], current: string[] | undefined) {
   const still = new Set(recentAll.map(aiKey));
-  const next = [...new Set([...(current ?? []).filter((k) => still.has(k)), ...items.map(aiKey)])];
+  const next = [...new Set([...(current ?? []).filter((k) => still.has(k) || k.startsWith('suggestion:')), ...items.map(aiKey)])];
   profileRepo.updateSettings({ aiHidden: next });
 }
 
@@ -44,3 +46,24 @@ export function aiSummary(items: AiAdded[]) {
   return { who, what: items.length === 1 ? items[0]!.label : `${items.length} new entries`, text: `${who} ${items.every((a) => a.kind === 'settings' || a.kind === 'move' || a.kind === 'folder' || a.kind === 'routine_edit') ? 'changed' : 'added'} ${items.length === 1 ? items[0]!.label : `${items.length} entries`}` };
 }
 export const openAiHub = () => window.dispatchEvent(new Event('mfd-ai-hub'));
+
+/** Hide a workout suggestion from the AI assistants sheet (the suggestion itself stays on its routine). `active` are
+ *  the suggestions still shown anywhere: keys of others are dropped so the list stays tiny. */
+export function hideAiSuggestion(id: string, active: string[], current: string[] | undefined) {
+  const keep = new Set(active.map((x) => 'suggestion:' + x));
+  profileRepo.updateSettings({ aiHidden: [...new Set([...(current ?? []).filter((k) => !k.startsWith('suggestion:') || keep.has(k)), 'suggestion:' + id])] });
+}
+
+/** Where an AI entry lives in the app: opens that page (the day, the workout, the routine…). */
+export function openAiActivity(a: AiAdded) {
+  const d = getDB(), routine = (id?: string) => (id && d.routines.some((r) => r.id === id) ? `/training/routine/view/${id}` : '/training');
+  if (a.kind === 'food') { const e = d.diary.find((x) => x.id === a.id); if (e) selectDay(e.date); return navigate('/food'); }
+  if (a.kind === 'workout') return navigate(d.workouts.some((w) => w.id === a.id) ? `/training/history/${a.id}` : '/training/history');
+  if (a.kind === 'weight' || a.kind === 'measurement') return navigate('/progress/body');
+  if (a.kind === 'routine') return navigate(routine(a.id));
+  const c = d.aiChanges.find((x) => x.id === a.id);
+  if (a.kind === 'water') { if (c && c.kind === 'water') selectDay(c.date); return navigate('/'); }
+  if (a.kind === 'settings') return navigate('/settings/targets');
+  if ((a.kind === 'move' || a.kind === 'routine_edit') && c && 'routineId' in c) return navigate(routine(c.routineId));
+  return navigate('/training');
+}

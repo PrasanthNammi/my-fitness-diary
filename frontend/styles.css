@@ -2068,20 +2068,27 @@ button.watch-strip { cursor: pointer; }
 .cy-d .c { width: 36px; height: 36px; border-radius: 50%; display: grid; place-items: center; }
 .cy-d.future { color: var(--faint); cursor: default; }
 .cy-d.m-period .c { background: var(--brand); color: #fff; font-weight: 800; }
-.cy-d.m-spotting .c, .cy-key .k-spot { box-shadow: inset 0 0 0 1.5px var(--brand-2);
-  background: radial-gradient(circle at 24% 30%, var(--brand-2) 1.8px, transparent 2.3px), radial-gradient(circle at 76% 28%, var(--brand-2) 1.6px, transparent 2.1px), radial-gradient(circle at 30% 76%, var(--brand-2) 1.6px, transparent 2.1px), radial-gradient(circle at 74% 74%, var(--brand-2) 1.8px, transparent 2.3px); }
+.cy-d.m-spotting .c { box-shadow: inset 0 0 0 1.5px var(--brand-2); background: radial-gradient(circle at 34% 24%, var(--brand-2) 1.6px, transparent 2.1px), radial-gradient(circle at 57% 18%, var(--brand-2) 1.6px, transparent 2.1px), radial-gradient(circle at 74% 31%, var(--brand-2) 1.6px, transparent 2.1px), radial-gradient(circle at 23% 69%, var(--brand-2) 1.6px, transparent 2.1px), radial-gradient(circle at 46% 81%, var(--brand-2) 1.6px, transparent 2.1px), radial-gradient(circle at 69% 75%, var(--brand-2) 1.6px, transparent 2.1px), radial-gradient(circle at 82% 52%, var(--brand-2) 1.6px, transparent 2.1px); }
+.cy-key .k-spot { box-shadow: inset 0 0 0 1.2px var(--brand-2); background: radial-gradient(circle at 34% 24%, var(--brand-2) 0.85px, transparent 1.35px), radial-gradient(circle at 57% 18%, var(--brand-2) 0.85px, transparent 1.35px), radial-gradient(circle at 74% 31%, var(--brand-2) 0.85px, transparent 1.35px), radial-gradient(circle at 23% 69%, var(--brand-2) 0.85px, transparent 1.35px), radial-gradient(circle at 46% 81%, var(--brand-2) 0.85px, transparent 1.35px), radial-gradient(circle at 69% 75%, var(--brand-2) 0.85px, transparent 1.35px), radial-gradient(circle at 82% 52%, var(--brand-2) 0.85px, transparent 1.35px); }
 .cy-d.m-other-bleed .c { box-shadow: inset 0 0 0 2px var(--brand); }
 .cy-d.est .c { border: 1.5px dashed var(--brand); color: var(--accent); }
 .cy-d.today .c { background: var(--ink); color: var(--on-ink); }
 .cy-d.m-period.today .c { background: var(--brand); box-shadow: 0 0 0 2px var(--bg), 0 0 0 4px var(--ink); }
-.cy-d.m-symptoms::after, .cy-d.m-nothing::after { content: ""; position: absolute; bottom: 1px; left: 50%; margin-left: -2.5px; width: 5px; height: 5px; border-radius: 50%; background: var(--muted); }
+.cy-d.m-symptoms .c, .cy-d.m-nothing .c { padding-bottom: 7px; box-sizing: border-box; }
+.cy-d.m-symptoms::after, .cy-d.m-nothing::after { content: ""; position: absolute; bottom: 11px; left: 50%; margin-left: -2.5px; width: 5px; height: 5px; border-radius: 50%; background: var(--muted); }
 .cy-d.m-nothing::after { background: var(--success); }
 .cy-key { display: flex; flex-wrap: wrap; gap: 8px 14px; margin-top: 12px; font-size: 12px; color: var(--muted); }
 .cy-key i { display: inline-block; width: 14px; height: 14px; border-radius: 50%; vertical-align: -3px; margin-right: 5px; }
 .cy-key .k-per { background: var(--brand); }
 .cy-key .k-est { border: 1.5px dashed var(--brand); }
-.cy-key .k-sym { width: 6px; height: 6px; background: var(--muted); margin-left: 4px; }
-.cy-key .k-ok { width: 6px; height: 6px; background: var(--success); margin-left: 4px; }
+.cy-key .k-sym, .cy-key .k-ok { width: 7px; height: 7px; margin: 0 9px 0 4px; vertical-align: middle; }
+.cy-key .k-sym { background: var(--muted); }
+.cy-key .k-ok { background: var(--success); }
+.cy-key > span { display: inline-flex; align-items: center; }
+.cy-key > span i { flex: none; }
+.cy-key .k-per, .cy-key .k-spot, .cy-key .k-est { vertical-align: middle; }
+.cy-key .info-btn { width: 24px; height: 24px; min-width: 24px; border-radius: 50%; background: var(--accent-soft); color: var(--accent); padding: 0; }
+.cy-key .info-btn svg { width: 14px; height: 14px; }
 
 /* Cycle & Health: log */
 .cy-logtools { display: flex; }
@@ -2248,12 +2255,15 @@ input.switch:focus-visible { outline: 3px solid var(--accent); outline-offset: 2
 .cy-report table { width: 100%; border-collapse: collapse; font-size: 13px; margin: 6px 0; }
 .cy-report th, .cy-report td { text-align: left; padding: 6px 6px; border-bottom: 1px solid var(--line); vertical-align: top; }
 .cy-report th { font-weight: 700; color: var(--muted); font-size: 12px; }
+#print-root { display: none; }
 @media print {
-  html, body, #root, .main, .screen { background: #fff !important; box-shadow: none !important; }
-  body * { visibility: hidden !important; }
-  .cy-report, .cy-report * { visibility: visible !important; color: #000 !important; }
-  .cy-report { position: absolute; left: 0; top: 0; width: 100%; border: 0; border-radius: 0; padding: 0; background: #fff; }
-  .cy-report th, .cy-report td { border-bottom: 1px solid #ccc; }
+  html, body { background: #fff !important; height: auto !important; overflow: visible !important; }
+  body > *:not(#print-root) { display: none !important; }
+  #print-root { display: block !important; }
+  #print-root .cy-report { border: 0; border-radius: 0; padding: 0; background: #fff; }
+  #print-root .cy-report, #print-root .cy-report * { color: #000 !important; }
+  #print-root .cy-report th, #print-root .cy-report td { border-bottom: 1px solid #ccc; }
+  #print-root tr { break-inside: avoid; }
 }
 .cy-settings .cy-seteyebrow { margin: 18px 4px 8px; display: flex; align-items: center; gap: 6px; }
 .cy-settings .cy-set .cy-row + .cy-row { border-top: 1px solid var(--line); }
@@ -2269,3 +2279,28 @@ input.switch:focus-visible { outline: 3px solid var(--accent); outline-offset: 2
 .cy-privacy-page h3 { margin: 0 0 6px; font-size: 16px; }
 .cy-privacy-page p { margin: 6px 0; font-size: 14px; color: var(--muted); }
 .cy-signup .cy-consent { font-size: 12.5px; color: var(--muted); margin: 8px 0 10px; }
+.cy-insights .cy-ins-sub { margin: 0 2px 4px; color: var(--muted); font-size: 13.5px; }
+.cy-insights .cy-sec { margin-top: 16px; }
+.cy-legend { display: flex; gap: 14px; justify-content: center; font-size: 12px; color: var(--muted); margin-top: 4px; }
+.cy-legend i { display: inline-block; width: 12px; height: 4px; border-radius: 2px; margin-right: 5px; vertical-align: middle; }
+.cy-bodyweeks { display: flex; flex-direction: column; gap: 10px; }
+.cy-wkv { display: flex; gap: 8px; align-items: flex-end; }
+.cy-wkv > span { display: flex; flex-direction: column; align-items: center; gap: 3px; width: 30px; }
+.cy-wkv i { display: block; width: 14px; border-radius: 4px; background: var(--brand); }
+.cy-wkv small { font-size: 10.5px; font-weight: 700; color: var(--ink); }
+.cy-wkv small.big { font-size: 13px; font-weight: 800; }
+
+.cy-key { display: grid; grid-template-columns: repeat(3, max-content); justify-content: space-between; align-items: center; gap: 10px 12px; }
+
+/* Rows that clear with a swipe (AI assistants sheet) */
+.swipe-row { position: relative; overflow: hidden; border-radius: 14px; list-style: none; transition: max-height .2s ease, opacity .2s ease; max-height: 120px; }
+.swipe-row.gone { max-height: 0; opacity: 0; }
+.swipe-under { position: absolute; inset: 0; display: flex; align-items: center; justify-content: flex-end; gap: 6px; padding-right: 18px; background: var(--surface-3); color: var(--muted); font-weight: 700; font-size: 13px; }
+.swipe-under svg { width: 18px; height: 18px; }
+.swipe-front { position: relative; display: flex; align-items: center; gap: 12px; background: var(--surface); touch-action: pan-y; cursor: pointer; user-select: none; }
+.ai-hub-list .swipe-front { padding: 10px 2px; }
+.ai-hub-go { width: 18px; height: 18px; color: var(--faint); flex: none; }
+@media (hover: none) { .ai-hub .ai-hub-hide { display: none; } }
+.ai-hub-list li.swipe-row { display: block; padding: 0; border-bottom: 1px solid var(--line-2); border-radius: 0; }
+.ai-hub-list .swipe-front > svg:first-child { flex: none; width: 18px; height: 18px; color: var(--ai-text); }
+.ai-hub-list .swipe-front .grow { flex: 1; min-width: 0; }

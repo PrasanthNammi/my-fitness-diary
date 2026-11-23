@@ -8,7 +8,8 @@ import type { CycleData, CycleSettings, ISODate } from './types';
 import type { Estimate } from './cyclePredict';
 
 export type ReminderStyle = CycleSettings['reminderStyle'];
-export interface DailyReminder { id: string; time: string; title: string; text: string; open: string; start?: ISODate; end?: ISODate }
+/** `done`: the label of the notification's button that records the dose (medicines only). */
+export interface DailyReminder { id: string; time: string; title: string; text: string; open: string; start?: ISODate; end?: ISODate; done?: string }
 export interface OnceReminder { id: string; date: ISODate; time: string; title: string; text: string; open: string }
 export interface ReminderPlan { daily: DailyReminder[]; once: OnceReminder[]; lockScreen: string }
 
@@ -32,7 +33,8 @@ export function reminderPlan(c: CycleData, est: Estimate, today: ISODate): Remin
     for (const t of m.times ?? []) {
       if (!TIME.test(t)) continue;
       const dose = m.dose ? ` ${m.dose}${m.unit ? ' ' + m.unit : ''}` : '';
-      daily.push({ id: `med:${m.id}:${t}`, time: t, ...words(style, 'med', `${m.name}${dose} at ${t}`), open: '/#/progress/cycle', ...(m.start ? { start: m.start } : {}), ...(m.end ? { end: m.end } : {}) });
+      daily.push({ id: `med:${m.id}:${t}`, time: t, ...words(style, 'med', `${m.name}${dose} at ${t}`), open: '/#/progress/cycle', done: style === 'discreet' ? 'Done' : 'Taken',
+        ...(m.start ? { start: m.start } : {}), ...(m.end ? { end: m.end } : {}) });
     }
   }
   if (s.logReminder && TIME.test(s.logReminder))
