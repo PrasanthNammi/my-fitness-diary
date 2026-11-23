@@ -1,18 +1,21 @@
 // Cycle & Health home (in Progress): cycle day and timeline, the estimate line (step 5 fills it), three actions
 // (Log today, Insights, Records) and the month calendar. Recorded, estimated and unknown always look different.
 import { useMemo, useState } from 'react';
-import { BarChart3, ChevronLeft, ChevronRight, FileHeart, Plus } from 'lucide-react';
+import { BarChart3, CalendarCheck, ChevronLeft, ChevronRight, Droplet, FileHeart, MoveHorizontal, Plus, RefreshCw, Sparkles } from 'lucide-react';
 import { useDB } from '../../data/store';
 import { navigate } from '../../lib/router';
 import { InfoButton } from '../../components/ui';
 import { cycleNow, dayMark, daysBetween } from '../../domain/cycle';
 import type { CycleDay, ISODate } from '../../domain/types';
 import { estimateNext, type Estimate } from '../../domain/cyclePredict';
+import { cycleRangeStats, rangeName } from '../../domain/cycleRange';
+import { rangeStart, type RangeDays } from '../../domain/progressStats';
+import { Bars, Ring } from './CycleInsights';
 
 const localToday = (): ISODate => { const d = new Date(); return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 10); };
 const short = (d: ISODate) => new Date(d + 'T12:00:00').toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
 
-export function CycleHome() {
+export function CycleHome({ range = 90 }: { range?: RangeDays }) {
   const days = useDB((d) => d.cycle.days), weekStart = useDB((d) => d.settings.weekStart ?? 1);
   const today = localToday();
   const now = useMemo(() => cycleNow(days, today), [days, today]);
@@ -38,6 +41,7 @@ export function CycleHome() {
         <button className="cy-act" onClick={() => navigate('/progress/cycle/records')}><span className="ai"><FileHeart /></span>Records</button>
       </div>
       <Calendar days={days} today={today} est={est} weekStart={weekStart} />
+      <InRange range={range} today={today} />
     </div>
   );
 }
@@ -108,4 +112,36 @@ function Calendar({ days, today, est, weekStart }: { days: CycleDay[]; today: IS
       </div>
     </section>
   );
+}
+
+// The chosen range (1M … All): a few tiles, cycle lengths and top symptoms. 1M rarely holds a full cycle, so it shows
+// this cycle so far instead of an empty chart.
+function InRange({ range, today }: { range: RangeDays; today: ISODate }) {
+  const days = useDB((d) => d.cycle.days), workouts = useDB((d) => d.workouts);
+  const st = useMemo(() => cycleRangeStats(days, workouts, today, rangeStart(range)), [days, workouts, today, range]);
+  const now = useMemo(() => cycleNow(days, today), [days, today]);
+  if (!days.length) return null;
+  const month = range === 30, symptomDays = days.filter((d) => d.date <= today && d.date >= (rangeStart(range) ?? '') && Object.keys(d.symptoms ?? {}).length).length;
+  const span = st.shortest === null ? '–' : st.shortest === st.longest ? `${st.shortest}` : `${st.shortest}–${st.longest}`;
+  return <section className="cy-sec cy-inrange" aria-label={rangeName(range)}>
+    <div className="cy-sech"><h3>{month ? 'This cycle so far' : rangeName(range)} <InfoButton title={month ? 'This cycle so far' : rangeName(range)} label="About these numbers" lines={[
+      month ? 'A month rarely holds a full cycle, so 1M shows the cycle you are in now and your logs from the last 30 days.' : 'Cycles that started in this range, from the first day of a period to the first day of the next.',
+      'Days you didn’t log are left out, never counted as “no symptoms”.', 'Change the range at the top: 1M, 3M, 6M, 1Y or All.']} /></h3>
+      {!month && st.cycles.length > 0 && <button className="cy-link" onClick={() => navigate('/progress/cycle/insights')}>More</button>}</div>
+    <div className="cy-tiles2">
+      {month ? <>
+        <div className="cy-st"><span className="ai"><RefreshCw /></span><b className="tnum">{now.day ?? '–'}</b><span>Cycle day</span></div>
+        <div className="cy-st"><span className="ai"><Droplet /></span><b className="tnum">{now.lastPeriod && now.lastPeriod.start >= (rangeStart(range) ?? '') ? now.lastPeriod.length : '–'} <small>d</small></b><span>Period</span></div>
+        <div className="cy-st"><span className="ai"><CalendarCheck /></span><b className="tnum">{st.logged}<small>/30</small></b><span>Days logged</span></div>
+        <div className="cy-st"><span className="ai"><Sparkles /></span><b className="tnum">{symptomDays}</b><span>Days with symptoms</span></div>
+      </> : <>
+        <div className="cy-st"><span className="ai"><RefreshCw /></span><b className="tnum">{st.usual ?? '–'} <small>d</small></b><span>Usual cycle · {st.cycles.length} {st.cycles.length === 1 ? 'cycle' : 'cycles'}</span></div>
+        <div className="cy-st"><span className="ai"><MoveHorizontal /></span><b className="tnum">{span}</b><span>Shortest–longest</span></div>
+        <div className="cy-st"><span className="ai"><Droplet /></span><b className="tnum">{st.periodLen ?? '–'} <small>d</small></b><span>Period</span></div>
+        <div className="cy-st"><span className="ai"><CalendarCheck /></span><b className="tnum">{st.logged}{range ? <small>/{range}</small> : null}</b><span>Days logged</span></div>
+      </>}
+    </div>
+    {!month && st.cycles.length >= 2 && <div className="card cy-chartcard"><Bars lengths={st.cycles.slice(-12).map((c) => c.length)} starts={st.cycles.slice(-12).map((c) => c.start)} /></div>}
+    {st.top.length > 0 && <div className="cy-sym4">{st.top.map(([s, p]) => <div key={s} className="cy-sy"><Ring pct={p} />{s}</div>)}</div>}
+  </section>;
 }
