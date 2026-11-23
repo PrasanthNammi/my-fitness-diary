@@ -3,8 +3,9 @@ import { MFD3 } from '../lib/release';
 import { appVersion } from '../lib/appUpdate';
 import {ExercisePicker} from './training/ExercisePicker';
 import {useRef,useState,useSyncExternalStore,type ReactNode} from 'react';
-import {Timer,UserRound,Ruler,Goal,Library,Database,ShieldUser,Utensils,Dumbbell,Flag,Download,Upload,Archive,LogOut,RefreshCw,Bell,Palette,Bot,ChevronRight,HeartPulse,Droplet} from 'lucide-react';
+import {Timer,UserRound,Ruler,Goal,Library,Database,ShieldUser,Utensils,Dumbbell,Flag,Download,Upload,Archive,LogOut,RefreshCw,Bell,Palette,Bot,ChevronRight,HeartPulse,Droplet,ShieldCheck} from 'lucide-react';
 import {CycleSettingsPage} from './cycle/CycleSettings';
+import {PrivacyPage} from './settings/PrivacyPage';
 import {cycleAllowed} from '../data/cycle';
 import {HealthDevices} from './settings/HealthDevices';
 import {healthSupported} from '../lib/health';
@@ -41,6 +42,7 @@ export function SettingsLive({section}:{section:string|null}){
  if(section==='appearance')return <AppearanceSettings/>;
  if(section==='health')return <HealthDevices/>;
  if(section==='cycle')return <CycleSettingsPage/>;
+ if(section==='privacy')return <PrivacyPage/>;
  const go=(p:string)=>()=>navigate('/settings/'+p);
  const pages:Record<string,{title:string;items:Item[]}>={
   catalogue:{title:'Exercise & food catalogue',items:[
@@ -71,7 +73,8 @@ export function SettingsLive({section}:{section:string|null}){
    {icon:<Bot/>,label:'AI assistants',sub:'ChatGPT and Claude',onClick:()=>navigate('/coach')}]},
   {title:'Data & account',items:[
    {icon:<Database/>,label:'Data',sub:'Import, export, reports',onClick:go('data')},
-   {icon:<ShieldUser/>,label:'Account',sub:sync==='saved'?account?.email??syncText:syncText,dot:sync==='attention',onClick:go('account')}]},
+   {icon:<ShieldUser/>,label:'Account',sub:sync==='saved'?account?.email??syncText:syncText,dot:sync==='attention',onClick:go('account')},
+   {icon:<ShieldCheck/>,label:'Privacy',sub:'What MFD stores, who sees it, your rights',onClick:go('privacy')}]},
  ];
  return <>
   <TopBar title={page?page.title:'Settings'} back={page?'/settings':undefined}/>

@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { Activity, ChevronDown, Footprints, HeartPulse, Moon, Pencil, Waves, Zap } from 'lucide-react';
 import { useDB } from '../../data/store';
-import { Empty, OverflowMenu, Segmented, TopBar } from '../../components/ui';
+import { Empty, InfoButton, OverflowMenu, Segmented, TopBar } from '../../components/ui';
 import { BarChart, LineChart } from '../../components/Charts';
 import { average, compared, hm, HISTORY_STEPS, recoveryHistory, recoveryRange, shiftDay, type Metric, type RecoveryDay } from '../../domain/recoveryStats';
 import { fmtInt, fmtNum, todayISO } from '../../lib/format';
@@ -136,7 +136,7 @@ export function RecoveryPage() {
 
         <section className="card card-pad"><p className="rp-title"><Moon aria-hidden="true" />Sleep</p><SleepChart days={days} /></section>
         {steps.some((s) => s.value > 0) && <section className="card card-pad"><p className="rp-title"><Footprints aria-hidden="true" />Steps <span className="muted">· avg {fmtInt(average(days.map((d) => d.day?.steps ?? null)) ?? 0)}</span></p><BarChart bars={steps} unit="steps" label="Steps per day" height={150} /></section>}
-        {rhr.length > 1 && <section className="card card-pad"><p className="rp-title"><HeartPulse aria-hidden="true" />Resting heart rate <span className="muted">· lower is usually better</span></p><LineChart points={rhr} unit="bpm" label="Resting heart rate" height={150} format={(v) => fmtNum(v, 0)} color="var(--failure)" /></section>}
+        {rhr.length > 1 && <section className="card card-pad"><p className="rp-title"><HeartPulse aria-hidden="true" />Resting heart rate <span className="muted">· lower is usually better</span><InfoButton title="Resting heart rate" label="Where this comes from" lines={['From Health Connect when an app on your phone saves it there.', 'Samsung Health doesn’t share resting heart rate, so MFD works it out from your heart rate while you sleep: your lowest 30-minute average of the night.']} /></p><LineChart points={rhr} unit="bpm" label="Resting heart rate" height={150} format={(v) => fmtNum(v, 0)} color="var(--failure)" /></section>}
         {hrv.length > 1 && <section className="card card-pad"><p className="rp-title"><Waves aria-hidden="true" />Heart-rate variability <span className="muted">· higher is usually better</span></p><LineChart points={hrv} unit="ms" label="Heart-rate variability" height={150} format={(v) => fmtNum(v, 0)} color="var(--ai)" /></section>}
         <section className="card card-pad"><p className="rp-title"><Zap aria-hidden="true" />How you felt</p><FeltChart days={days} /></section>
 

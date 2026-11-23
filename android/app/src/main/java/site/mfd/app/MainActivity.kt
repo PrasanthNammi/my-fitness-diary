@@ -281,6 +281,7 @@ class MainActivity : ComponentActivity() {
                 }
             }
             "cycleReminders" -> CycleReminders.save(applicationContext, m.optString("plan"))
+            "cycleTakenDrain" -> answer(JSONObject().put("taken", CycleReminders.drainTaken(applicationContext)))
             // The page as it is now (its print styles show only the report), through Android's print screen ("Save as PDF").
             "print" -> runOnUiThread {
                 val name = m.optString("name").take(60).ifEmpty { "MFD" }

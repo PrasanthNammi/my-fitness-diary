@@ -26,12 +26,13 @@ object CycleReminders {
     private const val CH = "cycle_reminders"
     private const val ACTION = "site.mfd.app.CYCLE_REMINDER"
     private const val EXTRA = "id"
+    const val TAKEN = "site.mfd.app.CYCLE_TAKEN"
     private const val MAX = 40
     private val TIME = Regex("^([01]\\d|2[0-3]):[0-5]\\d$")
     private val DATE = Regex("^\\d{4}-\\d{2}-\\d{2}$")
 
     data class Item(val id: String, val title: String, val text: String, val open: String, val time: String,
-                    val date: String?, val start: String?, val end: String?)
+                    val date: String?, val start: String?, val end: String?, val done: String? = null)
 
     private fun prefs(ctx: Context) = ctx.getSharedPreferences("cycle_reminders", Context.MODE_PRIVATE)
 
@@ -52,7 +53,8 @@ object CycleReminders {
             if (once && date == null) return@mapNotNull null
             Item(id, x.optString("title").take(60).ifEmpty { "MFD" }, x.optString("text").take(200).ifEmpty { "Reminder" },
                 x.optString("open").takeIf { MainActivity.isAppPath(it) } ?: "/", time, date,
-                x.optString("start").takeIf { DATE.matches(it) }, x.optString("end").takeIf { DATE.matches(it) })
+                x.optString("start").takeIf { DATE.matches(it) }, x.optString("end").takeIf { DATE.matches(it) },
+                x.optString("done").take(20).takeIf { it.isNotEmpty() && !once && id.startsWith("med:") })
         } } ?: emptyList()
         return (list("daily", false) + list("once", true)).take(MAX)
     }
@@ -101,7 +103,7 @@ object CycleReminders {
         })
         // What the lock screen shows: never the medicine or anything about the cycle.
         val public = NotificationCompat.Builder(ctx, CH).setSmallIcon(R.drawable.ic_notification).setContentTitle("MFD").setContentText("Reminder").build()
-        val n = NotificationCompat.Builder(ctx, CH)
+        val builder = NotificationCompat.Builder(ctx, CH)
             .setSmallIcon(R.drawable.ic_notification)
             .setContentTitle(item.title)
             .setContentText(item.text)
@@ -109,8 +111,31 @@ object CycleReminders {
             .setPublicVersion(public)
             .setAutoCancel(true)
             .setContentIntent(Notify.open(ctx, item.open))
-            .build()
-        try { NotificationManagerCompat.from(ctx).notify("cycle:" + item.id, 1, n) } catch (e: SecurityException) {}
+        // Medicines: a button that records the dose as taken (today, at the reminder's time) without opening MFD.
+        if (item.done != null) builder.addAction(0, item.done, PendingIntent.getBroadcast(ctx, ("taken:" + item.id).hashCode(),
+            Intent(ctx, CycleReminderReceiver::class.java).setAction(TAKEN).putExtra(EXTRA, item.id).putExtra("date", LocalDate.now().toString()),
+            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT))
+        try { NotificationManagerCompat.from(ctx).notify("cycle:" + item.id, 1, builder.build()) } catch (e: SecurityException) {}
+    }
+
+    /** "Taken" on a medicine reminder: kept until the page collects it (cycleTakenDrain), and the page is told now if
+     *  MFD is running. The notification goes away. */
+    fun taken(ctx: Context, id: String, date: String) {
+        NotificationManagerCompat.from(ctx).cancel("cycle:$id", 1)
+        val m = Regex("^med:(.{1,200}):([01]\\d|2[0-3]):([0-5]\\d)$").find(id) ?: return
+        if (!DATE.matches(date)) return
+        val list = org.json.JSONArray(prefs(ctx).getString("taken", "[]"))
+        list.put(JSONObject().put("medId", m.groupValues[1]).put("time", m.groupValues[2] + ":" + m.groupValues[3]).put("date", date))
+        val keep = org.json.JSONArray(); for (i in maxOf(0, list.length() - 100) until list.length()) keep.put(list.get(i))
+        prefs(ctx).edit { putString("taken", keep.toString()) }
+        MainActivity.sendToOpenPage(JSONObject().put("event", "cycleTaken"))
+    }
+
+    /** The doses marked "Taken" since the page last asked (then forgotten here). */
+    fun drainTaken(ctx: Context): org.json.JSONArray {
+        val list = try { org.json.JSONArray(prefs(ctx).getString("taken", "[]")) } catch (e: Exception) { org.json.JSONArray() }
+        prefs(ctx).edit { remove("taken") }
+        return list
     }
 }
 
@@ -119,6 +144,7 @@ class CycleReminderReceiver : BroadcastReceiver() {
     override fun onReceive(ctx: Context, intent: Intent) {
         when (intent.action) {
             "site.mfd.app.CYCLE_REMINDER" -> CycleReminders.fire(ctx, intent.getStringExtra("id") ?: return)
+            CycleReminders.TAKEN -> CycleReminders.taken(ctx, intent.getStringExtra("id") ?: return, intent.getStringExtra("date") ?: return)
             Intent.ACTION_BOOT_COMPLETED, Intent.ACTION_MY_PACKAGE_REPLACED -> CycleReminders.schedule(ctx)
         }
     }
