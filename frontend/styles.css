@@ -2301,4 +2301,3 @@ input.switch:focus-visible { outline: 3px solid var(--accent); outline-offset: 2
 .ai-hub-list li.swipe-row { display: block; padding: 0; border-bottom: 1px solid var(--line-2); border-radius: 0; }
 .ai-hub-list .swipe-front > svg:first-child { flex: none; width: 18px; height: 18px; color: var(--ai-text); }
 .ai-hub-list .swipe-front .grow { flex: 1; min-width: 0; }
-.metric-grid > :last-child:nth-child(odd) { grid-column: 1 / -1; }

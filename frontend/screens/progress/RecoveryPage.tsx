@@ -123,7 +123,7 @@ export function RecoveryPage() {
             <MetricTile icon={<Moon />} label="Sleep" value={day?.sleep != null ? hm(day.sleep) : null} color="var(--protein)" line={line('sleep')} cmp={compared(checkins, latest, 'sleep')} good="higher" fmt={hm} />
             <MetricTile icon={<Footprints />} label="Steps" value={day?.steps != null ? fmtInt(day.steps) : null} color="var(--fibre)" line={line('steps')} cmp={compared(checkins, latest, 'steps')} good="higher" />
             <MetricTile icon={<HeartPulse />} label="Resting HR" value={day?.restingHr != null ? fmtInt(day.restingHr) : null} unit="bpm" color="var(--failure)" line={line('restingHr')} cmp={compared(checkins, latest, 'restingHr')} good="lower" />
-            {checkins.some((c) => c.hrv != null) && <MetricTile icon={<Waves />} label="HRV" value={day?.hrv != null ? fmtNum(day.hrv, 0) : null} unit="ms" color="var(--ai)" line={line('hrv')} cmp={compared(checkins, latest, 'hrv')} good="higher" />}
+            <MetricTile icon={<Waves />} label="HRV" value={day?.hrv != null ? fmtNum(day.hrv, 0) : null} unit="ms" color="var(--ai)" line={line('hrv')} cmp={compared(checkins, latest, 'hrv')} good="higher" />
           </div>
           {(day?.energy != null || day?.soreness != null) && <div className="felt-row">
             {day?.energy != null && <span><Zap aria-hidden="true" />Energy <b>{day.energy}/5</b></span>}
