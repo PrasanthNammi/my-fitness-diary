@@ -9,3 +9,4 @@ node_modules/
 /public/react/
 /public/sw.js
 /.sites-runtime/
+.harness/
