@@ -283,6 +283,7 @@ export function Onboarding() {
               <h2>Track your cycle in MFD?</h2>
               <p>Periods, symptoms, medicines and thyroid results in one private place, next to your training and food.</p>
               <ul><li><b>Only you see it.</b> Never friends, never the feed.</li><li><b>Your AI only if you allow it,</b> in Settings.</li><li><b>Switch off or delete</b> any time.</li></ul>
+              <p className="cy-consent">Choosing “Yes” is your consent for MFD to store these health records for you. Details in Settings → Cycle & Health → How your data is handled.</p>
               <Segmented label="Track your cycle" value={trackCycle} onChange={setTrackCycle} options={[{ value: 'yes', label: 'Yes, switch it on' }, { value: 'no', label: 'Not now' }]} />
             </div>}
             <button

@@ -34,6 +34,7 @@ import { CycleLog } from './screens/cycle/CycleLog';
 import { CycleInsights } from './screens/cycle/CycleInsights';
 import { CycleRecords } from './screens/cycle/CycleRecords';
 import { CycleReport } from './screens/cycle/CycleReport';
+import { CyclePrivacy } from './screens/cycle/CyclePrivacy';
 import { WorkoutEditor } from './screens/progress/WorkoutEditor';
 import { CoachScreen } from './screens/coach/CoachScreen';
 import { AiAssistants } from './screens/ai/AiAssistants';
@@ -104,6 +105,7 @@ function Routes({ route }: { route: string[] }) {
       if (b === 'cycle' && c === 'records') return <CycleRecords />;
       if (b === 'cycle' && c === 'insights') return <CycleInsights />;
       if (b === 'cycle' && c === 'report') return <CycleReport />;
+      if (b === 'cycle' && c === 'privacy') return <CyclePrivacy />;
       if (b === 'cycle') return <ProgressHome tab="cycle" />;
       // Old links: workout history now lives under Training.
       if (b === 'session' && c && d === 'edit') return <WorkoutEditor key={c} id={c} />;

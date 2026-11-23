@@ -2265,3 +2265,7 @@ input.switch:focus-visible { outline: 3px solid var(--accent); outline-offset: 2
 .cy-settings .cy-linkrow { width: 100%; background: none; border: 0; text-align: left; font: inherit; color: inherit; }
 .cy-settings .cy-linkrow:disabled { opacity: .5; }
 .cy-settings .cy-ic { width: 36px; height: 36px; }
+.cy-privacy-page .card { margin-bottom: 12px; }
+.cy-privacy-page h3 { margin: 0 0 6px; font-size: 16px; }
+.cy-privacy-page p { margin: 6px 0; font-size: 14px; color: var(--muted); }
+.cy-signup .cy-consent { font-size: 12.5px; color: var(--muted); margin: 8px 0 10px; }
