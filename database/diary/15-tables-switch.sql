@@ -136,7 +136,8 @@ declare v_user uuid := auth.uid(); cur bigint; stored jsonb; t_ops jsonb; o_ops 
 begin
   if v_user is null then raise exception 'Sign in required' using errcode = '42501'; end if;
   if not diary.in_tables(v_user) then return query select * from public.forma_save_workspace_patch(ops, expected_revision); return; end if;
-  if jsonb_typeof(ops) is distinct from 'array' or octet_length(ops::text) > 8000000 then raise exception 'Invalid changes' using errcode = '22023'; end if;
+  -- (25 MB: the stored document stays small, the diary itself lives in the tables; ~3,700 workouts in one save)
+  if jsonb_typeof(ops) is distinct from 'array' or octet_length(ops::text) > 25000000 then raise exception 'Invalid changes' using errcode = '22023'; end if;
   if expected_revision is null or expected_revision < 1 then raise exception 'Invalid revision' using errcode = '22023'; end if;
   select revision, payload into cur, stored from public.forma_workspaces where user_id = v_user for update;
   if cur is null or cur <> expected_revision then
@@ -302,6 +303,11 @@ begin
     -- What the AI assistants added recently (the app's AI activity), read from the whole diary.
     ('mfd_mcp.recent_ai_entries(uuid,text)', 'from public.forma_workspaces w, unnest(',
      'from (select user_id, diary.full_payload(user_id,payload) payload from public.forma_workspaces where user_id=u) w, unnest('),
+    -- A whole diary sent by the app: up to 25 MB once it lives in the tables (the stored document stays small).
+    ('public.forma_save_workspace_v2(jsonb,bigint)', 'octet_length(document::text)>8000000 then raise exception ''Invalid workspace document''',
+     'octet_length(document::text)>8000000+17000000*diary.in_tables(v_user)::int then raise exception ''Invalid workspace document'''),
+    ('public.forma_save_workspace(jsonb,bigint)', 'octet_length(document::text)>8000000 then raise exception ''Invalid workspace document''',
+     'octet_length(document::text)>8000000+17000000*diary.in_tables(v_user)::int then raise exception ''Invalid workspace document'''),
     -- Writers that replace a whole list or record in place write the whole diary instead (exact for moved parts).
     ('mfd_mcp.suggest(jsonb)', 'set payload=jsonb_set(payload,''{aiSuggestions}'',kept)',
      'set payload=jsonb_set(diary.full_payload(user_id,payload),''{aiSuggestions}'',kept)'),

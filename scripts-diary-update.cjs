@@ -15,7 +15,8 @@
 // food, body and settings come back exactly (undone otherwise). Moving people is a separate file (mfd-move-areas.sql).
 // Update 7: 14-apply-training, saves during a workout no longer rebuild every workout (plans read on their own).
 // Update 8: 05, 07, 09, each save's scratch tables are measured (analyze) so saves don't read every person's rows.
-// Usage: node scripts-diary-update.cjs [update number, default 8] [out-file]
+// Update 9: 12, 14, 15, workouts rebuilt in one pass, saves redo only the areas (and meals) they change, 25 MB saves.
+// Usage: node scripts-diary-update.cjs [update number, default 9] [out-file]
 const fs = require('fs'), os = require('os'), path = require('path');
 const strip = (sql) => sql.split('\n').filter((l) => !/^\s*(begin|commit);\s*$/i.test(l)).join('\n');
 const part = (f) => strip(fs.readFileSync(path.join(__dirname, f.includes('/') ? f : 'database/diary/' + f + '.sql'), 'utf8'));
@@ -94,8 +95,23 @@ select (select count(*) from public.forma_workspaces) as diaries, 'IDENTICAL' as
        after: `select (select count(*) from public.forma_workspaces) as diaries,
        (select count(*) from pg_proc where proname in ('fill_training', 'fill_nutrition', 'fill_body') and prosrc like '%analyze _%') as fills_measuring_their_scratch_tables,
        (select count(*) from diary.fill_problems) as problems_left;` },
+  9: { title: 'update 9 (2026-11-23): faster full downloads, AI reads and meal saves; diaries in the tables may be up to 25 MB',
+       parts: ['12-read', '14-apply-training', '15-tables-switch'], fills: [],
+       after: `-- Every diary must rebuild exactly as before (workouts built in one pass = built one by one); otherwise undone.
+do $same$ declare r record; bad text := ''; begin
+  for r in select user_id, payload from public.forma_workspaces loop
+    if diary.sessions_json(r.user_id) is distinct from (select coalesce(jsonb_agg(diary.workout_json(w) order by diary.pos(w.extra), w.started_at, w.id), '[]')
+         from diary.workouts w where w.user_id = r.user_id and w.deleted_at is null and w.ended_at is not null)
+       or diary.full_payload(r.user_id, r.payload) is null then bad := bad || left(r.user_id::text, 8) || ' '; end if;
+  end loop;
+  if bad <> '' then raise exception 'Not identical, nothing was changed: %', bad; end if;
+end $same$;
+select (select count(*) from public.forma_workspaces) as diaries, 'IDENTICAL' as rebuilt,
+       (select count(*) from pg_proc where proname in ('sessions_json', 'area_part', 'area_needs')) as new_parts,
+       (select count(*) from pg_proc p where p.proname in ('forma_save_workspace_v2', 'forma_save_workspace') and pg_get_functiondef(p.oid) like '%17000000%') as bigger_saves,
+       (select count(*) from diary.fill_problems) as problems_left;` },
 };
-const n = Number(process.argv[2] || 8), u = updates[n];
+const n = Number(process.argv[2] || 9), u = updates[n];
 if (!u) throw new Error('Unknown update ' + n);
 const out = `-- MFD 3.0 database, ${u.title}. Paste all of it into the Supabase SQL editor (project Forma) and press Run.
 -- All or nothing; safe to run again; the app keeps working throughout.
