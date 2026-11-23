@@ -77,12 +77,46 @@ $$;
 revoke all on function diary.feed_copy(diary.workouts) from public, anon, authenticated;
 
 
+-- Every finished workout in one pass (what diary.workout_json builds one by one): full downloads and AI reads of big
+-- diaries were slow with a function call per set. The set is built inline exactly as diary.set_base and
+-- diary.with_extra build it (keep them in step: tests compare the two).
+create or replace function diary.sessions_json(u uuid) returns jsonb language sql stable set search_path = '' as $$
+  with st as (
+    select we.workout_id wid, jsonb_agg(
+      case when s.extra is null then b.j
+        else (b.j - coalesce(array(select jsonb_array_elements_text(case when jsonb_typeof(s.extra->'$absent') = 'array' then s.extra->'$absent' else '[]' end)), '{}'::text[]))
+          || (s.extra - '$absent' - '$pos') end
+      order by case when jsonb_typeof(s.extra->'$pos') = 'number' then (s.extra->>'$pos')::int end, we.position, s.position) sets
+    from diary.workouts w
+    join diary.workout_exercises we on we.workout_id = w.id and we.deleted_at is null
+    join diary.workout_sets s on s.workout_exercise_id = we.id and s.deleted_at is null
+    join diary.exercises e on e.id = we.exercise_id
+    cross join lateral (select jsonb_strip_nulls(jsonb_build_object(
+      'id', case when starts_with(s.legacy_id, w.legacy_id || ':') then substr(s.legacy_id, length(w.legacy_id) + 2) else s.id::text end,
+      'exercise', e.name, 'catalogId', coalesce(e.source_ref, e.legacy_id, e.id::text),
+      'catalogSource', case when e.user_id is null then 'MFD' else 'Custom' end, 'tracking', coalesce(we.tracking, e.tracking),
+      'type', case s.set_type when 'drop' then 'dropset' else s.set_type end,
+      'group', coalesce(case when we.legacy_id ~ ':\d+$' then substring(we.legacy_id from ':(\d+)$')::int end, we.position),
+      'set', s.position + 1, 'kg', trim_scale(s.weight_kg), 'reps', s.reps, 'duration_seconds', s.duration_s, 'distance_meters', trim_scale(s.distance_m),
+      'floors', s.floors, 'steps', s.steps, 'rpe', trim_scale(s.rpe), 'done', s.completed_at is not null,
+      'mfdDoneAt', case when s.completed_at is distinct from w.ended_at then (extract(epoch from s.completed_at) * 1000)::bigint end,
+      'mfdSuggested', case when trim_scale(s.planned_weight_kg) is not null or s.planned_reps is not null
+                        then jsonb_strip_nulls(jsonb_build_object('weightKg', trim_scale(s.planned_weight_kg), 'reps', s.planned_reps)) end,
+      'mfdAi', case when s.planned_by_ai then true end,
+      'superset_id', we.superset_group::text, 'notes', coalesce(we.notes, ''))) j) b
+    where w.user_id = u and w.deleted_at is null and w.ended_at is not null
+    group by we.workout_id)
+  select coalesce(jsonb_agg(diary.with_extra(diary.workout_base(w) || jsonb_build_object('sets', coalesce(st.sets, '[]')), w.extra) order by diary.pos(w.extra), w.started_at, w.id), '[]')
+  from diary.workouts w left join st on st.wid = w.id
+  where w.user_id = u and w.deleted_at is null and w.ended_at is not null
+$$;
+revoke all on function diary.sessions_json(uuid) from public, anon, authenticated;
+
 -- A person's training (finished workouts, the running one, folders, routines, own exercises) exactly as the app
 -- stored it. Lists keep the app's order; items made without one (none yet) go last.
 create or replace function diary.training_json(u uuid) returns jsonb language sql stable set search_path = '' as $$
   select jsonb_build_object(
-    'sessions', coalesce((select jsonb_agg(diary.workout_json(w) order by diary.pos(w.extra), w.started_at, w.id)
-                          from diary.workouts w where w.user_id = u and w.deleted_at is null and w.ended_at is not null), '[]'),
+    'sessions', diary.sessions_json(u),
     'active', (select diary.workout_json(w) from diary.workouts w where w.user_id = u and w.deleted_at is null and w.ended_at is null limit 1),
     'folders', coalesce((select jsonb_agg(diary.with_extra(diary.folder_base(f), f.extra) order by f.position, f.id)
                          from diary.routine_folders f where f.user_id = u and f.deleted_at is null), '[]'),
@@ -96,31 +130,38 @@ $$;
 revoke all on function diary.training_json(uuid) from public, anon, authenticated;
 
 -- Food, body and account (everything but training) as the tables hold it, without empty values.
-create or replace function diary.area_json(u uuid) returns jsonb
-language sql stable security definer set search_path = '' as $$
-  select jsonb_strip_nulls(jsonb_build_object(
-    'meals', coalesce((select jsonb_agg(jsonb_strip_nulls(jsonb_build_object(
+-- One part of food, body and account (the same values diary.area_json puts together; empty values not yet removed).
+-- Built per part so a save that changes meals doesn't rebuild everything else.
+create or replace function diary.area_part(u uuid, k text) returns jsonb
+language plpgsql stable security definer set search_path = '' as $f$
+begin
+  if k = 'meals' then return (
+    coalesce((select jsonb_agg(jsonb_strip_nulls(jsonb_build_object(
         'id', coalesce(m.legacy_id, m.id::text), 'date', m.local_date::text, 'meal', initcap(m.meal), 'name', m.name,
         'amount', trim_scale(m.amount), 'unit', m.unit, 'cal', trim_scale(m.kcal), 'p', trim_scale(m.protein_g), 'c', trim_scale(m.carbs_g), 'f', trim_scale(m.fat_g),
         'fiber', trim_scale(m.fibre_g), 'sugar', trim_scale(m.sugars_g), 'saturates', trim_scale(m.saturated_fat_g), 'salt', trim_scale(m.salt_g),
         'labelFood', (select diary.label_json(f) from diary.foods f where f.id = m.food_id),
         'addedBy', diary.added_by(m.ai_action_id)))
         order by m.local_date, m.created_at, m.id)
-      from diary.food_entries m where m.user_id = u and m.deleted_at is null), '[]'),
-    'products', coalesce((select jsonb_agg(diary.label_json(f) order by f.name)
-                          from diary.foods f where f.user_id = u and f.in_my_foods and f.deleted_at is null), '[]'),
-    'foodFavorites', coalesce((select jsonb_agg(coalesce(f.legacy_id, f.id::text) order by ff.created_at)
+      from diary.food_entries m where m.user_id = u and m.deleted_at is null), '[]')); end if;
+  if k = 'products' then return (
+    coalesce((select jsonb_agg(diary.label_json(f) order by f.name)
+                          from diary.foods f where f.user_id = u and f.in_my_foods and f.deleted_at is null), '[]')); end if;
+  if k = 'foodFavorites' then return (
+    coalesce((select jsonb_agg(coalesce(f.legacy_id, f.id::text) order by ff.created_at)
                                from diary.favourite_foods ff join diary.foods f on f.id = ff.food_id
-                               where ff.user_id = u and ff.deleted_at is null), '[]'),
-    'water', coalesce((select jsonb_object_agg(d, ml) from (select local_date::text d, sum(ml) ml from diary.water_logs
-                        where user_id = u and deleted_at is null group by 1) z), '{}'),
-    'weights', coalesce((select jsonb_agg(jsonb_strip_nulls(jsonb_build_object(
+                               where ff.user_id = u and ff.deleted_at is null), '[]')); end if;
+  if k = 'water' then return (
+    coalesce((select jsonb_object_agg(d, ml) from (select local_date::text d, sum(ml) ml from diary.water_logs
+                        where user_id = u and deleted_at is null group by 1) z), '{}')); end if;
+  if k = 'weights' then return (
+    coalesce((select jsonb_agg(jsonb_strip_nulls(jsonb_build_object(
         'id', coalesce(x.legacy_id, x.id::text), 'date', x.local_date::text, 'kg', trim_scale(x.weight_kg), 'bodyFat', trim_scale(x.body_fat_pct),
         'source', case when x.source = 'health_connect' then 'health' end, 'addedBy', diary.added_by(x.ai_action_id)))
         order by x.local_date)
-      from diary.weigh_ins x where x.user_id = u and x.deleted_at is null), '[]'),
-    -- Recovery days and measurements are separate tables; the old document had one list of check-ins.
-    'checkins', coalesce((select jsonb_agg(c order by c->>'date', c->>'id') from (
+      from diary.weigh_ins x where x.user_id = u and x.deleted_at is null), '[]')); end if;
+  if k = 'checkins' then return (
+    coalesce((select jsonb_agg(c order by c->>'date', c->>'id') from (
         select jsonb_strip_nulls(jsonb_build_object('id', 'recovery:' || r.local_date, 'date', r.local_date::text,
           'sleep', trim_scale(r.sleep_h), 'sleepSource', case when r.sleep_source = 'health_connect' then 'health' end, 'steps', r.steps,
           'restingHr', r.resting_hr, 'hrv', r.hrv_ms, 'energy', r.energy, 'soreness', r.soreness, 'note', coalesce(r.note, ''),
@@ -131,8 +172,9 @@ language sql stable security definer set search_path = '' as $$
         union all
         select jsonb_strip_nulls(jsonb_object_agg(site, trim_scale(cm)) || jsonb_build_object('id', split_part(legacy_id, ':', 1), 'date', min(local_date)::text,
           'note', '', 'addedBy', diary.added_by(min(ai_action_id::text)::uuid)))
-        from diary.body_measurements where user_id = u and deleted_at is null group by split_part(legacy_id, ':', 1)) z), '[]'),
-    'profile', (select jsonb_strip_nulls(jsonb_build_object(
+        from diary.body_measurements where user_id = u and deleted_at is null group by split_part(legacy_id, ':', 1)) z), '[]')); end if;
+  if k = 'profile' then return (
+    (select jsonb_strip_nulls(jsonb_build_object(
         'firstName', p.first_name, 'lastName', p.last_name, 'name', nullif(btrim(concat_ws(' ', p.first_name, p.last_name)), ''),
         'birthDate', p.birth_date::text, 'age', extract(year from age(p.birth_date))::int,
         'sex', p.sex, 'height', trim_scale(p.height_cm), 'activity', p.activity_level, 'weight', trim_scale(lw.kg),
@@ -143,22 +185,42 @@ language sql stable security definer set search_path = '' as $$
              then diary.targets(p.sex, lw.kg, p.height_cm, extract(year from age(p.birth_date)), p.activity_level, coalesce(g.goal, 'maintain')) else '{}' end
       from diary.user_profiles p left join diary.user_goals g on g.user_id = p.user_id
         left join lateral (select x.weight_kg kg from diary.weigh_ins x where x.user_id = u and x.deleted_at is null order by x.local_date desc limit 1) lw on true
-      where p.user_id = u and p.deleted_at is null),
-    'mfdSettings', (select jsonb_strip_nulls(jsonb_build_object('weightUnit', s.weight_unit, 'energyUnit', s.energy_unit, 'lengthUnit', s.length_unit,
+      where p.user_id = u and p.deleted_at is null)); end if;
+  if k = 'mfdSettings' then return (
+    (select jsonb_strip_nulls(jsonb_build_object('weightUnit', s.weight_unit, 'energyUnit', s.energy_unit, 'lengthUnit', s.length_unit,
         'weekStart', s.week_start, 'defaultRestSec', s.default_rest_s, 'keepAwake', s.keep_awake, 'vibrate', s.vibrate, 'plates', s.plate_set,
         'healthWeightSkip', case when cardinality(s.health_weight_skip) > 0 then to_jsonb(s.health_weight_skip) end))
-      from diary.user_settings s where s.user_id = u and s.deleted_at is null),
-    'aiSuggestions', coalesce((select jsonb_agg(jsonb_strip_nulls(jsonb_build_object('id', coalesce(a.legacy_id, a.id::text),
+      from diary.user_settings s where s.user_id = u and s.deleted_at is null)); end if;
+  if k = 'aiSuggestions' then return (
+    coalesce((select jsonb_agg(jsonb_strip_nulls(jsonb_build_object('id', coalesce(a.legacy_id, a.id::text),
         'routineId', (select coalesce(r.legacy_id, r.id::text) from diary.routines r where r.id = a.routine_id), 'routineName', a.routine_name,
         'status', a.status, 'exercises', a.details->'exercises', 'usedExercises', a.details->'used_exercises', 'note', a.details->'note',
         'createdAt', diary.epoch_ms(a.created_at), 'usedAt', diary.epoch_ms(a.used_at), 'addedBy', diary.added_by(a.ai_action_id)))
         order by a.created_at)
-      from diary.ai_suggestions a where a.user_id = u and a.deleted_at is null), '[]'),
-    'aiChanges', coalesce((select jsonb_agg(a.details || jsonb_build_object('id', coalesce(a.legacy_id, a.id::text),
+      from diary.ai_suggestions a where a.user_id = u and a.deleted_at is null), '[]')); end if;
+  if k = 'aiChanges' then return (
+    coalesce((select jsonb_agg(a.details || jsonb_build_object('id', coalesce(a.legacy_id, a.id::text),
         'kind', case a.action when 'log_water' then 'water' when 'change_settings' then 'settings' when 'create_folder' then 'folder' else 'move' end,
         'addedBy', diary.added_by(a.id)) order by a.created_at)
       from diary.ai_actions a where a.user_id = u and a.undone_at is null and a.deleted_at is null
-        and a.action in ('log_water', 'change_settings', 'create_folder', 'move_routine')), '[]')))
+        and a.action in ('log_water', 'change_settings', 'create_folder', 'move_routine')), '[]')); end if;
+  return null;
+end $f$;
+revoke all on function diary.area_part(uuid, text) from public, anon, authenticated;
+
+create or replace function diary.area_json(u uuid) returns jsonb
+language sql stable security definer set search_path = '' as $$
+  select jsonb_strip_nulls(jsonb_build_object(
+    'meals', diary.area_part(u, 'meals'),
+    'products', diary.area_part(u, 'products'),
+    'foodFavorites', diary.area_part(u, 'foodFavorites'),
+    'water', diary.area_part(u, 'water'),
+    'weights', diary.area_part(u, 'weights'),
+    'checkins', diary.area_part(u, 'checkins'),
+    'profile', diary.area_part(u, 'profile'),
+    'mfdSettings', diary.area_part(u, 'mfdSettings'),
+    'aiSuggestions', diary.area_part(u, 'aiSuggestions'),
+    'aiChanges', diary.area_part(u, 'aiChanges')))
 $$;
 revoke all on function diary.area_json(uuid) from public, anon, authenticated;
 

@@ -225,6 +225,11 @@ function editAreas(d, k) {
     assert.deepEqual(phone, now.payload, `area save ${k}: the phone's copy = the server's diary; ops ${JSON.stringify(ops).slice(0, 400)}`);
     await follow(`area save ${k}`);
   }
+  // Saves copy only what changed: the rows (and their patches) are exactly what copying everything again gives.
+  const partial = (await sql(`select diary.area_json($1) a, (select coalesce(jsonb_object_agg(part, ops), '{}') from diary.doc_patches where user_id = $1) p`, [alice]));
+  await sql(`select diary.set_areas($1, diary.area_values($1, diary.area_keys()))`, [alice]);
+  const whole = (await sql(`select diary.area_json($1) a, (select coalesce(jsonb_object_agg(part, ops), '{}') from diary.doc_patches where user_id = $1) p`, [alice]));
+  assert.deepEqual(partial, whole, 'partial copies = a full copy (rows and patches)');
   const st4 = (await sql(`select payload from public.forma_workspaces where user_id = $1`, [alice])).payload;
   assert.ok([...TRAINING, ...AREAS].every((k) => !(k in st4)), 'still nothing moved in the document');
   assert.equal((await sql(`select count(*)::int n from diary.fill_problems where kind = 'error'`)).n, 0);
@@ -315,6 +320,27 @@ function editAreas(d, k) {
   assert.deepEqual((await full(erin)).payload.profile, noDob, 'the diary as saved');
   await assert.rejects(sql(`update diary.user_profiles set birth_date = null where user_id = $1`, [erin]), /null value|not-null/);
   console.log('PASS 3.0 for everyone: new accounts join (set-up asks the date of birth); date of birth required, a set-up without one waits for it');
+
+  // Big diaries (over the old 8 MB document limit): saved whole and as changes, back exactly; the stored
+  // document stays small.
+  const big = (n0) => Array.from({length: 300}, (_, k) => ({...workout(n0 + k), notes: 'long note '.repeat(3000) + k}));   // ~30 KB each: over 8 MB with few rows
+  let cf = await full(carol);
+  const more0 = big(9000);
+  const bigDoc = {...cf.payload, sessions: big(5000)};
+  assert.ok(JSON.stringify(bigDoc).length > 8e6 && JSON.stringify(more0).length > 8e6, `${JSON.stringify(bigDoc).length} bytes`);
+  r = await asUser(carol, `select * from public.forma_save_workspace_v2($1, $2)`, [JSON.stringify(bigDoc), cf.revision]);
+  assert.equal(r.conflict, false, 'a whole 9 MB+ diary is saved');
+  cf = await full(carol);
+  assert.deepEqual(cf.payload.sessions, (await sql(`select $1::jsonb s`, [JSON.stringify(bigDoc.sessions)])).s, 'and comes back exactly');
+  const more = more0;
+  r = await save(carol, more.map((w) => ({k: 'sessions', i: w.id, v: w})), cf.revision);
+  assert.equal(r.conflict, false, 'changes over 8 MB are saved');
+  cf = await full(carol);
+  assert.equal(cf.payload.sessions.length, 600);
+  assert.ok((await sql(`select octet_length(payload::text) n from public.forma_workspaces where user_id = $1`, [carol])).n < 20000, 'the stored document stays small');
+  await assert.rejects(asUser(bob, `select * from public.forma_save_workspace_v2($1, $2)`, [JSON.stringify({...bigDoc}), (await full(bob)).revision]), /Invalid workspace document/,
+    'a diary still in the document keeps the 8 MB limit');
+  console.log('PASS big diaries: whole saves and changes over 8 MB (long workouts), back exactly; the document limit stays for diaries not moved');
 
   // An older app (old save) can't save training or food for Alice.
   const now = await full(alice);

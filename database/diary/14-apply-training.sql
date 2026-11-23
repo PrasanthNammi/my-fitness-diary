@@ -50,10 +50,11 @@ revoke all on diary.doc_patches from public, anon, authenticated;
 
 -- The parts `keys` exactly as the app stored them: rebuilt from the tables, then each part's patch.
 create or replace function diary.area_values(u uuid, keys text[]) returns jsonb language plpgsql stable security definer set search_path = '' as $$
-declare built jsonb := diary.area_json(u); out jsonb := '{}'; k text; one jsonb; fix jsonb;
+declare out jsonb := '{}'; k text; one jsonb; fix jsonb;
 begin
   foreach k in array coalesce(keys, '{}') loop
-    one := case when built ? k then jsonb_build_object(k, built->k) else '{}' end;
+    -- (each part on its own, exactly as in diary.area_json)
+    one := jsonb_strip_nulls(jsonb_build_object(k, diary.area_part(u, k)));
     select p.ops into fix from diary.doc_patches p where p.user_id = u and p.part = k;
     if fix is not null then one := mfd_private.workspace_apply(one, fix); end if;
     out := out || one;
@@ -63,39 +64,60 @@ begin
 end $$;
 revoke all on function diary.area_values(uuid, text[]) from public, anon, authenticated;
 
--- Makes the food, body and account parts exactly `doc` (the parts it has; parts it lacks are emptied): the rows are
--- redone from it and the patches refreshed.
-create or replace function diary.set_areas(u uuid, doc jsonb) returns void language plpgsql security definer set search_path = '' as $$
-declare built jsonb; k text; fix jsonb;
+-- Which parts a change needs: each copy (fill_nutrition, fill_body, fill_account) reads all the parts of its area,
+-- food also reads the settings, and the rebuilt profile shows the latest weigh-in.
+create or replace function diary.area_needs(touched text[]) returns text[] language sql immutable set search_path = '' as $$
+  select array(select distinct x from unnest(
+    case when touched && array['meals', 'products', 'foodFavorites', 'water', 'mfdSettings'] then array['meals', 'products', 'foodFavorites', 'water', 'mfdSettings'] else '{}' end
+    || case when touched && array['weights', 'checkins'] then array['weights', 'checkins', 'profile'] else '{}' end
+    || case when touched && array['profile', 'mfdSettings', 'aiSuggestions', 'aiChanges'] then array['profile', 'mfdSettings', 'aiSuggestions', 'aiChanges'] else '{}' end) x)
+$$;
+
+-- Makes the parts in `parts` (all food, body and account parts when null) exactly as in `doc` (a part `doc` lacks is
+-- emptied): the rows of their areas are redone from it and their patches refreshed. `doc` must hold every present
+-- part of diary.area_needs(parts). only_entries: the meals that changed ('{}' none, null all).
+drop function if exists diary.set_areas(uuid, jsonb);
+create or replace function diary.set_areas(u uuid, doc jsonb, parts text[] default null, only_entries text[] default null) returns void
+language plpgsql security definer set search_path = '' as $$
+declare need text[] := case when parts is null then diary.area_keys() else diary.area_needs(parts) end;
+  redo text[] := coalesce(parts, diary.area_keys()); k text; fix jsonb; built jsonb;
 begin
-  perform diary.fill_nutrition(u, null, doc);
-  perform diary.fill_body(u, doc);
-  perform diary.fill_account(u, doc);
-  built := diary.area_json(u);
-  foreach k in array diary.area_keys() loop
-    fix := case when doc ? k then mfd_private.workspace_diff(case when built ? k then jsonb_build_object(k, built->k) else '{}' end, jsonb_build_object(k, doc->k)) end;
+  -- Only the areas whose parts changed are copied again; need also has parts that are only rebuilt and checked
+  -- (the profile, which shows the latest weigh-in).
+  if redo && array['meals', 'products', 'foodFavorites', 'water', 'mfdSettings'] then perform diary.fill_nutrition(u, only_entries, doc); end if;
+  if redo && array['weights', 'checkins'] then perform diary.fill_body(u, doc); end if;
+  if redo && array['profile', 'mfdSettings', 'aiSuggestions', 'aiChanges'] then perform diary.fill_account(u, doc); end if;
+  foreach k in array need loop
+    built := jsonb_strip_nulls(jsonb_build_object(k, diary.area_part(u, k)));
+    fix := case when doc ? k then mfd_private.workspace_diff(built, jsonb_build_object(k, doc->k)) end;
     if fix is null or fix = '[]'::jsonb then delete from diary.doc_patches where user_id = u and part = k;
     else insert into diary.doc_patches (user_id, part, ops) values (u, k, fix) on conflict (user_id, part) do update set ops = excluded.ops; end if;
   end loop;
 end $$;
-revoke all on function diary.set_areas(uuid, jsonb) from public, anon, authenticated;
+revoke all on function diary.set_areas(uuid, jsonb, text[], text[]) from public, anon, authenticated;
 
 -- Applies the food, body and account operations in `ops` (the document's own rules and refusals); returns the new
--- "$training" list.
+-- "$training" list. Only the areas the operations touch are rebuilt and redone (a meal: food only, that entry only).
 create or replace function diary.apply_area_ops(u uuid, ops jsonb, present jsonb) returns jsonb language plpgsql security definer set search_path = '' as $$
-declare a_ops jsonb; keys text[] := array(select jsonb_array_elements_text(coalesce(present, '[]'))); doc jsonb; l text;
+declare a_ops jsonb; keys text[] := array(select jsonb_array_elements_text(coalesce(present, '[]'))); doc jsonb; touched text[]; need text[]; entries text[];
 begin
   select coalesce(jsonb_agg(e order by n), '[]') into a_ops from jsonb_array_elements(ops) with ordinality t(e, n) where e->>'k' = any (diary.area_keys());
   if a_ops = '[]'::jsonb then return present; end if;
-  doc := diary.area_values(u, array(select x from unnest(keys) x where x = any (diary.area_keys())));
+  touched := array(select distinct e->>'k' from jsonb_array_elements(a_ops) e);
+  need := diary.area_needs(touched);
+  doc := diary.area_values(u, array(select x from unnest(keys) x where x = any (need)));
   doc := mfd_private.workspace_apply(doc, a_ops);
   -- The same shape rules as a whole saved diary.
   if (doc ? 'profile' and jsonb_typeof(doc->'profile') is distinct from 'object')
      or exists (select 1 from unnest(array['meals', 'weights', 'checkins']) l2 where doc ? l2 and jsonb_typeof(doc->l2) is distinct from 'array') then
     raise exception 'Invalid workspace document' using errcode = '22023'; end if;
-  perform diary.set_areas(u, doc);
-  return to_jsonb(array(select x from unnest(keys) x where not x = any (diary.area_keys()))
-                  || array(select x from jsonb_object_keys(doc) x where x = any (diary.area_keys())));
+  -- Meals changed one by one: only those entries are copied again.
+  entries := case when not 'meals' = any (touched) then '{}'
+                  when exists (select 1 from jsonb_array_elements(a_ops) e where e->>'k' = 'meals' and not (e ? 'i' or e ? 'o')) then null
+                  else array(select distinct e->>'i' from jsonb_array_elements(a_ops) e where e->>'k' = 'meals' and e ? 'i') end;
+  perform diary.set_areas(u, doc, touched, entries);
+  return to_jsonb(array(select x from unnest(keys) x where not x = any (need))
+                  || array(select x from jsonb_object_keys(doc) x where x = any (need)));
 end $$;
 revoke all on function diary.apply_area_ops(uuid, jsonb, jsonb) from public, anon, authenticated;
 
