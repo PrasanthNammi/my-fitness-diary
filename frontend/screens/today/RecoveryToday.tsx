@@ -33,7 +33,8 @@ export function RecoveryToday({ date }: { date: string }) {
             <MetricTile icon={<Moon />} label="Sleep" value={day.sleep != null ? hm(day.sleep) : null} color="var(--protein)" line={line('sleep')} cmp={compared(checkins, date, 'sleep')} good="higher" fmt={hm} />
             <MetricTile icon={<Footprints />} label="Steps" value={day.steps != null ? fmtInt(day.steps) : null} color="var(--fibre)" line={line('steps')} cmp={compared(checkins, date, 'steps')} good="higher" />
             <MetricTile icon={<HeartPulse />} label="Resting HR" value={day.restingHr != null ? fmtInt(day.restingHr) : null} unit="bpm" color="var(--failure)" line={line('restingHr')} cmp={compared(checkins, date, 'restingHr')} good="lower" />
-            <MetricTile icon={<Waves />} label="HRV" value={day.hrv != null ? fmtNum(day.hrv, 0) : null} unit="ms" color="var(--ai)" line={line('hrv')} cmp={compared(checkins, date, 'hrv')} good="higher" />
+            {/* HRV only when a source provides it (Samsung Health doesn't share it with Health Connect). */}
+            {checkins.some((c) => c.hrv != null) && <MetricTile icon={<Waves />} label="HRV" value={day.hrv != null ? fmtNum(day.hrv, 0) : null} unit="ms" color="var(--ai)" line={line('hrv')} cmp={compared(checkins, date, 'hrv')} good="higher" />}
           </div>
           {(day.energy != null || day.soreness != null) && <p className="recovery-felt small tnum">{[day.energy != null && `Energy ${day.energy}/5`, day.soreness != null && `Soreness ${day.soreness}/5`].filter(Boolean).join(' · ')}</p>}
         </button>
