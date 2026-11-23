@@ -13,7 +13,8 @@
 // comes back exactly (the whole update is undone otherwise).
 // Update 6: the database move for food, body and settings (07, 09, 11, 12, 14, 15), then a check that every diary's
 // food, body and settings come back exactly (undone otherwise). Moving people is a separate file (mfd-move-areas.sql).
-// Usage: node scripts-diary-update.cjs [update number, default 6] [out-file]
+// Update 7: 14-apply-training, saves during a workout no longer rebuild every workout (plans read on their own).
+// Usage: node scripts-diary-update.cjs [update number, default 7] [out-file]
 const fs = require('fs'), os = require('os'), path = require('path');
 const strip = (sql) => sql.split('\n').filter((l) => !/^\s*(begin|commit);\s*$/i.test(l)).join('\n');
 const part = (f) => strip(fs.readFileSync(path.join(__dirname, f.includes('/') ? f : 'database/diary/' + f + '.sql'), 'utf8'));
@@ -74,8 +75,21 @@ select (select count(*) from public.forma_workspaces) as diaries, 'ALL EXACT' as
        (select count(*) from pg_trigger where tgname = 'diary_9_switch_new') as new_accounts_switch,
        (select count(*) from diary.table_people where areas) as moved_people,
        (select count(*) from diary.fill_problems) as problems_left;` },
+  7: { title: 'update 7 (2026-11-23): fast saves during a workout (plans read on their own, not via a rebuild of every workout)',
+       parts: ['14-apply-training'], fills: [],
+       after: `-- The plans built the fast way must be exactly the plans of the full rebuild, for every diary; otherwise undone.
+do $same$ declare r record; bad text := ''; begin
+  for r in select user_id from public.forma_workspaces loop
+    if diary.plans_doc(r.user_id) is distinct from (select jsonb_build_object('folders', t->'folders', 'routines', t->'routines', 'mfdExercises', t->'mfdExercises')
+                                                   from (select diary.training_json(r.user_id) t) x) then bad := bad || left(r.user_id::text, 8) || ' '; end if;
+  end loop;
+  if bad <> '' then raise exception 'Not identical, nothing was changed: %', bad; end if;
+end $same$;
+select (select count(*) from public.forma_workspaces) as diaries, 'IDENTICAL' as plans,
+       (select count(*) from pg_proc where proname = 'plans_doc' and prosrc not like '%training_json%') as fast_plans_installed,
+       (select count(*) from diary.fill_problems) as problems_left;` },
 };
-const n = Number(process.argv[2] || 6), u = updates[n];
+const n = Number(process.argv[2] || 7), u = updates[n];
 if (!u) throw new Error('Unknown update ' + n);
 const out = `-- MFD 3.0 database, ${u.title}. Paste all of it into the Supabase SQL editor (project Forma) and press Run.
 -- All or nothing; safe to run again; the app keeps working throughout.
