@@ -2,7 +2,8 @@ import {navigate} from '../lib/router';
 import {validateImageFile,assertImageDimensions} from '../lib/imageSafety';
 import {useEffect,useState,useRef,useMemo,useSyncExternalStore} from 'react';
 import {mergeFeed,visibleFeed,SignedImages} from '../lib/socialData';
-import {SocialFeed,FEED_DAYS,type FeedRow} from '../lib/socialFeed';
+import {FEED_DAYS,type FeedRow,type SocialFeed} from '../lib/socialFeed';
+import {friendsSession,freshPhotos,rememberPeople,rememberPhotos,same} from '../lib/friendsCache';
 import {ChatSync,type ChatMessage} from '../lib/chatSync';
 import {friendHistory,forgetHistory,toWorkouts} from '../lib/friendHistory';
 import {ArrowLeft,ArrowUp,Ban,Bell,Camera,Check,ChevronRight,Clock,Heart,Inbox,LockKeyhole,MessageCircle,MoreHorizontal,Pencil,RefreshCw,Search,Share2,Timer,Trash2,UserMinus,UserPlus,Users,X} from 'lucide-react';
@@ -34,27 +35,37 @@ const recordsOf=(ws:Workout[])=>{let r=recordCache.get(ws);if(!r){r=recordSets(w
 /** Friends: feed of friends' finished workouts, workout pages, profiles, comparison, activity, people, requests, inbox and disappearing chat. */
 export function FriendsScreen({view}:{view:View}){
  const uid=engine()?.peek().user?.id;const c=client();
- const [profiles,setProfiles]=useState<P[]>([]),[links,setLinks]=useState<any[]>([]),[blocks,setBlocks]=useState<any[]>([]),[mine,setMine]=useState<P|null>(null);
- const [workouts,setWorkouts]=useState<any[]>([]),[reactions,setReactions]=useState<any[]>([]),[photos,setPhotos]=useState<Record<string,string>>({});
+ // What Friends already knows (lib/friendsCache): shown at once, refreshed quietly in the background.
+ const session=uid?friendsSession(uid):null,known0=session?.people||null;
+ const [profiles,setProfiles]=useState<P[]>(known0?.profiles||[]),[links,setLinks]=useState<any[]>(known0?.links||[]),[blocks,setBlocks]=useState<any[]>(known0?.blocks||[]),[mine,setMine]=useState<P|null>(known0?.profiles.find((x:P)=>x.user_id===uid)||null);
+ const [known,setKnown]=useState(!!known0);
+ const [workouts,setWorkouts]=useState<any[]>(()=>session?.feed.feed()||[]),[reactions,setReactions]=useState<any[]>(()=>session?.feed.reactionList()||[]),[photos,setPhotos]=useState<Record<string,string>>(()=>session?freshPhotos(session):{});
  const [busy,setBusy]=useState(false),[error,setError]=useState(''),[reload,setReload]=useState(0),[limit,setLimit]=useState(20),[loading,setLoading]=useState(false);
- const [people,setPeople]=useState(false),[inbox,setInbox]=useState(false),[menu,setMenu]=useState(false),[copy,setCopy]=useState<{w:any,extra:any[]}|null>(null),[unread,setUnread]=useState<any[]>([]);
+ const [people,setPeople]=useState(false),[inbox,setInbox]=useState(false),[menu,setMenu]=useState(false),[copy,setCopy]=useState<{w:any,extra:any[]}|null>(null),[unread,setUnread]=useState<any[]>(session?.unread||[]);
  const [confirm,setConfirm]=useState<{title:string;body?:string;label:string;run:()=>Promise<any>}|null>(null);
  const [thread,setThread]=useState<{owner:string;workout:string;title:string}|null>(null),[tick,setTick]=useState(0);
  const [histories,setHistories]=useState<Record<string,FeedRow[]>>({}),[likesOf,setLikesOf]=useState<{owner:string;workout:string}|null>(null),[detail,setDetail]=useState<Exercise|null>(null),[period,setPeriod]=useState<Period>('30d');
  const [seen,setSeen]=useState(0);
- const localHistory=useDB(d=>d.workouts),units=useDB(d=>d.settings.weightUnit),goal=useDB(d=>d.profile?.trainingDaysPerWeek??3);const imageCache=useRef(new SignedImages());
+ const localHistory=useDB(d=>d.workouts),units=useDB(d=>d.settings.weightUnit),goal=useDB(d=>d.profile?.trainingDaysPerWeek??3);const imageCache=useRef(session?.images||new SignedImages());
  const syncState=useSyncExternalStore(fn=>engine()?.subscribe(fn)||(()=>{}),()=>{const s=engine()?.peek();return s?.conflict||s?.error?'error':s?.offline?'offline':s?.dirty||s?.busy?'pending':'saved'});
- const feedRef=useRef<SocialFeed|null>(null);
+ const feedRef=useRef(session?.feed||null);
  const selected=view.kind==='profile'||view.kind==='chat'||view.kind==='compare'?profiles.find(p=>p.username===view.username)||null:view.kind==='me'?mine:null;
  const profileOwner=view.kind==='profile'||view.kind==='me'?selected?.user_id:undefined;
- useEffect(()=>{imageCache.current=new SignedImages();setPhotos({});setHistories({});feedRef.current=uid?new SocialFeed(uid):null;setWorkouts(feedRef.current?.feed()||[]);setReactions(feedRef.current?.reactionList()||[]);setSeen(uid?readSeen(uid):0)},[uid]);
+ // Another account signed in on this device: switch to its own Friends data (nothing is shared between accounts).
+ const firstUid=useRef(uid);
+ useEffect(()=>{if(uid===firstUid.current){setSeen(uid?readSeen(uid):0);return}firstUid.current=uid;const s=uid?friendsSession(uid):null;if(s){imageCache.current=s.images}feedRef.current=s?.feed||null;const k=s?.people||null;
+  setProfiles(k?.profiles||[]);setLinks(k?.links||[]);setBlocks(k?.blocks||[]);setMine(k?.profiles.find((x:P)=>x.user_id===uid)||null);setKnown(!!k);setPhotos(s?freshPhotos(s):{});setHistories({});setUnread(s?.unread||[]);
+  setWorkouts(s?.feed.feed()||[]);setReactions(s?.feed.reactionList()||[]);setSeen(uid?readSeen(uid):0)},[uid]);
+ useEffect(()=>{if(uid&&known)rememberPeople(uid,{profiles,links,blocks})},[uid,known,profiles,links,blocks]);
+ useEffect(()=>{if(session)rememberPhotos(session,photos)},[photos]);
+ useEffect(()=>{if(session)session.unread=unread},[unread]);
  useEffect(()=>{setLimit(20);setMenu(false)},[view.kind,selected?.user_id]);
  useEffect(()=>{window.scrollTo(0,0)},[view.kind,(view as any).workout,(view as any).exercise,selected?.user_id]);
  const localSessions=useMemo(()=>engine()?.peek().state.sessions||[],[localHistory,uid]);
  const displayed=useMemo(()=>{const since=Date.now()-FEED_DAYS*86400000;return mergeFeed(workouts,profileOwner?localSessions:localSessions.filter((x:any)=>x.started>=since),uid||'',profileOwner)},[workouts,localSessions,uid,profileOwner]);
  const friend=(id:string)=>!blocks.some(b=>(b.owner_id===uid&&b.target_id===id)||(b.target_id===uid&&b.owner_id===id))&&links.some(l=>l.status==='accepted'&&[l.sender,l.recipient].includes(id));
  const incoming=links.filter(l=>l.recipient===uid&&l.status==='pending');
- async function refresh(){try{let [p,f,b]=await Promise.all([checked(c.from('mfd_profiles').select('*').order('username').limit(200)),checked(c.from('mfd_friendships').select('*')),checked(c.from('mfd_blocks').select('*'))]);setProfiles(p);setLinks(f);setBlocks(b);setMine(p.find((x:P)=>x.user_id===uid)||null)}catch(e){setError((e as Error).message)}}
+ async function refresh(){try{let [p,f,b]=await Promise.all([checked(c.from('mfd_profiles').select('*').order('username').limit(200)),checked(c.from('mfd_friendships').select('*')),checked(c.from('mfd_blocks').select('*'))]);setProfiles(old=>same(old,p)?old:p);setLinks(old=>same(old,f)?old:f);setBlocks(old=>same(old,b)?old:b);const me=p.find((x:P)=>x.user_id===uid)||null;setMine(old=>same(old,me)?old:me);setKnown(true)}catch(e){setError((e as Error).message)}}
  useEffect(()=>{refresh()},[uid]);
  async function run(fn:()=>Promise<any>,done?:string){setBusy(true);setError('');try{await fn();await refresh();setReload(n=>n+1);if(done)toast(done)}catch(e){setError((e as any).code==='23505'?'Unavailable':(e as Error).message)}finally{setBusy(false)}}
  async function refreshFeed(){setReload(n=>n+1);try{await (engine() as any)?.syncNow?.()}finally{setReload(n=>n+1)}}
@@ -254,7 +265,7 @@ export function FriendsScreen({view}:{view:View}){
   <div className="screen social-screen">
    {view.kind!=='profile'&&<Segmented label="Friends view" value={view.kind==='me'?'me':'feed'} onChange={v=>navigate(v==='me'?'/friends/me':'/friends',{replace:true})} options={[{value:'feed',label:'Feed'},{value:'me',label:'My profile'}]}/>}
    {error&&<p role="alert" className="social-error">{error}</p>}
-   {!mine?<div className="card social-setup"><p>Choose a username to use Friends.</p><button className="btn btn-primary" onClick={()=>navigate('/settings/profile')}>Set up profile</button></div>:<>
+   {!mine&&!known?null:!mine?<div className="card social-setup"><p>Choose a username to use Friends.</p><button className="btn btn-primary" onClick={()=>navigate('/settings/profile')}>Set up profile</button></div>:<>
     {view.kind==='feed'&&<>
      {syncNote}
      <div className="card fr-week"><span className="eyebrow">This week</span><span className="tnum strong">{myWeek}/{goal}<span className="muted"> workouts</span></span><span className="fr-week-friends">{trainedFriends.length>0&&<span className="fr-stack">{trainedFriends.slice(0,3).map(p=><span key={p.user_id}>{avatar(p,'xs')}</span>)}</span>}<span className="tnum strong">{trainedFriends.length} trained</span></span></div>
