@@ -14,7 +14,8 @@
 // Update 6: the database move for food, body and settings (07, 09, 11, 12, 14, 15), then a check that every diary's
 // food, body and settings come back exactly (undone otherwise). Moving people is a separate file (mfd-move-areas.sql).
 // Update 7: 14-apply-training, saves during a workout no longer rebuild every workout (plans read on their own).
-// Usage: node scripts-diary-update.cjs [update number, default 7] [out-file]
+// Update 8: 05, 07, 09, each save's scratch tables are measured (analyze) so saves don't read every person's rows.
+// Usage: node scripts-diary-update.cjs [update number, default 8] [out-file]
 const fs = require('fs'), os = require('os'), path = require('path');
 const strip = (sql) => sql.split('\n').filter((l) => !/^\s*(begin|commit);\s*$/i.test(l)).join('\n');
 const part = (f) => strip(fs.readFileSync(path.join(__dirname, f.includes('/') ? f : 'database/diary/' + f + '.sql'), 'utf8'));
@@ -88,8 +89,13 @@ end $same$;
 select (select count(*) from public.forma_workspaces) as diaries, 'IDENTICAL' as plans,
        (select count(*) from pg_proc where proname = 'plans_doc' and prosrc not like '%training_json%') as fast_plans_installed,
        (select count(*) from diary.fill_problems) as problems_left;` },
+  8: { title: 'update 8 (2026-11-23): saves stay fast as the number of people grows (scratch tables measured before use)',
+       parts: ['05-fill-training', '07-fill-nutrition', '09-fill-body'], fills: [],
+       after: `select (select count(*) from public.forma_workspaces) as diaries,
+       (select count(*) from pg_proc where proname in ('fill_training', 'fill_nutrition', 'fill_body') and prosrc like '%analyze _%') as fills_measuring_their_scratch_tables,
+       (select count(*) from diary.fill_problems) as problems_left;` },
 };
-const n = Number(process.argv[2] || 7), u = updates[n];
+const n = Number(process.argv[2] || 8), u = updates[n];
 if (!u) throw new Error('Unknown update ' + n);
 const out = `-- MFD 3.0 database, ${u.title}. Paste all of it into the Supabase SQL editor (project Forma) and press Run.
 -- All or nothing; safe to run again; the app keeps working throughout.

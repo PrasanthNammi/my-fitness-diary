@@ -1,0 +1,6 @@
+-- A set ticked or changed during a running workout (the most frequent save).
+\set n random(:lo, :hi)
+\set r random(1, 20)
+select set_config('request.jwt.claim.sub', id::text, false) from lt_people where n = :n;
+select s.* from lt_people p, public.forma_save_changes(jsonb_build_array(jsonb_build_object('k', 'active', 'v', jsonb_set(jsonb_set(p.act, '{sets,0,reps}', to_jsonb(:r)), '{sets,1,done}', 'true'))),
+  (select revision from public.forma_workspaces where user_id = p.id)) s where p.n = :n;

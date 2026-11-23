@@ -1,0 +1,3 @@
+-- An AI assistant reads the diary (the connector's read tools rebuild it from the tables).
+\set n random(:lo, :hi)
+select length(diary.as_envelope(id)::text) from lt_people where n = :n;
