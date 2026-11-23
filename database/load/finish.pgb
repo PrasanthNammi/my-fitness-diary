@@ -1,0 +1,7 @@
+-- A workout finished: the running workout goes, a finished one (24 sets) is added to the list.
+\set n random(:lo, :hi)
+\set w random(1, 2000000000)
+select set_config('request.jwt.claim.sub', id::text, false) from lt_people where n = :n;
+select s.* from lt_people p, public.forma_save_changes(jsonb_build_array(jsonb_build_object('k', 'active', 'v', null),
+  jsonb_build_object('k', 'sessions', 'i', 'ltw' || :w, 'v', p.act || jsonb_build_object('id', 'ltw' || :w, 'finished', (p.act->>'started')::bigint + 3600000))),
+  (select revision from public.forma_workspaces where user_id = p.id)) s where p.n = :n;

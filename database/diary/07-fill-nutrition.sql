@@ -43,6 +43,7 @@ begin
         'saturates', f->'saturates', 'salt', f->'salt', 'servingSize', f->'servingSize', 'servingLabel', f->'servingLabel', 'ingredients', f->'ingredients'), 2, '', 0
     from jsonb_array_elements(case when jsonb_typeof(doc->'mfdSettings'->'favouriteFoods') = 'array' then doc->'mfdSettings'->'favouriteFoods' else '[]' end) f
     where coalesce(f->>'id', '') <> '';
+  analyze _labels;   -- (its real size: without it the planner guesses ~1,000 rows and reads every person's rows)
 
   merge into diary.foods t
   using (

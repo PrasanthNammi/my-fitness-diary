@@ -59,6 +59,7 @@ begin
       and (coalesce(x->>'sleep', x->>'steps', x->>'energy', x->>'soreness', x->>'restingHr', x->>'hrv') is not null
            or jsonb_typeof(x->'sleepStages') = 'object' or nullif(btrim(coalesce(x->>'note', '')), '') is not null)
     order by diary.day(x->>'date'), n;
+  analyze _rec;   -- (its real size: without it the planner guesses ~1,000 rows and reads every person's rows)
 
   merge into diary.recovery_days t
   using (

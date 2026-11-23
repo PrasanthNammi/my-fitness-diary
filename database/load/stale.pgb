@@ -1,0 +1,4 @@
+-- A save from a phone that is behind (conflict: refused, the phone downloads and merges).
+\set n random(:lo, :hi)
+select set_config('request.jwt.claim.sub', id::text, false) from lt_people where n = :n;
+select s.* from lt_people p, public.forma_save_changes('[{"k":"water","v":{}}]'::jsonb, (select revision - 1 from public.forma_workspaces where user_id = p.id)) s where p.n = :n;

@@ -1,0 +1,4 @@
+-- Another phone checks for changes (the last few saves).
+\set n random(:lo, :hi)
+select set_config('request.jwt.claim.sub', id::text, false) from lt_people where n = :n;
+select length(public.forma_workspace_pull((select greatest(revision - 3, 1) from public.forma_workspaces where user_id = auth.uid()))::text);

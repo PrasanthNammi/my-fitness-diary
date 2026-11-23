@@ -1,0 +1,4 @@
+-- The whole diary downloaded (new phone, sign-in, long offline gap).
+\set n random(:lo, :hi)
+select set_config('request.jwt.claim.sub', id::text, false) from lt_people where n = :n;
+select length(public.forma_workspace_full()::text);

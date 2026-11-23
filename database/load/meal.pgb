@@ -1,0 +1,7 @@
+-- A meal logged.
+\set n random(:lo, :hi)
+\set m random(1, 2000000000)
+select set_config('request.jwt.claim.sub', id::text, false) from lt_people where n = :n;
+select s.* from lt_people p, public.forma_save_changes(jsonb_build_array(jsonb_build_object('k', 'meals', 'i', 'lt' || :m, 'v',
+  jsonb_build_object('id', 'lt' || :m, 'date', current_date::text, 'meal', 'Lunch', 'name', 'Skyr', 'amount', 200, 'unit', 'g', 'cal', 120, 'p', 22, 'c', 8, 'f', 0.4))),
+  (select revision from public.forma_workspaces where user_id = p.id)) s where p.n = :n;

@@ -246,6 +246,7 @@ begin
     select e->>'id', btrim(e->>'name'), e->>'tracking'
     from jsonb_array_elements(case when jsonb_typeof(doc->'mfdExercises') = 'array' then doc->'mfdExercises' else '[]' end) e
     where coalesce(btrim(e->>'name'), '') <> '';
+  analyze _refs;   -- (its real size: without it the planner guesses ~1,000 rows and reads every person's rows)
 
   -- Own exercises: names from the person's own list when it has one for that id.
   -- MERGE runs the stamp trigger only for rows that are really added or changed, so sync numbers stay exact.
@@ -377,6 +378,7 @@ begin
   if jsonb_typeof(doc->'active') = 'object' and coalesce(doc->'active'->>'id', '') <> '' and (only_workouts is null or doc->'active'->>'id' = any(only_workouts)) then
     insert into _w values (doc->'active', true, null);
   end if;
+  analyze _w;   -- (its real size: without it the planner guesses ~1,000 rows and reads every person's rows)
 
   perform diary.note_ai(u, 'log_workout', (select jsonb_agg(jsonb_build_object('key', w->>'id', 'by', w->'addedBy')) from _w where w ? 'addedBy'));
   -- MERGE runs the stamp trigger only for rows that are really added or changed, so sync numbers stay exact.
@@ -416,6 +418,7 @@ begin
       select coalesce(diary.num(x->'group'), 0)::int grp, (array_agg(x order by coalesce(diary.num(x->'set'), n)))[1] first
       from jsonb_array_elements(case when jsonb_typeof(w->'sets') = 'array' then w->'sets' else '[]' end) with ordinality e(x, n)
       group by 1) g;
+  analyze _g;   -- (its real size: without it the planner guesses ~1,000 rows and reads every person's rows)
 
   -- MERGE runs the stamp trigger only for rows that are really added or changed, so sync numbers stay exact.
   merge into diary.workout_exercises t
