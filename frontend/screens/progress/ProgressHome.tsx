@@ -3,7 +3,7 @@ import { daysIntoWeek, weekdayNames } from '../../domain/week';
 import { Activity, ChevronLeft, ChevronRight, Library, Moon, Pencil, Plus, Search, Trash2, Trophy, Zap } from 'lucide-react';
 import type { CheckIn, Exercise } from '../../domain/types';
 import { BarChart, LineChart } from '../../components/Charts';
-import { ConfirmSheet, Empty, Field, InfoButton, OverflowMenu, Segmented, Sheet, TabChips, TopBar, toast } from '../../components/ui';
+import { ConfirmSheet, Empty, Field, IconTabs, InfoButton, OverflowMenu, Segmented, Sheet, TabChips, TopBar, toast } from '../../components/ui';
 import { useDB } from '../../data/store';
 import { body, exerciseName, exercises } from '../../data/repositories';
 import { openTool } from '../../adapters/engine';
@@ -23,10 +23,16 @@ import { History } from 'lucide-react';
 import { averageSeries } from '../../domain/weeklyRecap';
 import { ExerciseThumb } from '../training/ExercisePicker';
 import { ExercisePage } from '../training/ExercisePage';
-import { Dumbbell } from 'lucide-react';
+import { Droplet, Dumbbell, LayoutGrid, PersonStanding, Settings2 } from 'lucide-react';
+import type { ReactNode } from 'react';
+import { CycleHome } from '../cycle/CycleHome';
+import { cycleOn } from '../../data/cycle';
 
-type Tab = 'summary' | 'exercises' | 'body' | 'muscles';
-const TABS: { value: Tab; label: string }[] = [{ value: 'summary', label: 'Summary' }, { value: 'exercises', label: 'Exercises' }, { value: 'body', label: 'Body' }, { value: 'muscles', label: 'Statistics' }];
+type Tab = 'summary' | 'exercises' | 'body' | 'muscles' | 'cycle';
+// Icons so five tabs fit (the chosen one also shows its name); Cycle only for women who switched it on.
+const TABS: { value: Tab; label: string; icon: ReactNode }[] = [{ value: 'summary', label: 'Summary', icon: <LayoutGrid /> }, { value: 'exercises', label: 'Exercises', icon: <Dumbbell /> },
+  { value: 'body', label: 'Body', icon: <PersonStanding /> }, { value: 'muscles', label: 'Statistics', icon: <Activity /> }];
+const CYCLE_TAB = { value: 'cycle' as Tab, label: 'Cycle', icon: <Droplet /> };
 const day = (iso: string) => new Date(iso + 'T12:00:00').toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' });
 
 // The range stays the same across the four tabs (each tab is its own route) for this visit.
@@ -37,15 +43,21 @@ export function ProgressHome({ tab = 'summary', view }: { tab?: Tab; view?: stri
   const setRange = (r: RangeDays) => { lastRange = r; setRangeState(r); };
   const from = rangeStart(range);
   const go = (t: Tab) => navigate(t === 'summary' ? '/progress' : t === 'muscles' ? `/progress/muscles/${view ?? 'chart'}` : `/progress/${t}`, { replace: true });
+  const showCycle = useDB((d) => cycleOn(d));
+  const tabs = showCycle ? [...TABS, CYCLE_TAB] : TABS;
+  const cycleTab = tab === 'cycle' && showCycle;
   return (
     <>
-      <TopBar title="Progress" actions={<button className="icon-btn" aria-label="Import workouts" title="Import workouts" onClick={() => openTool('import')}><Library /></button>} />
+      <TopBar title="Progress" actions={cycleTab
+        ? <button className="icon-btn" aria-label="Cycle & Health settings" title="Cycle & Health settings" onClick={() => navigate('/settings/cycle')}><Settings2 /></button>
+        : <button className="icon-btn" aria-label="Import workouts" title="Import workouts" onClick={() => openTool('import')}><Library /></button>} />
       <div className="screen progress-home">
-        <div className="progress-range" role="group" aria-label="Time range">
+        {!cycleTab && <div className="progress-range" role="group" aria-label="Time range">
           {RANGES.map((r) => <button key={r.days} type="button" aria-pressed={range === r.days} onClick={() => setRange(r.days)}>{r.label}</button>)}
-        </div>
-        <TabChips label="Progress view" value={tab} options={TABS} onChange={go} fill />
-        {tab === 'summary' && <Summary from={from} />}
+        </div>}
+        <IconTabs label="Progress view" value={cycleTab ? 'cycle' : tab === 'cycle' ? 'summary' : tab} options={tabs} onChange={go} />
+        {cycleTab && <CycleHome />}
+        {(tab === 'summary' || (tab === 'cycle' && !showCycle)) && <Summary from={from} />}
         {tab === 'exercises' && <Exercises from={from} />}
         {tab === 'body' && <Body from={from} />}
         {tab === 'muscles' && <MuscleStats view={view} days={range} />}

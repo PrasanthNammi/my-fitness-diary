@@ -1,5 +1,6 @@
 import { BirthDateFields, birthParts, type BirthParts } from '../../components/BirthDate';
 import { checkBirthDate } from '../../domain/birthDate';
+import { cycle } from '../../data/cycle';
 import { MFD3 } from '../../lib/release';
 import { useEffect, useMemo, useState } from 'react';
 import {checkProfileId,getIdentity,splitName,validProfileId} from '../../adapters/profile';
@@ -209,6 +210,8 @@ export function Onboarding() {
   useEffect(()=>{getIdentity().then(p=>{if(p)setD(d=>({...d,profileId:p.username}))}).catch(e=>setSaveError(e.message))},[]);
   const [step, setStep] = useState(0);
   const [show, setShow] = useState(false);
+  // Women are asked once whether to switch on Cycle & Health (off unless they say yes).
+  const [trackCycle, setTrackCycle] = useState<'yes' | 'no'>('no');
   const errors = validateDraft(d, unit);
   const set = (p: Partial<ProfileDraft>) => setD((x) => ({ ...x, ...p }));
   const review = step === STEPS.length;
@@ -276,6 +279,12 @@ export function Onboarding() {
               Estimated from your answers using the Mifflin–St Jeor equation, your activity level and goal. You can see the full calculation in Settings.
             </p>
             {calc.floorApplied && <Notice tone="warn">Calories were raised to a minimum safe level for this estimate.</Notice>}
+            {p.sex === 'female' && <div className="card card-pad cy-signup">
+              <h2>Track your cycle in MFD?</h2>
+              <p>Periods, symptoms, medicines and thyroid results in one private place, next to your training and food.</p>
+              <ul><li><b>Only you see it.</b> Never friends, never the feed.</li><li><b>Your AI only if you allow it,</b> in Settings.</li><li><b>Switch off or delete</b> any time.</li></ul>
+              <Segmented label="Track your cycle" value={trackCycle} onChange={setTrackCycle} options={[{ value: 'yes', label: 'Yes, switch it on' }, { value: 'no', label: 'Not now' }]} />
+            </div>}
             <button
               className="btn btn-primary btn-block"
               style={{ marginTop: 16 }}
@@ -285,6 +294,7 @@ export function Onboarding() {
                 await profileRepo.save(p);
                 profileRepo.updateSettings({ weightUnit: unit });
                 body.logWeight(todayISO(), p.weightKg);
+                if (p.sex === 'female' && trackCycle === 'yes') cycle.setEnabled(true);
                 }catch(e){setSaveError((e as Error).message)}finally{setBusy(false)}
               }}
             >
