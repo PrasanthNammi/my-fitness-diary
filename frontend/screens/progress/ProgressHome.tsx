@@ -23,16 +23,17 @@ import { History } from 'lucide-react';
 import { averageSeries } from '../../domain/weeklyRecap';
 import { ExerciseThumb } from '../training/ExercisePicker';
 import { ExercisePage } from '../training/ExercisePage';
-import { Droplet, Dumbbell, LayoutGrid, PersonStanding, Settings2 } from 'lucide-react';
+import { Dumbbell, Settings } from 'lucide-react';
+import { BodyIcon, CycleIcon, ExercisesIcon, StatsIcon, SummaryIcon } from '../cycle/icons';
 import type { ReactNode } from 'react';
 import { CycleHome } from '../cycle/CycleHome';
 import { cycleOn } from '../../data/cycle';
 
 type Tab = 'summary' | 'exercises' | 'body' | 'muscles' | 'cycle';
 // Icons so five tabs fit (the chosen one also shows its name); Cycle only for women who switched it on.
-const TABS: { value: Tab; label: string; icon: ReactNode }[] = [{ value: 'summary', label: 'Summary', icon: <LayoutGrid /> }, { value: 'exercises', label: 'Exercises', icon: <Dumbbell /> },
-  { value: 'body', label: 'Body', icon: <PersonStanding /> }, { value: 'muscles', label: 'Statistics', icon: <Activity /> }];
-const CYCLE_TAB = { value: 'cycle' as Tab, label: 'Cycle', icon: <Droplet /> };
+const TABS: { value: Tab; label: string; icon: ReactNode }[] = [{ value: 'summary', label: 'Summary', icon: <SummaryIcon /> }, { value: 'exercises', label: 'Exercises', icon: <ExercisesIcon /> },
+  { value: 'body', label: 'Body', icon: <BodyIcon /> }, { value: 'muscles', label: 'Statistics', icon: <StatsIcon /> }];
+const CYCLE_TAB = { value: 'cycle' as Tab, label: 'Cycle', icon: <CycleIcon /> };
 const day = (iso: string) => new Date(iso + 'T12:00:00').toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' });
 
 // The range stays the same across the four tabs (each tab is its own route) for this visit.
@@ -49,7 +50,7 @@ export function ProgressHome({ tab = 'summary', view }: { tab?: Tab; view?: stri
   return (
     <>
       <TopBar title="Progress" actions={cycleTab
-        ? <button className="icon-btn" aria-label="Cycle & Health settings" title="Cycle & Health settings" onClick={() => navigate('/settings/cycle')}><Settings2 /></button>
+        ? <button className="icon-btn cy-gear" aria-label="Cycle & Health settings" title="Cycle & Health settings" onClick={() => navigate('/settings/cycle')}><Settings /></button>
         : <button className="icon-btn" aria-label="Import workouts" title="Import workouts" onClick={() => openTool('import')}><Library /></button>} />
       <div className="screen progress-home">
         {!cycleTab && <div className="progress-range" role="group" aria-label="Time range">
