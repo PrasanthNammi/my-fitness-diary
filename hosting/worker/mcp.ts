@@ -2,7 +2,9 @@ import type {AuthUser, AuthClaims} from './auth-types';
 import {environment} from '../../src/environment';
 // Stateless Streamable HTTP MCP. Supabase validates bearer signatures; the RPC
 // independently enforces live sessions, consent, ownership and revisions.
-export const SECTIONS = ['workouts', 'routines', 'nutrition', 'progress', 'recovery', 'profile'];
+// 'cycle' (Cycle & Health) is health data: its own tick on the consent page, never part of "Select all", and it also
+// needs the person's own switch in MFD (database/mcp-cycle.sql).
+export const SECTIONS = ['workouts', 'routines', 'nutrition', 'progress', 'recovery', 'profile', 'cycle'];
 const versions = ['2025-03-26', '2025-06-18', '2025-11-25'];
 // Write permissions are separate consent ticks; each only adds new entries, except log_settings (goals and settings,
 // always shown to the user first and confirmed with a token).
@@ -25,6 +27,7 @@ const TOOLS: Tool[] = [
  {name: 'get_nutrition', section: 'nutrition', description: 'List food diary entries (kcal, macros, and fibre/sugar/saturates/salt where known, per entry), optionally within a date range.', inputSchema: object({...range, ...page}), annotations: read},
  {name: 'get_progress', section: 'progress', description: 'List body-weight entries, optionally within a date range.', inputSchema: object({...range, ...page}), annotations: read},
  {name: 'get_recovery', section: 'recovery', description: 'Recovery per day (default the last 14 days, at most 92): sleep hours and stages with bed and wake time, steps, resting heart rate, heart-rate variability (HRV), and the user\'s energy and soreness check-ins (1-5) and notes, with averages. Sleep, steps, resting heart rate and HRV come from Samsung Health when the user connected it. Use it to judge readiness and recovery alongside training.', inputSchema: object(range), annotations: read},
+ {name: 'get_cycle', section: 'cycle', description: 'Cycle & Health, as the user recorded it in MFD (only when the user shares it; otherwise the reply says so): days in a range (default the last 90, at most 400) with bleeding, flow, pain, symptoms, mood, energy and notes; periods with bleeding days and cycle lengths; medicines and doses taken or missed; lab results (e.g. TSH, free T4) with each lab\'s own range; conditions (e.g. PCOS, hypothyroidism). Never infer fertile days, ovulation, pregnancy chances or diagnoses, and do not interpret lab results: describe what was recorded and suggest discussing concerns with a doctor.', inputSchema: object(range), annotations: read},
  {name: 'get_profile', section: 'profile', description: 'Read fitness profile fields (name, age, height, weight, goals) and daily nutrition targets (cal, protein, carbs, fat). The reply includes today\'s date for the user.', inputSchema: object({}), annotations: read},
  {name: 'summarize_training', section: 'workouts', description: 'Training totals per week or month: sessions, working sets, reps, volume (kg x reps) and minutes. Warm-up sets are excluded.', inputSchema: object({...range, group: {type: 'string', enum: ['week', 'month']}}), annotations: read},
  {name: 'list_exercises', section: 'workouts', description: 'Exercises performed, with muscle group, session and set counts and the last date. Use the names with exercise_progress.', inputSchema: object(range), annotations: read},
@@ -163,7 +166,7 @@ export async function serveMcp(request: Request, {origin, writes, sections, call
   if (msg.method==='initialize') return reply({protocolVersion:versions.includes(msg.params?.protocolVersion ?? '')?msg.params!.protocolVersion:'2025-03-26',capabilities:{tools:{},prompts:{}},serverInfo:{name:'my-fitness-diary',title:'My Fitness Diary',version:'1.0.0',icons:[{src:origin+'/icon.png',mimeType:'image/png',sizes:['256x256']},{src:origin+'/icon.svg',mimeType:'image/svg+xml',sizes:['any']}]}});
   if (msg.method==='ping') return reply({});
   // Without `sections` (direct Supabase-token path) only the original read tools exist (recovery needs a connection's consent).
-  const definitions=TOOLS.filter(t=>t.section==='profile-write'?writes&&(!sections||sections.includes('profile')):sections?sections.includes(t.section):t.name.startsWith('get_')&&t.section!=='recovery').map(({section,...tool})=>(void section,tool));
+  const definitions=TOOLS.filter(t=>t.section==='profile-write'?writes&&(!sections||sections.includes('profile')):sections?sections.includes(t.section):t.name.startsWith('get_')&&t.section!=='recovery'&&t.section!=='cycle').map(({section,...tool})=>(void section,tool));
   if (msg.method==='tools/list') return reply({tools:definitions});
   if (msg.method==='prompts/list') return reply({prompts:PROMPTS.map(({text,...p})=>(void text,p))});
   if (msg.method==='prompts/get') {const p=PROMPTS.find(x=>x.name===msg.params?.name);return p?reply({description:p.description,messages:[{role:'user',content:{type:'text',text:p.text}}]}):error(-32602,'Unknown prompt');}
