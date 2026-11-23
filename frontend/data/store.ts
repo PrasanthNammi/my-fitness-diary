@@ -4,7 +4,7 @@
 
 import { useSyncExternalStore } from 'react';
 import type {
-  Account, ActiveWorkout, CheckIn, CoachMessage, DiaryEntry, Exercise, Folder, Food,
+  Account, ActiveWorkout, CheckIn, CoachMessage, CycleData, DiaryEntry, Exercise, Folder, Food,
   ISODate, Profile, Routine, Settings, WeightEntry, Workout,
 } from '../domain/types';
 
@@ -31,6 +31,8 @@ export interface DB {
   aiSuggestions: AiSuggestion[];
   /** Other changes from ChatGPT or Claude (water, goals and settings, folders), listed in the AI list with Undo. */
   aiChanges: AiChange[];
+  /** Cycle & Health (optional, private): kept exactly as the diary stores it. */
+  cycle: CycleData;
 }
 
 

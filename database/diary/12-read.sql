@@ -204,6 +204,7 @@ begin
         'addedBy', diary.added_by(a.id)) order by a.created_at)
       from diary.ai_actions a where a.user_id = u and a.undone_at is null and a.deleted_at is null
         and a.action in ('log_water', 'change_settings', 'create_folder', 'move_routine')), '[]')); end if;
+  if k like 'cycle%' and to_regprocedure('diary.cycle_part(uuid,text)') is not null then return diary.cycle_part(u, k); end if;   -- (17-cycle.sql)
   return null;
 end $f$;
 revoke all on function diary.area_part(uuid, text) from public, anon, authenticated;

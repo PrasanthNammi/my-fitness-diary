@@ -291,3 +291,48 @@ export interface Settings {
   /** Days whose Samsung Health weight was deleted in MFD (not added again). */
   healthWeightSkip?: string[];
 }
+
+// ── Cycle & Health (optional, private; stored as the diary parts cycleSettings, cycleDays, cycleMeds, cycleDoses,
+//    cycleLabs, cycleConditions: database/diary/17-cycle.sql) ──
+export type Bleeding = 'none' | 'spotting' | 'period' | 'withdrawal' | 'unsure';
+export type Flow = 'light' | 'medium' | 'heavy' | 'very_heavy';
+export interface CycleSettings {
+  enabled: boolean;
+  reminderStyle: 'discreet' | 'private' | 'detailed';
+  lockDetails: boolean;
+  aiAccess: boolean;
+  compare: boolean;
+  healthSync: boolean;
+  logReminder?: string;          // 'HH:MM'
+  medReminders: boolean;
+  periodSoon: boolean;
+  favourites: string[];
+  customSymptoms: string[];
+}
+/** One day's log (id = date: one per day). A day without one is "not logged", never "no symptoms". */
+export interface CycleDay {
+  id: ISODate;
+  date: ISODate;
+  /** Logged as "nothing to note" on purpose. */
+  nothing?: true;
+  bleeding?: Bleeding;
+  flow?: Flow;
+  clots?: boolean;
+  products?: string;
+  pain?: number;                 // 0–10
+  painSites?: string[];
+  painLimits?: boolean;
+  /** Symptom → severity 1 (mild) … 3 (severe). */
+  symptoms?: Record<string, number>;
+  mood?: number; energy?: number; stress?: number; focus?: number;   // 1–5 (stress: 1 very stressed … 5 calm)
+  feelings?: string[];
+  sleepNotes?: string[];
+  /** Recorded only: MFD never turns these into fertile days. */
+  fertility?: { lh?: 'negative' | 'positive' | 'unclear'; bbt?: number; mucus?: 'dry' | 'sticky' | 'creamy' | 'watery' | 'egg_white'; pregnancy?: 'negative' | 'positive' };
+  note?: string;
+}
+export interface Medication { id: string; name: string; dose?: number; unit?: string; times: string[]; days?: string; start?: ISODate; end?: ISODate; reminder: boolean; notes?: string }
+export interface MedicationDose { id: string; medId: string; date: ISODate; time?: string; status: 'taken' | 'missed'; note?: string }
+export interface LabResult { id: string; test: 'tsh' | 'ft4' | 'ft3' | 'other'; name?: string; value: number; unit?: string; low?: number; high?: number; date: ISODate; note?: string }
+export interface HealthCondition { id: string; kind: 'pcos' | 'hypothyroidism' | 'hyperthyroidism' | 'thyroid_other' | 'other'; name?: string; status: 'diagnosed' | 'suspected'; since?: ISODate; note?: string }
+export interface CycleData { settings: CycleSettings | null; days: CycleDay[]; meds: Medication[]; doses: MedicationDose[]; labs: LabResult[]; conditions: HealthCondition[] }

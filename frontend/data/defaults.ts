@@ -28,5 +28,6 @@ export const emptyDB = (): DB => ({
   checkins: [],
   coachThread: [],
   selectedDate: null,
+  cycle: { settings: null, days: [], meds: [], doses: [], labs: [], conditions: [] },
 });
 
