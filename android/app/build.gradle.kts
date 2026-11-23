@@ -7,7 +7,10 @@ plugins {
 
 // Firebase (notifications): app/google-services.json comes from the Firebase console and is kept out of git.
 // Without it (CI) the app still builds; notifications then report themselves as unavailable.
-if (file("google-services.json").exists()) apply(plugin = "com.google.gms.google-services")
+// Test builds (-PmfdTestSite=http://localhost:PORT) are a separate app ("MFD Test", site.mfd.app.test) that loads the
+// website from the computer over USB (adb reverse); they have no Firebase (its config is for site.mfd.app only).
+val testSite = project.findProperty("mfdTestSite") as String?
+if (file("google-services.json").exists() && testSite == null) apply(plugin = "com.google.gms.google-services")
 
 // Release signing key: kept outside the repository (default ~/.mfd-android/keystore.properties, or the file named
 // by MFD_KEYSTORE_PROPERTIES). Every update must be signed with the same key, or it won't install over the app.
@@ -31,6 +34,14 @@ android {
         buildConfigField("String", "DOWNLOADS", "\"$downloads\"")
         // Test builds only (-PmfdWebDebug=true): lets a computer inspect the WebView.
         buildConfigField("boolean", "WEB_DEBUG", ((project.findProperty("mfdWebDebug") as String?) == "true").toString())
+        if (testSite != null) {
+            require(Regex("^http://localhost:[0-9]{2,5}$").matches(testSite)) { "mfdTestSite must be http://localhost:PORT" }
+            applicationIdSuffix = ".test"
+            versionNameSuffix = "-test"
+        }
+        buildConfigField("String", "SITE", "\"${testSite?.let { "$it/" } ?: "https://prasanth-nammi-portfolio.shanustylish777.chatgpt.site/"}\"")
+        manifestPlaceholders["appLabel"] = if (testSite != null) "MFD Test" else "@string/app_name"
+        manifestPlaceholders["networkConfig"] = if (testSite != null) "@xml/network_security_config_test" else "@xml/network_security_config"
     }
 
     signingConfigs {

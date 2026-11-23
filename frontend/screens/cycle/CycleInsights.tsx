@@ -20,7 +20,7 @@ export function CycleInsights() {
   const setRange = (r: RangeDays) => { setProgressRange(r); setRangeState(r); };
   const today = localToday();
   const p = useMemo(() => cyclePatterns(days, workouts, weights, checkins, today, rangeStart(range)), [days, workouts, weights, checkins, today, range]);
-  const hasPeriod = p.periodDays.some((x) => x.n), hasMood = p.weeks.some((w) => w.n), hasBody = compare && p.body.some((b) => b.workouts !== null);
+  const hasPeriod = p.periodDays.some((x) => x.n), hasMood = p.weeks.some((w) => w.n), hasBody = compare && p.body.some((b) => (b.workouts ?? 0) > 0 || b.weight !== null || b.sleep !== null);
 
   return <>
     <TopBar title="Insights" back="/progress/cycle" />
@@ -91,7 +91,7 @@ function BodyWeeks({ p }: { p: CyclePatterns }) {
     ['Workouts / week', <Dumbbell key="d" />, p.body.map((b) => b.workouts), (v) => v.toFixed(1)],
     ['Weight', <Scale key="s" />, p.body.map((b) => b.weight), (v) => `${v.toFixed(1)} kg`],
     ['Sleep', <Moon key="m" />, p.body.map((b) => b.sleep), (v) => `${v.toFixed(1)} h`]];
-  return <div className="cy-bodyweeks">{rows.filter(([, , vs]) => vs.some((v) => v !== null)).map(([name, icon, vs, fmt]) => {
+  return <div className="cy-bodyweeks">{rows.filter(([name, , vs]) => (name.startsWith('Workouts') ? vs.some((v) => (v ?? 0) > 0) : vs.some((v) => v !== null))).map(([name, icon, vs, fmt]) => {
     // Bars from zero for workouts only; weight and sleep as plain numbers (bars would exaggerate 0.1 kg).
     const bars = name.startsWith('Workouts'), hi = Math.max(...vs.map((v) => v ?? 0), 0.1);
     return <div key={name} className="card cy-wide"><span className="cy-ic">{icon}</span><span className="grow"><b>{name}</b><span>weeks 1–4</span></span>

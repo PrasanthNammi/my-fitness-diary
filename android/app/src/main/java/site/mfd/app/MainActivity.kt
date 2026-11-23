@@ -431,7 +431,7 @@ class MainActivity : ComponentActivity() {
     override fun onDestroy() { if (onScreen === this) onScreen = null; if (alive === this) alive = null; page = null; super.onDestroy() }
     private var page: JavaScriptReplyProxy? = null
 
-    private fun isOwnSite(uri: Uri?): Boolean = uri?.scheme == "https" && uri.host == SITE_HOST
+    private fun isOwnSite(uri: Uri?): Boolean = uri?.scheme == Uri.parse(SITE).scheme && uri?.host == SITE_HOST && (uri.port == Uri.parse(SITE).port)
 
     /** Links that leave MFD: Android app links (intent://, e.g. ChatGPT/Claude), mail/phone, or a browser tab. */
     private fun openOutside(uri: Uri): Boolean {
@@ -456,7 +456,8 @@ class MainActivity : ComponentActivity() {
     }
 
     companion object {
-        const val SITE = "https://prasanth-nammi-portfolio.shanustylish777.chatgpt.site/"
+        /** The MFD website (a test build loads it from the computer, see build.gradle.kts). */
+        val SITE: String = BuildConfig.SITE
         val SITE_HOST: String = Uri.parse(SITE).host!!
         val SITE_ORIGIN: String = SITE.trimEnd('/')
         const val EXTRA_OPEN = "open"

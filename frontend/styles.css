@@ -2255,12 +2255,15 @@ input.switch:focus-visible { outline: 3px solid var(--accent); outline-offset: 2
 .cy-report table { width: 100%; border-collapse: collapse; font-size: 13px; margin: 6px 0; }
 .cy-report th, .cy-report td { text-align: left; padding: 6px 6px; border-bottom: 1px solid var(--line); vertical-align: top; }
 .cy-report th { font-weight: 700; color: var(--muted); font-size: 12px; }
+#print-root { display: none; }
 @media print {
-  html, body, #root, .main, .screen { background: #fff !important; box-shadow: none !important; }
-  body * { visibility: hidden !important; }
-  .cy-report, .cy-report * { visibility: visible !important; color: #000 !important; }
-  .cy-report { position: absolute; left: 0; top: 0; width: 100%; border: 0; border-radius: 0; padding: 0; background: #fff; }
-  .cy-report th, .cy-report td { border-bottom: 1px solid #ccc; }
+  html, body { background: #fff !important; height: auto !important; overflow: visible !important; }
+  body > *:not(#print-root) { display: none !important; }
+  #print-root { display: block !important; }
+  #print-root .cy-report { border: 0; border-radius: 0; padding: 0; background: #fff; }
+  #print-root .cy-report, #print-root .cy-report * { color: #000 !important; }
+  #print-root .cy-report th, #print-root .cy-report td { border-bottom: 1px solid #ccc; }
+  #print-root tr { break-inside: avoid; }
 }
 .cy-settings .cy-seteyebrow { margin: 18px 4px 8px; display: flex; align-items: center; gap: 6px; }
 .cy-settings .cy-set .cy-row + .cy-row { border-top: 1px solid var(--line); }
