@@ -2019,3 +2019,19 @@ button.watch-strip { cursor: pointer; }
 .export-dates .field { display: grid; gap: 4px; }
 .export-error { color: var(--danger, #c62828); margin: 0; }
 
+
+/* Reorder exercises (active workout and routine editor): a full page, drag ≡ to move */
+.reorder-page { position: fixed; inset: 0; z-index: 60; background: var(--bg); display: flex; flex-direction: column; padding-bottom: env(safe-area-inset-bottom, 0px); }
+.reorder-list { flex: 1; overflow-y: auto; padding: 8px 12px; overscroll-behavior: contain; }
+.ro-row { display: flex; align-items: center; gap: 12px; min-height: 60px; padding: 0 4px; background: var(--bg); position: relative; user-select: none; -webkit-user-select: none; }
+.ro-row.anim { transition: transform 0.18s ease; }
+.ro-row.lift { z-index: 2; background: var(--surface); border-radius: 14px; box-shadow: 0 10px 28px rgba(0, 0, 0, 0.22); }
+.ro-remove { flex: none; width: 26px; height: 26px; border-radius: 50%; border: 0; display: grid; place-items: center; background: var(--danger); color: #fff; cursor: pointer; }
+.ro-remove svg { width: 16px; height: 16px; stroke-width: 3; }
+.ro-name { flex: 1; min-width: 0; font-weight: 600; }
+.ro-handle { flex: none; border: 0; background: none; color: var(--muted); padding: 12px 6px; cursor: grab; touch-action: none; border-radius: 10px; }
+.ro-handle:active { cursor: grabbing; }
+.ro-handle svg { width: 22px; height: 22px; }
+.ro-empty { padding: 24px 8px; text-align: center; }
+.reorder-foot { padding: 12px 16px 16px; border-top: 1px solid var(--line); background: var(--bg); }
+@media (prefers-reduced-motion: reduce) { .ro-row.anim { transition: none; } }

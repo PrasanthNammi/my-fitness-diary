@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { ChevronDown, ClipboardList, Dumbbell, Folder as FolderIcon, FolderInput, FolderPlus, Pencil, Play, Plus, SquarePen, Trash2, Type } from 'lucide-react';
+import { ArrowDown, ArrowUp, ChevronDown, ClipboardList, Dumbbell, Folder as FolderIcon, FolderInput, FolderPlus, Pencil, Pin, PinOff, Play, Plus, SquarePen, Trash2, Type } from 'lucide-react';
 import type { Folder, Routine } from '../../domain/types';
 import { SuggestionChip } from './SuggestionReview';
 import { AiBadge, ConfirmSheet, Empty, OverflowMenu, Segmented, Sheet, TabChips, TopBar, toast, Field } from '../../components/ui';
@@ -27,6 +27,8 @@ export function TrainingHome({ tab = 'routines' }: { tab?: 'routines' | 'history
   };
 
   const root = routines.filter((r) => !r.folderId || !folders.some((f) => f.id === r.folderId));
+  // Pinned folders first; each group keeps its own order (Move up / Move down).
+  const shownFolders = useMemo(() => [...folders.filter((f) => f.pinned), ...folders.filter((f) => !f.pinned)], [folders]);
 
   return (
     <>
@@ -45,14 +47,15 @@ export function TrainingHome({ tab = 'routines' }: { tab?: 'routines' | 'history
             <button className="btn btn-soft" onClick={() => setFolderSheet({ mode: 'create' })}><FolderPlus aria-hidden="true" />New folder</button>
           </div>
 
-          {folders.map((f) => {
+          {shownFolders.map((f) => {
             const inFolder = routines.filter((r) => r.folderId === f.id);
+            const group = shownFolders.filter((x) => !!x.pinned === !!f.pinned), place = group.indexOf(f);
             const expanded = !f.collapsed;
             return (
               <section key={f.id} className="folder-section">
                 <div className="folder-row">
                   <button className="folder-toggle" aria-expanded={expanded} onClick={() => training.toggleFolder(f.id)}>
-                    <FolderIcon className="folder-icon" aria-hidden="true" />
+                    {f.pinned ? <Pin className="folder-icon pinned" aria-label="Pinned" /> : <FolderIcon className="folder-icon" aria-hidden="true" />}
                     <span className="folder-name ellipsis">{f.name}</span>
                     <span className="count-chip">{inFolder.length}</span>
                     <ChevronDown className={`chev${expanded ? '' : ' closed'}`} aria-hidden="true" />
@@ -62,6 +65,9 @@ export function TrainingHome({ tab = 'routines' }: { tab?: 'routines' | 'history
                     title={f.name}
                     label={`Folder options for ${f.name}`}
                     actions={[
+                      { label: f.pinned ? 'Unpin' : 'Pin to top', icon: f.pinned ? PinOff : Pin, onSelect: () => training.pinFolder(f.id, !f.pinned) },
+                      { label: 'Move up', icon: ArrowUp, onSelect: () => training.moveFolder(f.id, -1), disabled: place === 0 },
+                      { label: 'Move down', icon: ArrowDown, onSelect: () => training.moveFolder(f.id, 1), disabled: place === group.length - 1 },
                       { label: 'New routine here', icon: Plus, onSelect: () => navigate(`/training/routine/new/${f.id}`) },
                       { label: 'Rename folder', icon: Pencil, onSelect: () => setFolderSheet({ mode: 'rename', folder: f }) },
                       { label: 'Delete folder', icon: Trash2, onSelect: () => setDeleteFolder(f), danger: true },
@@ -70,7 +76,7 @@ export function TrainingHome({ tab = 'routines' }: { tab?: 'routines' | 'history
                 </div>
                 {expanded && (
                   <div className="routine-list">
-                    {inFolder.map((r) => <RoutineCard key={r.id} r={r} folders={folders} onStart={() => start(r)} />)}
+                    {inFolder.map((r, k) => <RoutineCard key={r.id} r={r} folders={folders} onStart={() => start(r)} first={k === 0} last={k === inFolder.length - 1} />)}
                     {inFolder.length === 0 && (
                       <button className="folder-empty" onClick={() => navigate(`/training/routine/new/${f.id}`)}><Plus aria-hidden="true" />Create routine</button>
                     )}
@@ -84,7 +90,7 @@ export function TrainingHome({ tab = 'routines' }: { tab?: 'routines' | 'history
             <section className="folder-section">
               {folders.length > 0 && <div className="folder-row"><span className="folder-toggle static"><FolderIcon className="folder-icon" aria-hidden="true" /><span className="folder-name">Other routines</span><span className="count-chip">{root.length}</span></span></div>}
               <div className="routine-list">
-                {root.map((r) => <RoutineCard key={r.id} r={r} folders={folders} onStart={() => start(r)} />)}
+                {root.map((r, k) => <RoutineCard key={r.id} r={r} folders={folders} onStart={() => start(r)} first={k === 0} last={k === root.length - 1} />)}
               </div>
             </section>
           )}
@@ -128,7 +134,7 @@ export function TrainingHome({ tab = 'routines' }: { tab?: 'routines' | 'history
   );
 }
 
-function RoutineCard({ r, folders, onStart }: { r: Routine; folders: Folder[]; onStart: () => void }) {
+function RoutineCard({ r, folders, onStart, first, last }: { r: Routine; folders: Folder[]; onStart: () => void; first: boolean; last: boolean }) {
   const [rename, setRename] = useState(false);
   const [move, setMove] = useState(false);
   const [del, setDel] = useState(false);
@@ -153,6 +159,8 @@ function RoutineCard({ r, folders, onStart }: { r: Routine; folders: Folder[]; o
             { label: 'Start workout', icon: Play, onSelect: onStart },
             { label: 'Edit routine', icon: SquarePen, onSelect: () => navigate(`/training/routine/edit/${r.id}`) },
             { label: 'Rename', icon: Type, onSelect: () => setRename(true) },
+            { label: 'Move up', icon: ArrowUp, onSelect: () => training.moveRoutineOrder(r.id, -1), disabled: first },
+            { label: 'Move down', icon: ArrowDown, onSelect: () => training.moveRoutineOrder(r.id, 1), disabled: last },
             { label: 'Move to folder', icon: FolderInput, onSelect: () => setMove(true) },
             { label: 'Delete routine', icon: Trash2, onSelect: () => setDel(true), danger: true },
           ]}
