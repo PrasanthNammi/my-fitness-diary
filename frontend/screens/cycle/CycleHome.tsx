@@ -10,7 +10,7 @@ import type { CycleDay, ISODate } from '../../domain/types';
 import { estimateNext, type Estimate } from '../../domain/cyclePredict';
 
 const localToday = (): ISODate => { const d = new Date(); return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 10); };
-const short = (d: ISODate) => new Date(d + 'T12:00:00').toLocaleDateString(undefined, { day: 'numeric', month: 'short' });
+const short = (d: ISODate) => new Date(d + 'T12:00:00').toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
 
 export function CycleHome() {
   const days = useDB((d) => d.cycle.days), weekStart = useDB((d) => d.settings.weekStart ?? 1);
@@ -23,7 +23,7 @@ export function CycleHome() {
         {now.day ? <>
           <div className="cy-daylbl">Cycle day</div>
           <div className="cy-daynum tnum">{now.day}<small>since {short(now.lastStart!)}</small></div>
-          {now.shortest !== null && <div className="cy-range">Your cycles: {now.shortest === now.longest ? `${now.shortest}` : `${now.shortest}–${now.longest}`} days</div>}
+          {now.shortest !== null && <div className="cy-range">Your cycles: {now.shortest === now.longest ? `${now.shortest}` : `${now.shortest}–${now.longest}`} days{now.longest! - now.shortest! > 9 ? ' · they vary a lot' : ''}</div>}
           <Timeline day={now.day} periodDays={now.lastPeriod?.length ?? 0} est={est} lastStart={now.lastStart!} />
         </> : <>
           <div className="cy-daylbl">Cycle & Health</div>
@@ -49,8 +49,8 @@ function Timeline({ day, periodDays, est, lastStart }: { day: number; periodDays
     <svg className="cy-line" viewBox={`0 0 ${W} 64`} role="img" aria-label={`Cycle day ${day}. Period on days 1 to ${periodDays}.${from ? ` Next period estimated between day ${from} and day ${to}.` : ''}`}>
       <rect x={x(0)} y="22" width={x(max) - x(0)} height="14" rx="7" fill="var(--surface-2)" />
       <rect x={x(0)} y="22" width={x(day) - x(0)} height="14" rx="7" fill="var(--accent-soft)" />
-      {periodDays > 0 && <rect x={x(0)} y="22" width={Math.max(14, x(periodDays) - x(0))} height="14" rx="7" fill="var(--accent)" />}
-      {from !== null && to !== null && <rect x={x(from)} y="16" width={Math.max(26, x(to) - x(from))} height="26" rx="13" fill="none" stroke="var(--accent)" strokeWidth="2" strokeDasharray="6 5" />}
+      {periodDays > 0 && <rect x={x(0)} y="22" width={Math.max(14, x(periodDays) - x(0))} height="14" rx="7" fill="var(--brand)" />}
+      {from !== null && to !== null && <rect x={x(from)} y="16" width={Math.max(26, x(to) - x(from))} height="26" rx="13" fill="none" stroke="var(--brand)" strokeWidth="2.5" strokeDasharray="6 5" />}
       <circle cx={x(day)} cy="29" r="11" fill="var(--ink)" /><circle cx={x(day)} cy="29" r="4" fill="var(--bg)" />
       <text x={x(0)} y="12" fontSize="11" fontWeight="700" fill="var(--accent)">Period</text>
       <text x={x(0)} y="58" fontSize="11" fontWeight="700" fill="var(--muted)">Day 1</text>
@@ -73,21 +73,25 @@ function EstimateLine({ est }: { est: Estimate }) {
 function Calendar({ days, today, est, weekStart }: { days: CycleDay[]; today: ISODate; est: Estimate; weekStart: 0 | 1 | 6 }) {
   const [month, setMonth] = useState(today.slice(0, 7));
   const byDate = useMemo(() => new Map(days.map((d) => [d.date, d])), [days]);
+  const y = +month.slice(0, 4), m = +month.slice(5, 7);
   const first = month + '-01', dow = new Date(first + 'T12:00:00').getDay(), lead = (dow - weekStart + 7) % 7;
-  const monthLen = new Date(+month.slice(0, 4), +month.slice(5, 7), 0).getDate();
-  const names = Array.from({ length: 7 }, (_, i) => new Date(Date.UTC(2024, 0, 7 + ((weekStart + i) % 7))).toLocaleDateString(undefined, { weekday: 'narrow', timeZone: 'UTC' }));
-  const shift = (n: number) => { const d = new Date(+month.slice(0, 4), +month.slice(5, 7) - 1 + n, 1); setMonth(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`); };
-  const title = new Date(first + 'T12:00:00').toLocaleDateString(undefined, { month: 'long', year: 'numeric' });
+  const monthLen = new Date(y, m, 0).getDate(), prevLen = new Date(y, m - 1, 0).getDate(), trail = (7 - ((lead + monthLen) % 7)) % 7;
+  const names = Array.from({ length: 7 }, (_, i) => new Date(Date.UTC(2024, 0, 7 + ((weekStart + i) % 7))).toLocaleDateString('en-GB', { weekday: 'narrow', timeZone: 'UTC' }));
+  const shift = (n: number) => { const d = new Date(y, m - 1 + n, 1); setMonth(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`); };
+  const title = new Date(first + 'T12:00:00').toLocaleDateString('en-GB', y === +today.slice(0, 4) ? { month: 'long' } : { month: 'long', year: 'numeric' });
   return (
     <section className="cy-cal" aria-label="Calendar">
       <div className="cy-cal-head">
-        <button className="icon-btn" aria-label="Previous month" onClick={() => shift(-1)}><ChevronLeft /></button>
         <h3>{title}</h3>
-        <button className="icon-btn" aria-label="Next month" onClick={() => shift(1)}><ChevronRight /></button>
+        <span className="cy-cal-nav">
+          {month !== today.slice(0, 7) && <button className="cy-link" onClick={() => setMonth(today.slice(0, 7))}>Today</button>}
+          <button className="icon-btn" aria-label="Previous month" onClick={() => shift(-1)}><ChevronLeft /></button>
+          <button className="icon-btn" aria-label="Next month" onClick={() => shift(1)}><ChevronRight /></button>
+        </span>
       </div>
       <div className="cy-grid">
         {names.map((n, i) => <span key={i} className="cy-dw" aria-hidden="true">{n}</span>)}
-        {Array.from({ length: lead }, (_, i) => <span key={'b' + i} />)}
+        {Array.from({ length: lead }, (_, i) => <span key={'b' + i} className="cy-d out" aria-hidden="true"><span className="c">{prevLen - lead + i + 1}</span></span>)}
         {Array.from({ length: monthLen }, (_, i) => {
           const date = `${month}-${String(i + 1).padStart(2, '0')}` as ISODate, mark = dayMark(byDate.get(date));
           const inEst = est.state === 'range' && date >= est.from && date <= est.to && !byDate.get(date)?.bleeding;
@@ -96,6 +100,7 @@ function Calendar({ days, today, est, weekStart }: { days: CycleDay[]; today: IS
           return <button key={date} className={cls} disabled={date > today && !inEst} aria-label={`${short(date)}: ${what}${inEst ? ', estimated period' : ''}`}
             onClick={() => date <= today && navigate(`/progress/cycle/log/${date}`)}><span className="c">{i + 1}</span></button>;
         })}
+        {Array.from({ length: trail }, (_, i) => <span key={'a' + i} className="cy-d out" aria-hidden="true"><span className="c">{i + 1}</span></span>)}
       </div>
       <div className="cy-key">
         <span><i className="k-per" />Period</span><span><i className="k-spot" />Spotting</span><span><i className="k-est" />Estimated</span>
