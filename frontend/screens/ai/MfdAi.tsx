@@ -5,7 +5,7 @@
 // device only.
 // DEMO (step 3): example conversations; not connected to a model yet.
 import { useEffect, useRef, useState } from 'react';
-import { ArrowLeft, ArrowUp, Bot, Check, ChevronDown, Database, Dumbbell, Globe, KeyRound, Lock, Minus, Plus, Scale, Send, Sparkles, TrendingDown, Undo2, Utensils } from 'lucide-react';
+import { ArrowLeft, ArrowUp, Bot, Check, ChevronDown, Database, Dumbbell, Globe, KeyRound, Lock, Minus, Plus, Scale, Send, Sparkles, TrendingDown, Undo2, Utensils, ListChecks, Folder, X } from 'lucide-react';
 import { navigate } from '../../lib/router';
 import { useDB } from '../../data/store';
 import { Sheet } from '../../components/ui';
@@ -15,7 +15,11 @@ type Line = { name: string; qty: number; unit: string; grams: number; kcal: numb
 type Card =
   | { kind: 'food'; meal: string; lines: Line[] }
   | { kind: 'weight'; kg: number; lastKg: number; lastDate: string }
-  | { kind: 'workout'; exercise: string; sets: { reps: number; kg: number }[] };
+  | { kind: 'workout'; title: string; minutes?: number; exercises: Ex[] }
+  | { kind: 'routine'; name: string; folder: string; suggested?: boolean; exercises: Ex[] };
+/** One exercise: matched to the catalogue (or "new" when nothing matched); sets as done, or as targets in a routine. */
+type Ex = { name: string; isNew?: boolean; sets: { reps: number; kg?: number }[] };
+const S = (n: number, reps: number, kg?: number) => Array.from({ length: n }, () => ({ reps, kg }));
 type State = 'ask' | 'added' | 'replaced';
 type Msg = { id: string; from: 'me'; text: string } | { id: string; from: 'ai'; text: string; card?: Card; state?: State; link?: boolean };
 
@@ -33,7 +37,22 @@ export const MFD_AI_DEMOS: Record<string, Msg[]> = {
     { id: '4', from: 'ai', text: 'Updated.', card: { kind: 'food', meal: 'Breakfast', lines: [{ ...EGG, qty: 3 }, TOAST] }, state: 'added' },
     { id: '5', from: 'me', text: 'weighed 72.4 this morning, and did bench 3x8 at 60' },
     { id: '6', from: 'ai', text: 'Two things. Look right?', card: { kind: 'weight', kg: 72.4, lastKg: 72.9, lastDate: '19 Nov' }, state: 'ask' },
-    { id: '7', from: 'ai', text: '', card: { kind: 'workout', exercise: 'Bench Press (Barbell)', sets: [{ reps: 8, kg: 60 }, { reps: 8, kg: 60 }, { reps: 8, kg: 60 }] }, state: 'ask' }],
+    { id: '7', from: 'ai', text: '', card: { kind: 'workout', title: 'Workout', exercises: [{ name: 'Bench Press (Barbell)', sets: S(3, 8, 60) }] }, state: 'ask' }],
+  gym: [
+    { id: '1', from: 'me', text: 'push day done, 55 min. bench 3x8 at 60, incline db press 3x10 at 22, dips 3x12, pushdowns 3x12 at 25, lateral raises 3x15 at 8' },
+    { id: '2', from: 'ai', text: '5 exercises. Look right?', card: { kind: 'workout', title: 'Push day', minutes: 55, exercises: [
+      { name: 'Bench Press (Barbell)', sets: S(3, 8, 60) }, { name: 'Incline Bench Press (Dumbbell)', sets: S(3, 10, 22) },
+      { name: 'Chest Dip', sets: S(3, 12) }, { name: 'Triceps Pushdown (Cable)', sets: S(3, 12, 25) }, { name: 'Lateral Raise (Dumbbell)', sets: S(3, 15, 8) }] }, state: 'added' },
+    { id: '3', from: 'me', text: 'save it as a routine, Push A, in my PPL folder' }],
+  routine: [
+    { id: '3', from: 'me', text: 'save it as a routine, Push A, in my PPL folder' },
+    { id: '4', from: 'ai', text: 'New routine. Look right?', card: { kind: 'routine', name: 'Push A', folder: 'PPL', exercises: [
+      { name: 'Bench Press (Barbell)', sets: S(3, 8, 60) }, { name: 'Incline Bench Press (Dumbbell)', sets: S(3, 10, 22) },
+      { name: 'Chest Dip', sets: S(3, 12) }, { name: 'Triceps Pushdown (Cable)', sets: S(3, 12, 25) }, { name: 'Lateral Raise (Dumbbell)', sets: S(3, 15, 8) }] }, state: 'ask' },
+    { id: '5', from: 'me', text: 'also make me a pull routine, same style, with face pulls' },
+    { id: '6', from: 'ai', text: 'A first draft. Change anything before saving.', card: { kind: 'routine', name: 'Pull A', folder: 'PPL', suggested: true, exercises: [
+      { name: 'Lat Pulldown (Cable)', sets: S(3, 10) }, { name: 'Seated Cable Row', sets: S(3, 10) }, { name: 'Face Pull (Cable)', sets: S(3, 15) },
+      { name: 'Bicep Curl (Dumbbell)', sets: S(3, 12) }, { name: 'Reverse Fly Machine', isNew: true, sets: S(3, 15) }] }, state: 'ask' }],
   advice: [
     { id: '1', from: 'me', text: 'how’s my protein been this month?' },
     { id: '2', from: 'ai', text: 'I only log. For trends and advice, ask ChatGPT or Claude.', link: true }],
@@ -97,8 +116,8 @@ function CardView({ card, state, onAdd, onUndo, onCard, onChange }: { card: Card
   if (state === 'replaced') { const t = card.kind === 'food' ? totals(card.lines) : null;
     return <div className="mfdai-card replaced"><span>{card.kind === 'food' ? `${card.meal} · ≈ ${r(t!.kcal)} kcal` : 'Earlier'}</span><span>Changed</span></div>; }
   const footer = ask
-    ? <div className="mfdai-actions"><button className="btn btn-soft" onClick={onChange}>Change</button><button className="btn btn-primary" onClick={onAdd}><Check aria-hidden="true" />Add</button></div>
-    : <div className="mfdai-added"><Check aria-hidden="true" /><span className="grow">Added</span><button className="mfdai-undo" onClick={onUndo}><Undo2 aria-hidden="true" />Undo</button></div>;
+    ? <div className="mfdai-actions"><button className="btn btn-soft" onClick={onChange}>Change</button><button className="btn btn-primary" onClick={onAdd}><Check aria-hidden="true" />{card.kind === 'routine' ? 'Save' : 'Add'}</button></div>
+    : <div className="mfdai-added"><Check aria-hidden="true" /><span className="grow">{card.kind === 'routine' ? 'Saved to Routines' : 'Added'}</span><button className="mfdai-undo" onClick={onUndo}><Undo2 aria-hidden="true" />Undo</button></div>;
 
   if (card.kind === 'food') {
     const t = totals(card.lines), mac = t.p * 4 + t.c * 4 + t.f * 9 || 1;
@@ -136,12 +155,38 @@ function CardView({ card, state, onAdd, onUndo, onCard, onChange }: { card: Card
       {footer}
     </div>;
   }
-  const vol = card.sets.reduce((s, x) => s + x.reps * x.kg, 0);
+  return <ExerciseCard card={card} footer={footer} ask={ask} />;
+}
+
+/** A finished workout or a routine: a few stat tiles, then one row per exercise with its sets as compact chips. */
+function ExerciseCard({ card, footer, ask }: { card: Extract<Card, { kind: 'workout' | 'routine' }>; footer: React.ReactNode; ask: boolean }) {
+  const [open, setOpen] = useState(false);
+  const routine = card.kind === 'routine', sets = card.exercises.reduce((n, e) => n + e.sets.length, 0);
+  const vol = card.exercises.reduce((v, e) => v + e.sets.reduce((x, s) => x + s.reps * (s.kg ?? 0), 0), 0);
+  const shown = open || card.exercises.length <= 4 ? card.exercises : card.exercises.slice(0, 3);
+  const group = (e: Ex) => { const out: { n: number; reps: number; kg?: number }[] = [];
+    for (const s of e.sets) { const l = out[out.length - 1]; if (l && l.reps === s.reps && l.kg === s.kg) l.n++; else out.push({ n: 1, ...s }); } return out; };
   return <div className="mfdai-card">
-    <div className="mfdai-simple"><span className="mfdai-ic k-workout"><Dumbbell aria-hidden="true" /></span>
-      <span className="grow"><span className="mfdai-eyebrow">New workout · today</span><b className="mfdai-ex">{card.exercise}</b></span></div>
-    <div className="mfdai-sets">{card.sets.map((s, i) => <span key={i} className="tnum"><small>{i + 1}</small>{s.reps} × {s.kg} kg</span>)}</div>
-    <div className="mfdai-vol tnum">{vol.toLocaleString('en-GB')} kg volume</div>
+    <div className="mfdai-cardtop">
+      <span className={`mfdai-pill${routine ? ' rt' : ' wk'}`}>{routine ? <ListChecks aria-hidden="true" /> : <Dumbbell aria-hidden="true" />}{routine ? 'Routine' : 'Workout'}</span>
+      <span className="mfdai-pill plain">{routine ? <><Folder aria-hidden="true" />{card.folder}<ChevronDown aria-hidden="true" /></> : 'Today'}</span>
+      {routine && card.suggested && <span className="badge ai mfdai-est">Draft</span>}
+    </div>
+    <div className="mfdai-wtitle">{card.kind === 'routine' ? card.name : card.title}</div>
+    <div className="mfdai-stats tnum">
+      <span><b>{card.exercises.length}</b>exercises</span><span><b>{sets}</b>sets</span>
+      {routine ? <span><b>~{Math.round(sets * 2.5)}</b>min</span> : card.minutes ? <span><b>{card.minutes}</b>min</span> : null}
+      {!routine && vol > 0 && <span><b>{vol >= 1000 ? `${(vol / 1000).toFixed(1)}k` : vol}<small> kg</small></b>volume</span>}
+    </div>
+    <div className="mfdai-exlist">
+      {shown.map((e, i) => <div key={i} className="mfdai-exrow">
+        <span className="mfdai-exnum tnum">{card.exercises.indexOf(e) + 1}</span>
+        <span className="grow"><b>{e.name}{e.isNew && <span className="mfdai-new">New exercise</span>}</b>
+          <span className="mfdai-setchips tnum">{group(e).map((g, j) => <span key={j}>{g.n} × {g.reps}{g.kg ? ` · ${g.kg} kg` : ''}</span>)}</span></span>
+        {ask && <button className="icon-btn sm mfdai-exdel" aria-label={`Remove ${e.name}`}><X /></button>}
+      </div>)}
+      {!open && card.exercises.length > 4 && <button className="mfdai-more" onClick={() => setOpen(true)}>Show all {card.exercises.length}<ChevronDown aria-hidden="true" /></button>}
+    </div>
     {footer}
   </div>;
 }

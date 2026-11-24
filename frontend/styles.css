@@ -2449,3 +2449,22 @@ input.switch:focus-visible { outline: 3px solid var(--accent); outline-offset: 2
 .ai-hub-ask > svg { width: 18px; height: 18px; color: var(--ai-text); flex: none; }
 .ai-hub-ask .grow { flex: 1; }
 .ai-hub-ask .round-icon { width: 34px; height: 34px; background: var(--ai-soft); color: var(--ai-text); }
+/* MFD AI: workout and routine cards */
+.mfdai-pill.wk { background: var(--superset-soft); color: var(--superset); }
+.mfdai-pill.rt { background: var(--ai-soft); color: var(--ai-text); }
+.mfdai-wtitle { font-size: 24px; font-weight: 800; letter-spacing: -.01em; margin: 12px 0 10px; }
+.mfdai-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(64px, 1fr)); gap: 8px; }
+.mfdai-stats span { display: flex; flex-direction: column; padding: 10px 12px; border-radius: 14px; background: var(--field); font-size: 12px; font-weight: 600; color: var(--ink-3); }
+.mfdai-stats b { font-size: 20px; font-weight: 800; color: var(--ink); letter-spacing: -.01em; }
+.mfdai-exlist { margin-top: 12px; border-top: 1px solid var(--line-2); }
+.mfdai-exrow { display: flex; align-items: flex-start; gap: 12px; padding: 11px 0; border-bottom: 1px solid var(--line-2); }
+.mfdai-exnum { width: 26px; height: 26px; flex: none; border-radius: 8px; display: grid; place-items: center; background: var(--field); font-size: 12px; font-weight: 800; color: var(--ink-3); margin-top: 1px; }
+.mfdai-exrow .grow { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.mfdai-exrow b { font-size: 15px; font-weight: 700; }
+.mfdai-new { display: inline-block; margin-left: 8px; padding: 2px 8px; border-radius: 999px; background: var(--warn-soft); color: var(--warn); font-size: 11px; font-weight: 700; vertical-align: 2px; }
+.mfdai-setchips { display: flex; flex-wrap: wrap; gap: 6px; }
+.mfdai-setchips span { padding: 3px 9px; border-radius: 8px; background: var(--field); font-size: 13px; font-weight: 700; color: var(--ink-2); }
+.mfdai-exdel { color: var(--ink-3); margin: -6px -8px 0 0; }
+.mfdai-more { display: flex; align-items: center; justify-content: center; gap: 6px; width: 100%; min-height: 42px; border: 0; background: none; color: var(--accent); font: inherit; font-size: 14px; font-weight: 700; cursor: pointer; }
+.mfdai-more svg { width: 16px; height: 16px; }
+.mfdai-stats b small { font-size: 13px; font-weight: 700; color: var(--ink-3); letter-spacing: 0; }
