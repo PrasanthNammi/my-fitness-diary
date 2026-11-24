@@ -14,7 +14,7 @@ const SECTIONS: [string, string[]][] = [
     'AI assistants (ChatGPT, Claude) only if you connect them, and only what you tick.',
     'Services that run MFD, each only for its job: Supabase (database, sign-in, photos; EU, Frankfurt), OpenAI (hosts the website’s files), Cloudflare (AI connector, app downloads), Google (notifications; encrypted backups in Drive), Grafana Cloud (service health numbers only), Open Food Facts (barcode and food searches).']],
   ['How long', ['As long as you have an account. Backups are kept 30 days. A deleted account is removed with everything in it, and leaves the backups within 30 days.']],
-  ['Your rights', ['See, correct and export everything (Settings → Data → Export), delete entries, switch optional features off, object, and complain to a data protection authority.', 'To delete your account, ask the MFD owner; it’s done within 30 days.']],
+  ['Your rights', ['See, correct and export everything (Settings → Data → Export), delete entries, switch optional features off, object, and complain to a data protection authority.', 'Delete your account and everything in it: Settings → Account → Delete account.']],
 ];
 
 export function PrivacyPage() {

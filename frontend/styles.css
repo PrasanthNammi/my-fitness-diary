@@ -2305,3 +2305,7 @@ input.switch:focus-visible { outline: 3px solid var(--accent); outline-offset: 2
 .ai-hub-list .swipe-front > svg:first-child { flex: none; width: 18px; height: 18px; color: var(--ai-text); }
 .ai-hub-list .swipe-front .grow { flex: 1; min-width: 0; }
 .cy-legend-wrap { flex-wrap: wrap; justify-content: flex-start; gap: 6px 14px; }
+.delete-account { display: flex; flex-direction: column; gap: 10px; }
+.delete-account p { margin: 0; }
+.delete-account ul { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 4px; }
+.delete-account .delete-confirm { font-size: 14px; margin-top: 6px; }
