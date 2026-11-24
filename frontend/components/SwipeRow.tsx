@@ -7,25 +7,29 @@ export function SwipeRow({ children, onOpen, onClear, clearLabel = 'Clear', as =
   const [dx, setDx] = useState(0), [gone, setGone] = useState(false);
   const start = useRef<{ x: number; y: number; id: number; horizontal: boolean | null } | null>(null), row = useRef<HTMLElement>(null);
   const Tag = as;
+  // A tap opens on the click (the last event of a tap): opening on finger-up let the click that follows land on the
+  // newly opened sheet's backdrop and close it again. `dragged` ignores the click after a swipe.
+  const dragged = useRef(false);
   const clear = () => { setGone(true); setDx(-(row.current?.offsetWidth ?? 400)); setTimeout(onClear, 180); };
   return (
     <Tag ref={row as never} className={`swipe-row${gone ? ' gone' : ''} ${className}`}>
       <span className="swipe-under" aria-hidden="true"><EyeOff />{clearLabel}</span>
       <div className="swipe-front" style={{ transform: `translateX(${dx}px)`, transition: start.current ? 'none' : 'transform .18s ease' }}
-        onPointerDown={(e) => { if ((e.target as HTMLElement).closest('button,a')) return; start.current = { x: e.clientX, y: e.clientY, id: e.pointerId, horizontal: null }; }}
+        onPointerDown={(e) => { if ((e.target as HTMLElement).closest('button,a')) return; dragged.current = false; start.current = { x: e.clientX, y: e.clientY, id: e.pointerId, horizontal: null }; }}
         onPointerMove={(e) => {
           const s = start.current; if (!s || s.id !== e.pointerId) return;
           const mx = e.clientX - s.x, my = e.clientY - s.y;
-          if (s.horizontal === null && Math.hypot(mx, my) > 8) { s.horizontal = Math.abs(mx) > Math.abs(my); if (s.horizontal) (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId); }
+          if (s.horizontal === null && Math.hypot(mx, my) > 8) { dragged.current = true; s.horizontal = Math.abs(mx) > Math.abs(my); if (s.horizontal) (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId); }
           if (s.horizontal) setDx(Math.min(0, mx));
         }}
         onPointerUp={(e) => {
           const s = start.current; start.current = null; if (!s) return;
           const width = row.current?.offsetWidth ?? 400;
           if (s.horizontal && -dx > width * 0.35) clear();
-          else { setDx(0); if (!s.horizontal && Math.hypot(e.clientX - s.x, e.clientY - s.y) < 8) onOpen?.(); }
+          else setDx(0);
         }}
         onPointerCancel={() => { start.current = null; setDx(0); }}
+        onClick={(e) => { if (!onOpen || dragged.current || (e.target as HTMLElement).closest('button,a')) return; onOpen(); }}
         role={onOpen ? 'button' : undefined} tabIndex={onOpen ? 0 : undefined} aria-label={label}
         onKeyDown={(e) => { if (onOpen && (e.key === 'Enter' || e.key === ' ') && e.target === e.currentTarget) { e.preventDefault(); onOpen(); } if (e.key === 'Delete' || e.key === 'Backspace') clear(); }}>
         {children}
