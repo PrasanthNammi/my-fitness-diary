@@ -11,6 +11,8 @@ import { navigate } from '../lib/router';
 import { ConfirmSheet, Sheet, toast } from './ui';
 
 // The connector's own page: which assistants can use the diary, and removing their access.
+/** MFD AI (Gemini, the person's own key): built, hidden until Gemini answers reliably (503s on 2026-11-24). */
+export const MFD_AI = false;
 const CONNECTIONS = 'https://mfd-connect.shanustylish777.workers.dev/oauth/mcp/connections';
 
 /**
@@ -46,9 +48,9 @@ export function AiHub({ open, onClose }: { open: boolean; onClose: () => void })
       {/* One sheet at a time: the hub steps aside while an Undo is confirmed, then comes back. */}
       <Sheet open={open && !confirm} onClose={onClose} title="AI assistants" label="AI assistants">
         <div className="ai-hub">
-          <button type="button" className="ai-hub-ask" onClick={() => { onClose(); navigate('/ai'); }}>
+          {MFD_AI && <button type="button" className="ai-hub-ask" onClick={() => { onClose(); navigate('/ai'); }}>
             <Sparkles aria-hidden="true" /><span className="grow">Message MFD AI</span><span className="round-icon" aria-hidden="true"><ArrowUp /></span>
-          </button>
+          </button>}
           <div className="ai-hub-apps">
             {['ChatGPT', 'Claude'].map((name) => {
               const t = last(name);

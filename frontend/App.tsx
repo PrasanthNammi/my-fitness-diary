@@ -36,6 +36,7 @@ import { CycleRecords } from './screens/cycle/CycleRecords';
 import { CycleReport } from './screens/cycle/CycleReport';
 import { CyclePrivacy } from './screens/cycle/CyclePrivacy';
 import { MfdAi } from './screens/ai/MfdAi';
+import { MFD_AI } from './components/AiHub';
 import { WorkoutEditor } from './screens/progress/WorkoutEditor';
 import { CoachScreen } from './screens/coach/CoachScreen';
 import { AiAssistants } from './screens/ai/AiAssistants';
@@ -116,7 +117,8 @@ function Routes({ route }: { route: string[] }) {
     case 'coach':
       return <AiAssistants />;
     case 'ai':
-      return <MfdAi />;
+      if (MFD_AI || (window as unknown as { __mfdAiDemo?: unknown }).__mfdAiDemo || /^(localhost|127\.0\.0\.1)$/.test(location.hostname)) return <MfdAi />;
+      return <TodayScreen />;
     case 'settings':
       return <SettingsLive section={b ?? null}/>;
     default:
