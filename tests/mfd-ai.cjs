@@ -27,14 +27,15 @@ assert.equal(p.replaces,true);assert.equal(p.cards[0].day,'2026-11-23','yesterda
 p=M.parseAnswer({reply:'',items:[{kind:'workout',title:'Push',minutes:55,exercises:[{name:'Bench Press (Barbell)',sets:[{reps:8,kg:60},{reps:8,kg:60},{reps:0}]},{name:'Nothing',sets:[]}]},{kind:'routine',routine_name:'Push A',folder:'PPL',drafted:true,exercises:[{name:'Mystery Move',sets:[{reps:10}]},{name:'Bench Press (Barbell)',sets:[{reps:8}]}]},{kind:'start_routine',routine_name:'push a'}]},T);
 assert.equal(p.reply,'Look right?');assert.equal(p.cards[0].exercises.length,1);assert.equal(p.cards[0].exercises[0].sets.length,2,'reps 0 dropped');
 assert.equal(p.cards[1].suggested,true);assert.equal(p.cards[2].kind,'start');
+assert.deepEqual(M.parseAnswer({reply:'',items:[{kind:'workout',title:'Running',minutes:28,exercises:[{name:'Running',sets:[{km:5}]}]}]},T).cards[0].exercises[0].sets,[{reps:undefined,kg:undefined,seconds:1680,km:5}],'run time copied to the set');
 assert.match(M.cardSummary(p.cards[0]),/Bench Press \(Barbell\) 8x60kg,8x60kg/);
 assert.match(M.systemPrompt({today:T,weekday:'Tuesday',time:'08:10',weightUnit:'lb',lengthUnit:'in'}),/uses lb for weight and in for body measurements/);
-assert.ok(M.RESPONSE_SCHEMA.properties.items.items.properties.kind.enum.includes('start_routine'));
+assert.deepEqual(M.RESPONSE_SCHEMA.properties.items.items.anyOf.map(x=>x.properties.kind.enum[0]),['food','water','weight','measurements','checkin','workout','routine','start_routine']);assert.ok(M.RESPONSE_SCHEMA.properties.items.items.anyOf[6].required.includes('exercises'),'a routine must have exercises');assert.equal(M.RESPONSE_SCHEMA.type,'object','standard JSON Schema (lowercase)');assert.ok(!JSON.stringify(M.RESPONSE_SCHEMA).match(/"[A-Z]+"/),'no OpenAPI-style uppercase types');
 
 // Model pick and key display.
 assert.equal(M.pickFlash(['models/gemini-2.0-flash','models/gemini-2.5-flash','models/gemini-2.5-flash-lite','models/gemini-3.0-flash-preview','models/gemini-2.5-pro','models/gemini-3-flash']),'gemini-2.5-flash','stable 2.5 Flash first');
-assert.deepEqual(M.flashOrder(['models/gemini-2.0-flash','models/gemini-2.5-flash','models/gemini-2.5-flash-lite','models/gemini-3-flash','models/gemini-2.5-pro']),['gemini-2.5-flash','gemini-3-flash','gemini-2.0-flash','gemini-2.5-flash-lite']);
-assert.equal(M.pickFlash(['models/gemini-3-flash','models/gemini-2.0-flash']),'gemini-3-flash','newest when 2.5 is missing');
+assert.deepEqual(M.flashOrder(['models/gemini-2.0-flash','models/gemini-2.5-flash','models/gemini-2.5-flash-lite','models/gemini-3-flash','models/gemini-2.5-pro','models/gemini-flash-latest']),['gemini-2.5-flash','gemini-2.0-flash','gemini-3-flash']);
+assert.equal(M.pickFlash(['models/gemini-3-flash','models/gemini-2.0-flash']),'gemini-2.0-flash','oldest (least busy) when 2.5 is missing');
 assert.equal(M.pickFlash(['models/gemini-2.5-pro']),null);
 assert.equal(M.maskedKey('AIzaSyABCDEFGHIJKLMNOPQRSTUVWQx4'),'AIza••••••••Qx4');
 
@@ -49,7 +50,7 @@ await assert.rejects(M.saveGeminiKey('my key is secret!'),e=>e.kind==='format');
 global.fetch=async()=>({ok:false,status:401,json:async()=>({error:{details:[{reason:'ACCESS_TOKEN_TYPE_UNSUPPORTED'}]}})});
 await assert.rejects(M.saveGeminiKey('AQ.Ab8RN6Jv18XdfLCkU65yUBA6iZ0VSywH'),e=>e.kind==='keytype'&&/limit it to the Gemini API/.test(M.geminiErrorText(e)));
 // Busy (503): one retry on the same model, then the next Flash model; a 400 (schema refused) → asked again without it; fenced JSON read.
-const seen=[];global.fetch=async(u,o)=>{const b=JSON.parse(o.body);seen.push({m:u.split('/models/')[1].split(':')[0],schema:!!b.generationConfig.responseSchema});
+const seen=[];global.fetch=async(u,o)=>{const b=JSON.parse(o.body);seen.push({m:u.split('/models/')[1].split(':')[0],schema:!!b.generationConfig.responseJsonSchema});assert.equal(b.generationConfig.thinkingConfig.thinkingBudget,0);assert.equal(b.generationConfig.responseSchema,undefined);
   if(seen.length<=2)return {ok:false,status:503,json:async()=>({error:{message:'This model is currently experiencing high demand.'}})};
   if(seen.length===3)return {ok:false,status:400,json:async()=>({error:{message:'Unknown name "responseSchema"'}})};
   return {ok:true,status:200,json:async()=>({candidates:[{content:{parts:[{text:'```json\n{"reply":"Hi","items":[]}\n```'}]}}]})}};
@@ -60,10 +61,19 @@ assert.equal(store['mfd-ai-gemini-model'],'gemini-2.5-flash','a busy spike does 
 global.fetch=async()=>({ok:false,status:503,json:async()=>({error:{message:'high demand'}})});
 await assert.rejects(M.geminiJson({system:'s',schema:{},turns:[{role:'user',text:'a'}]}),e=>e.kind==='busy'&&/very busy/.test(M.geminiErrorText(e))&&M.geminiErrorDetail(e)==='');
 assert.deepEqual(M.alternate([{role:'model',text:'x'},{role:'user',text:'a'},{role:'user',text:'b'},{role:'model',text:''}]),[{role:'user',text:'a\nb'}]);
-global.fetch=async()=>({ok:false,status:500,json:async()=>({error:{message:'Internal error for key AQ.Ab8secret123'}})});
-await assert.rejects(M.geminiJson({system:'s',schema:{},turns:[{role:'user',text:'a'}]}),e=>{const d=M.geminiErrorDetail(e);assert.equal(d,'500 · Internal error for key …');return true});
+global.fetch=async()=>({ok:false,status:502,json:async()=>({error:{message:'Internal error for key AQ.Ab8secret123'}})});
+await assert.rejects(M.geminiJson({system:'s',schema:{},turns:[{role:'user',text:'a'}]}),e=>{const d=M.geminiErrorDetail(e);assert.equal(d,'502 · Internal error for key …');return true});
+// Free daily allowance per model (429): that model is skipped for the rest of the day, the next one answers.
+store['mfd-ai-gemini-models']=JSON.stringify(['gemini-2.5-flash','gemini-3.5-flash','gemini-3.6-flash']);store['mfd-ai-gemini-model']='gemini-2.5-flash';delete store['mfd-ai-gemini-used-up'];
+const hits=[];global.fetch=async(u)=>{const m=u.split('/models/')[1].split(':')[0];hits.push(m);
+  if(m==='gemini-2.5-flash')return {ok:false,status:429,json:async()=>({error:{message:'quota',details:[{violations:[{quotaId:'GenerateRequestsPerDayPerProjectPerModel-FreeTier'}]}]}})};
+  return {ok:true,status:200,json:async()=>({candidates:[{content:{parts:[{text:'{"reply":"ok","items":[]}'}]}}]})}};
+await M.geminiJson({system:'s',schema:{},turns:[{role:'user',text:'a'}]});await M.geminiJson({system:'s',schema:{},turns:[{role:'user',text:'b'}]});
+assert.deepEqual(hits,['gemini-2.5-flash','gemini-3.5-flash','gemini-3.5-flash'],'used-up model skipped on the next message');
+global.fetch=async()=>({ok:false,status:429,json:async()=>({error:{message:'quota'}})});
+await assert.rejects(M.geminiJson({system:'s',schema:{},turns:[{role:'user',text:'c'}]}),e=>e.kind==='quota'&&/reset tomorrow/.test(M.geminiErrorText(e)));
 global.fetch=undefined;
-console.log('PASS MFD AI keys: AQ. keys, header only, clear errors, busy models (retry, next Flash), 400 schema, fenced JSON, alternating turns, no key in error details');
+console.log('PASS MFD AI keys: AQ. keys, header only, clear errors, busy and used-up models (retry, next Flash, skipped for the day), 400 schema, fenced JSON, alternating turns, no key in error details');
 })().catch(e=>{console.error(e);process.exit(1)});
 
 // Add and Undo on the example diary.

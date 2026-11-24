@@ -32,35 +32,43 @@ Rules:
 - food: one item per meal. meal from the words, or from the time (before 11:00 breakfast, 11:00-15:59 lunch, 16:00-21:59 dinner, else snacks; "snack" = snacks). Each food: a short plain name (e.g. "Eggs, boiled", "White toast", "Banana"), qty and unit as the person said (unit like "large", "slice", "cup", "piece", "bowl"; if they gave grams or ml use unit "g" or "ml" with qty = the amount). grams_per_unit = weight of ONE unit (1 for g/ml). kcal_per_unit, protein_per_unit, carbs_per_unit, fat_per_unit = realistic typical values for ONE unit (for g/ml: per 1 g or 1 ml). Estimate typical portions when not given.
 - Drinks without calories (water, black coffee, plain tea) go in a "water" item with ml (a glass = 250 ml, a bottle = 500 ml, a cup = 240 ml); drinks with calories are food.
 - weight: kg. measurements: waist_cm, chest_cm, hips_cm, arms_cm. checkin: sleep_hours, energy_1to5, soreness_1to5 (only what was said).
-- workout: a finished workout. title (e.g. "Push day", or "Workout"), minutes if said. exercises with standard gym names in this style, equipment in brackets: "Bench Press (Barbell)", "Incline Bench Press (Dumbbell)", "Squat (Barbell)", "Lat Pulldown (Cable)", "Bicep Curl (Dumbbell)", "Triceps Pushdown (Cable)", "Pull Up", "Chest Dip", "Running", "Plank". One entry per set: "3x8 at 60" = three sets of reps 8, kg 60. Cardio: seconds and km. Bodyweight: no kg.
-- routine: a saved plan (not done yet). routine_name, folder only if the person named one. To save the last workout as a routine, copy its exercises and sets. When asked to make one up, draft 4-6 sensible exercises with 3 sets each (reps, no kg) and set drafted = true.
+- workout: a finished workout. title (e.g. "Push day", or "Workout"), minutes if said. exercises with standard gym names in this style, equipment in brackets: "Bench Press (Barbell)", "Incline Bench Press (Dumbbell)", "Squat (Barbell)", "Lat Pulldown (Cable)", "Bicep Curl (Dumbbell)", "Triceps Pushdown (Cable)", "Pull Up", "Chest Dip", "Running", "Plank". One entry per set: "3x8 at 60" = three sets of reps 8, kg 60. Cardio: one set with seconds and km ("ran 5 km in 28 min" = one set km 5, seconds 1680). Bodyweight: no kg.
+- routine: a saved plan (not done yet). routine_name, folder only if the person named one. To save the last workout as a routine, copy its exercises and sets. When asked to make one up, you MUST fill exercises with 4-6 sensible exercises, each with 3 sets (reps, no kg), and set drafted = true. A routine item without exercises is useless.
 - start_routine: when the person wants to start or begin a workout from a routine: routine_name as they said it.
 - If the person corrects something you proposed ("it was 3 eggs", "make it lunch"), answer with the full corrected item(s) and set replaces_previous = true.
 - Only include fields that apply. Never invent things the person did not say, except typical portions and nutrition values.`;
 }
 
-const num = { type: 'NUMBER' }, int = { type: 'INTEGER' }, str = { type: 'STRING' };
-const setSchema = { type: 'OBJECT', properties: { reps: int, kg: num, seconds: num, km: num } };
-const exSchema = { type: 'OBJECT', properties: { name: str, sets: { type: 'ARRAY', items: setSchema } }, required: ['name', 'sets'] };
+// Standard JSON Schema (sent as responseJsonSchema: answers in ~1-2 s; the older responseSchema hung for a minute).
+const num = { type: 'number' }, int = { type: 'integer' }, str = { type: 'string' };
+const setSchema = { type: 'object', properties: { reps: int, kg: num, seconds: num, km: num } };
+const exSchema = { type: 'object', properties: { name: str, sets: { type: 'array', minItems: 1, items: setSchema } }, required: ['name', 'sets'] };
+/** One schema per kind of item (anyOf), each with the fields it must have, so a drafted routine always has exercises. */
+const item = (kind: string, props: Record<string, object>, required: string[] = []) =>
+  ({ type: 'object', properties: { kind: { type: 'string', enum: [kind] }, ...props }, required: ['kind', ...required] });
+const day = { day_offset: int };
 export const RESPONSE_SCHEMA = {
-  type: 'OBJECT',
+  type: 'object',
   properties: {
     reply: str,
-    replaces_previous: { type: 'BOOLEAN' },
-    items: { type: 'ARRAY', items: { type: 'OBJECT', required: ['kind'], properties: {
-      kind: { type: 'STRING', enum: ['food', 'water', 'weight', 'measurements', 'checkin', 'workout', 'routine', 'start_routine'] },
-      day_offset: int,
-      meal: { type: 'STRING', enum: MEALS },
-      foods: { type: 'ARRAY', items: { type: 'OBJECT', required: ['name', 'qty', 'unit', 'grams_per_unit', 'kcal_per_unit'], properties: {
-        name: str, qty: num, unit: str, grams_per_unit: num, kcal_per_unit: num, protein_per_unit: num, carbs_per_unit: num, fat_per_unit: num } } },
-      ml: num, kg: num, waist_cm: num, chest_cm: num, hips_cm: num, arms_cm: num,
-      sleep_hours: num, energy_1to5: int, soreness_1to5: int,
-      title: str, minutes: num, exercises: { type: 'ARRAY', items: exSchema },
-      routine_name: str, folder: str, drafted: { type: 'BOOLEAN' },
-    } } },
+    replaces_previous: { type: 'boolean' },
+    items: { type: 'array', items: { anyOf: [
+      item('food', { ...day, meal: { type: 'string', enum: MEALS }, foods: { type: 'array', minItems: 1, items: { type: 'object', required: ['name', 'qty', 'unit', 'grams_per_unit', 'kcal_per_unit', 'protein_per_unit', 'carbs_per_unit', 'fat_per_unit'], properties: {
+        name: str, qty: num, unit: str, grams_per_unit: num, kcal_per_unit: num, protein_per_unit: num, carbs_per_unit: num, fat_per_unit: num } } } }, ['meal', 'foods']),
+      item('water', { ...day, ml: num }, ['ml']),
+      item('weight', { ...day, kg: num }, ['kg']),
+      item('measurements', { ...day, waist_cm: num, chest_cm: num, hips_cm: num, arms_cm: num }),
+      item('checkin', { ...day, sleep_hours: num, energy_1to5: int, soreness_1to5: int }),
+      item('workout', { ...day, title: str, minutes: num, exercises: { type: 'array', minItems: 1, items: exSchema } }, ['title', 'exercises']),
+      item('routine', { routine_name: str, folder: str, drafted: { type: 'boolean' }, exercises: { type: 'array', minItems: 1, items: exSchema } }, ['routine_name', 'exercises']),
+      item('start_routine', { routine_name: str }, ['routine_name']),
+    ] } },
   },
   required: ['reply', 'items'],
 };
+
+/** The answer's shape as an example, for the fallback request without a schema. */
+export const RESPONSE_EXAMPLE = '{"reply":"My estimate. Look right?","replaces_previous":false,"items":[{"kind":"food","day_offset":0,"meal":"breakfast","foods":[{"name":"Eggs, boiled","qty":2,"unit":"large","grams_per_unit":50,"kcal_per_unit":78,"protein_per_unit":6.3,"carbs_per_unit":0.6,"fat_per_unit":5.3}]},{"kind":"water","ml":500},{"kind":"weight","kg":72.4},{"kind":"measurements","waist_cm":81},{"kind":"checkin","sleep_hours":7.5,"energy_1to5":4,"soreness_1to5":2},{"kind":"workout","title":"Push day","minutes":55,"exercises":[{"name":"Bench Press (Barbell)","sets":[{"reps":8,"kg":60}]}]},{"kind":"routine","routine_name":"Push A","folder":"PPL","drafted":false,"exercises":[{"name":"Bench Press (Barbell)","sets":[{"reps":8,"kg":60}]}]},{"kind":"start_routine","routine_name":"Push A"}]}';
 
 // ── Checking Gemini's answer ─────────────────────────────────────
 const n = (v: unknown, min: number, max: number): number | undefined => (typeof v === 'number' && Number.isFinite(v) && v >= min && v <= max ? v : undefined);
@@ -108,7 +116,10 @@ export function parseAnswer(raw: any, today: ISODate): Parsed {
           return name && sets.length ? [{ name, sets }] : [];
         });
         if (!exercises.length) break;
-        if (it.kind === 'workout') cards.push({ kind: 'workout', day, title: s(it.title, 40) || 'Workout', minutes: n(it.minutes, 1, 600), exercises });
+        const minutes = n(it.minutes, 1, 600);
+        // A single cardio set without its time ("ran 5 km in 28 min" often comes back as minutes on the workout).
+        if (it.kind === 'workout' && minutes && exercises.length === 1 && exercises[0].sets.length === 1 && exercises[0].sets[0].km && !exercises[0].sets[0].seconds) exercises[0].sets[0].seconds = minutes * 60;
+        if (it.kind === 'workout') cards.push({ kind: 'workout', day, title: s(it.title, 40) || 'Workout', minutes, exercises });
         else cards.push({ kind: 'routine', name: s(it.routine_name, 40) || 'New routine', folder: s(it.folder, 40), suggested: it.drafted === true, exercises });
         break;
       }

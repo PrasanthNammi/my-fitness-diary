@@ -10,7 +10,7 @@ import { Sheet, toast } from '../../components/ui';
 import { todayISO } from '../../lib/format';
 import { forgetGeminiKey, geminiErrorDetail, geminiErrorText, geminiJson, geminiKey, maskedKey, saveGeminiKey, type Turn } from '../../lib/gemini';
 import { applyCard, folderNames, resolveCard, type Applied } from '../../lib/mfdAiApply';
-import { MEALS, MEAL_LABEL, RESPONSE_SCHEMA, addDays, cardSummary, parseAnswer, systemPrompt, type Card, type Ex, type FoodLine } from '../../domain/mfdAi';
+import { MEALS, MEAL_LABEL, RESPONSE_EXAMPLE, RESPONSE_SCHEMA, addDays, cardSummary, parseAnswer, systemPrompt, type Card, type Ex, type FoodLine } from '../../domain/mfdAi';
 import type { ISODate, Meal } from '../../domain/types';
 
 type CardState = { card: Card; state: 'ask' | 'added' | 'replaced'; error?: string };
@@ -59,7 +59,7 @@ export function MfdAi() {
     setBusy(true); setHint('');
     abort.current = new AbortController();
     try {
-      const answer = await geminiJson<unknown>({ signal: abort.current.signal, schema: RESPONSE_SCHEMA, turns: [...history, { role: 'user', text: said }],
+      const answer = await geminiJson<unknown>({ signal: abort.current.signal, schema: RESPONSE_SCHEMA, example: RESPONSE_EXAMPLE, turns: [...history, { role: 'user', text: said }],
         system: systemPrompt({ today, weekday: now.toLocaleDateString('en-GB', { weekday: 'long' }), time: now.toTimeString().slice(0, 5), weightUnit: settings.weightUnit ?? 'kg', lengthUnit: settings.lengthUnit ?? 'cm' }) });
       const p = parseAnswer(answer, today);
       const cards = p.cards.map((c) => ({ card: resolveCard(c), state: 'ask' as const }));
