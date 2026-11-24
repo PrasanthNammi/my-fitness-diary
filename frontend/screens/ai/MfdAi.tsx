@@ -1,79 +1,82 @@
-// MFD AI: quick logging in plain words ("2 eggs and toast, 500 ml water"). It turns a message into cards; nothing is
-// saved until the person taps "Add to diary". Trends and advice stay with ChatGPT or Claude (the MFD connector).
-// Each person uses their own Gemini key, kept on this device only.
-// DEMO (step 3): the screens with example replies; not connected to a model yet.
+// MFD AI: quick logging in plain words ("2 eggs and toast for breakfast"). It answers with a card: what it understood
+// and, for food, the calories it ESTIMATED, then asks "Does this look right?". Nothing is saved until the person says
+// yes; "Change" lets them correct it in their own words ("it was 3 eggs") and the card is redone.
+// Trends and advice stay with ChatGPT or Claude (the MFD connector). Each person uses their own Gemini key, on this
+// device only.
+// DEMO (step 3): example conversations; not connected to a model yet.
 import { useEffect, useRef, useState } from 'react';
-import { ArrowLeft, ArrowUp, Check, Droplet, Dumbbell, KeyRound, Pencil, Ruler, Scale, Sparkles, Utensils } from 'lucide-react';
+import { ArrowLeft, ArrowUp, Check, Dumbbell, KeyRound, Scale, Sparkles, Undo2 } from 'lucide-react';
 import { navigate } from '../../lib/router';
+import { useDB } from '../../data/store';
 import { Sheet } from '../../components/ui';
 
-type Item = { kind: 'food' | 'water' | 'weight' | 'measure' | 'workout'; title: string; sub: string };
-type Msg =
-  | { id: string; from: 'me'; text: string }
-  | { id: string; from: 'ai'; text: string; items?: Item[]; where?: string; added?: boolean };
+type Line = { name: string; amount: string; kcal?: number; source?: 'mine' | 'catalogue' | 'estimate' };
+type Card =
+  | { kind: 'food'; meal: string; lines: Line[]; kcal: number; p: number; c: number; f: number; estimated: boolean }
+  | { kind: 'weight'; value: string; note: string }
+  | { kind: 'workout'; title: string; sets: string; note: string };
+type State = 'ask' | 'added' | 'replaced';
+type Msg = { id: string; from: 'me'; text: string } | { id: string; from: 'ai'; text: string; card?: Card; state?: State };
 
-const ICON = { food: Utensils, water: Droplet, weight: Scale, measure: Ruler, workout: Dumbbell } as const;
+const EGGS2: Card = { kind: 'food', meal: 'Breakfast', estimated: true, kcal: 235, p: 16, c: 15, f: 11, lines: [
+  { name: 'Eggs, boiled', amount: '2 large · 100 g', kcal: 155, source: 'catalogue' },
+  { name: 'White toast', amount: '1 slice · 30 g', kcal: 80, source: 'estimate' }] };
+const EGGS3: Card = { ...EGGS2, kcal: 313, p: 22, c: 15, f: 16, lines: [{ ...EGGS2.lines[0], amount: '3 large · 150 g', kcal: 233 }, EGGS2.lines[1]] };
 
-/** Example conversation for the demo (window.__mfdAiDemo can replace it in the local preview). */
-const DEMO: Msg[] = [
-  { id: '1', from: 'me', text: '2 eggs and a slice of toast for breakfast, and 500 ml water' },
-  { id: '2', from: 'ai', text: 'Here’s what I’d add to today:', where: 'Breakfast · Tue 24 Nov', added: true, items: [
-    { kind: 'food', title: 'Eggs, boiled · 2 large', sub: '155 kcal · 13 g protein' },
-    { kind: 'food', title: 'White toast · 1 slice', sub: '80 kcal · 3 g protein' },
-    { kind: 'water', title: 'Water · 500 ml', sub: 'Today 1.2 → 1.7 L' }] },
-  { id: '3', from: 'me', text: 'weighed 72.4 this morning. also did bench 3x8 at 60' },
-  { id: '4', from: 'ai', text: 'Got it. Check these before I add them:', where: 'Tue 24 Nov', items: [
-    { kind: 'weight', title: 'Weight · 72.4 kg', sub: 'Morning · last 72.9 kg on 19 Nov' },
-    { kind: 'workout', title: 'Bench Press (Barbell) · 3 × 8 × 60 kg', sub: 'New workout, today · 1,440 kg volume' }] },
-  { id: '5', from: 'me', text: 'how’s my protein been this month?' },
-  { id: '6', from: 'ai', text: 'I only log things. For trends and advice, ask ChatGPT or Claude: they can read your diary through the MFD connector (Settings → AI assistants).' },
-];
+export const MFD_AI_DEMOS: Record<string, Msg[]> = {
+  ask: [
+    { id: '1', from: 'me', text: '2 eggs and a slice of toast for breakfast' },
+    { id: '2', from: 'ai', text: 'I estimated this from typical portions. Does it look right?', card: EGGS2, state: 'ask' }],
+  fixed: [
+    { id: '1', from: 'me', text: '2 eggs and a slice of toast for breakfast' },
+    { id: '2', from: 'ai', text: 'I estimated this from typical portions. Does it look right?', card: EGGS2, state: 'replaced' },
+    { id: '3', from: 'me', text: 'it was 3 eggs actually' },
+    { id: '4', from: 'ai', text: 'Updated to 3 eggs. Add it now?', card: EGGS3, state: 'added' },
+    { id: '5', from: 'me', text: 'weighed 72.4 this morning, and did bench 3x8 at 60' },
+    { id: '6', from: 'ai', text: 'Two things to add. Right?', card: { kind: 'weight', value: '72.4 kg', note: 'This morning · last 72.9 kg on 19 Nov' }, state: 'ask' },
+    { id: '7', from: 'ai', text: '', card: { kind: 'workout', title: 'Bench Press (Barbell)', sets: '3 × 8 × 60 kg', note: 'New workout today · 1,440 kg volume' }, state: 'ask' }],
+  advice: [
+    { id: '1', from: 'me', text: 'how’s my protein been this month?' },
+    { id: '2', from: 'ai', text: 'I’m only for logging, so I don’t read your diary. For trends and advice, ask ChatGPT or Claude: they can read it through the MFD connector.' }],
+};
 
 export function MfdAi() {
-  const demo = (window as unknown as { __mfdAiDemo?: { key: boolean; msgs?: Msg[] } }).__mfdAiDemo;
+  const demo = (window as unknown as { __mfdAiDemo?: { key?: boolean; msgs?: string } }).__mfdAiDemo;
+  const name = useDB((d) => d.profile?.firstName || d.profile?.name || '');
   const [hasKey, setHasKey] = useState(demo?.key ?? true);
-  const [msgs, setMsgs] = useState<Msg[]>(demo?.msgs ?? DEMO);
+  const [msgs, setMsgs] = useState<Msg[]>(demo?.msgs === 'empty' ? [] : MFD_AI_DEMOS[demo?.msgs ?? 'ask'] ?? []);
   const [text, setText] = useState(''), [keySheet, setKeySheet] = useState(false);
-  const end = useRef<HTMLDivElement>(null);
+  const input = useRef<HTMLTextAreaElement>(null), end = useRef<HTMLDivElement>(null);
   useEffect(() => { end.current?.scrollIntoView({ block: 'end' }); }, [msgs.length]);
-  const add = (id: string) => setMsgs((l) => l.map((m) => (m.id === id && m.from === 'ai' ? { ...m, added: true } : m)));
+  const setState = (id: string, state: State) => setMsgs((l) => l.map((m) => (m.id === id && m.from === 'ai' ? { ...m, state } : m)));
 
   return <div className="chat-screen mfdai">
-    <header className="chat-head">
+    <header className="mfdai-head">
       <button className="icon-btn" aria-label="Back" onClick={() => history.length > 1 ? history.back() : navigate('/')}><ArrowLeft /></button>
-      <span className="mfdai-avatar" aria-hidden="true"><Sparkles /></span>
-      <span className="grow"><span className="name">MFD AI</span><span className="sub">Logs to your diary · you check first</span></span>
-      {hasKey && <button className="icon-btn" aria-label="Gemini key" onClick={() => setKeySheet(true)}><KeyRound /></button>}
+      <h1><Sparkles aria-hidden="true" />MFD AI</h1>
+      {hasKey ? <button className="icon-btn" aria-label="Gemini key" onClick={() => setKeySheet(true)}><KeyRound /></button> : <span className="mfdai-headpad" />}
     </header>
 
-    <div className="chat-body">
+    <div className="mfdai-body">
       {!hasKey ? <KeySetup onDone={() => setHasKey(true)} /> : msgs.length === 0 ? (
-        <div className="mfdai-empty">
-          <span className="mfdai-avatar lg" aria-hidden="true"><Sparkles /></span>
-          <h2>What did you eat, drink or do?</h2>
-          <p>Write it like a text to a friend. You check everything before it goes into your diary.</p>
+        <div className="mfdai-hello">
+          <span>Hi{name ? ` ${name}` : ''},</span>
+          <h2>what did you eat, drink or do?</h2>
+          <p>Write it like a message to a friend. I’ll show you what I understood before anything goes into your diary.</p>
         </div>
       ) : msgs.map((m) => m.from === 'me'
-        ? <div key={m.id} className="chat-msg mine"><p className="chat-bubble">{m.text}</p></div>
-        : <div key={m.id} className="mfdai-reply">
-            <p>{m.text}</p>
-            {m.items && <div className="card mfdai-card">
-              <div className="mfdai-where">{m.where}</div>
-              {m.items.map((it, i) => { const I = ICON[it.kind]; return (
-                <div key={i} className="mfdai-item"><span className={`mfdai-ic k-${it.kind}`}><I aria-hidden="true" /></span>
-                  <span className="grow"><b>{it.title}</b><span>{it.sub}</span></span></div>); })}
-              {m.added
-                ? <div className="mfdai-done"><Check aria-hidden="true" /><span className="grow">Added to your diary</span><button className="btn btn-ghost btn-sm">Undo</button></div>
-                : <div className="mfdai-actions"><button className="btn btn-secondary"><Pencil aria-hidden="true" />Edit</button><button className="btn btn-primary" onClick={() => add(m.id)}>Add to diary</button></div>}
-            </div>}
+        ? <div key={m.id} className="mfdai-me"><p>{m.text}</p></div>
+        : <div key={m.id} className={`mfdai-ai${m.state === 'replaced' ? ' old' : ''}`}>
+            {m.text && <p><Sparkles className="mfdai-mark" aria-hidden="true" />{m.text}</p>}
+            {m.card && <CardView card={m.card} state={m.state ?? 'ask'} onYes={() => setState(m.id, 'added')} onUndo={() => setState(m.id, 'ask')}
+              onChange={() => { setText(''); input.current?.focus(); }} />}
           </div>)}
       <div ref={end} />
     </div>
 
-    {hasKey && <form className="chat-input" onSubmit={(e) => e.preventDefault()}>
-      <input className="input" aria-label="Message MFD AI" placeholder="Message MFD AI"
-        value={text} maxLength={1000} onChange={(e) => setText(e.target.value)} />
-      <button className="round-icon accent" aria-label="Send" disabled={!text.trim()}><ArrowUp /></button>
+    {hasKey && <form className="mfdai-composer" onSubmit={(e) => e.preventDefault()}>
+      <textarea ref={input} rows={1} aria-label="Message MFD AI" placeholder="Message MFD AI" value={text} maxLength={1000} onChange={(e) => setText(e.target.value)} />
+      <button className="mfdai-send" aria-label="Send" disabled={!text.trim()}><ArrowUp /></button>
     </form>}
 
     <Sheet open={keySheet} onClose={() => setKeySheet(false)} title="Gemini key">
@@ -86,16 +89,44 @@ export function MfdAi() {
   </div>;
 }
 
+function CardView({ card, state, onYes, onUndo, onChange }: { card: Card; state: State; onYes: () => void; onUndo: () => void; onChange: () => void }) {
+  if (state === 'replaced') return <div className="mfdai-card replaced"><span>{card.kind === 'food' ? `${card.meal} · ≈ ${card.kcal} kcal` : 'Earlier version'}</span><span>Changed below</span></div>;
+  const actions = state === 'added'
+    ? <div className="mfdai-added"><Check aria-hidden="true" /><span className="grow">Added{card.kind === 'food' ? ` to ${card.meal}` : ''}</span><button className="mfdai-undo" onClick={onUndo}><Undo2 aria-hidden="true" />Undo</button></div>
+    : <div className="mfdai-actions"><button className="btn btn-soft" onClick={onChange}>Change</button><button className="btn btn-primary" onClick={onYes}>Yes, add it</button></div>;
+  if (card.kind === 'food') return (
+    <div className="mfdai-card">
+      <div className="mfdai-cardtop"><span className="mfdai-eyebrow">{card.meal} · today</span>{card.estimated && <span className="badge ai"><Sparkles aria-hidden="true" />Estimated</span>}</div>
+      <div className="mfdai-total tnum">{card.estimated && <span className="approx">≈</span>}{card.kcal}<small>kcal</small></div>
+      <div className="mfdai-macros"><span><i className="p" />P {card.p} g</span><span><i className="c" />C {card.c} g</span><span><i className="f" />F {card.f} g</span></div>
+      <div className="mfdai-lines">
+        {card.lines.map((l, i) => <div key={i} className="mfdai-line"><span className="grow"><b>{l.name}</b><span>{l.amount}{l.source === 'mine' ? ' · My foods' : l.source === 'catalogue' ? ' · from the catalogue' : ' · estimated'}</span></span>
+          {l.kcal !== undefined && <span className="tnum mfdai-kcal">{l.kcal}<small> kcal</small></span>}</div>)}
+      </div>
+      {actions}
+    </div>);
+  const Icon = card.kind === 'weight' ? Scale : Dumbbell;
+  return (
+    <div className="mfdai-card">
+      <div className="mfdai-simple"><span className={`mfdai-ic k-${card.kind}`}><Icon aria-hidden="true" /></span>
+        <span className="grow"><span className="mfdai-eyebrow">{card.kind === 'weight' ? 'Weight' : card.title}</span>
+          <b className="tnum">{card.kind === 'weight' ? card.value : card.sets}</b><span className="sub">{card.note}</span></span></div>
+      {actions}
+    </div>);
+}
+
 function KeySetup({ onDone }: { onDone: () => void }) {
   const [key, setKey] = useState('');
   return <div className="mfdai-setup">
-    <span className="mfdai-avatar lg" aria-hidden="true"><Sparkles /></span>
-    <h2>Set up MFD AI</h2>
-    <p className="mfdai-lead">MFD AI runs on Google Gemini with your own free key. It takes about two minutes, once on each device.</p>
-    <section className="card card-pad stack-sm">
+    <div className="mfdai-hello">
+      <span>Set up</span>
+      <h2>MFD AI uses your own free Gemini key.</h2>
+      <p>About two minutes, once on each device.</p>
+    </div>
+    <section className="mfdai-card">
       <ol className="ai-steps">
         <li><b>Open Google AI Studio</b><span className="muted small">aistudio.google.com/apikey · sign in with your Google account</span></li>
-        <li><b>Create API key</b><span className="muted small">Then copy it</span></li>
+        <li><b>Tap Create API key</b><span className="muted small">and copy it</span></li>
         <li><b>Paste it here</b><span className="muted small">Saved on this device only, never on MFD’s server</span></li>
       </ol>
       <input className="input mfdai-keyinput" aria-label="Gemini API key" placeholder="Paste your key" value={key} onChange={(e) => setKey(e.target.value)} autoComplete="off" spellCheck={false} />
