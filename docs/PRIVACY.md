@@ -54,8 +54,7 @@ account is deleted, everything in it is deleted, and it leaves the backups withi
 
 You can see and correct everything in the app; export it (Settings → Data → Export, or a full backup); delete entries;
 withdraw consent for optional features by switching them off; object to or restrict processing; and complain to a data
-protection authority (in Germany, your state's authority). To delete your account, ask the MFD owner; it is done
-within 30 days.
+protection authority (in Germany, your state's authority). To delete your account and everything in it: Settings → Account → Delete account (it can't be undone; backups are gone within 30 days).
 
 ## Security and breaches
 

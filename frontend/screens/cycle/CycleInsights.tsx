@@ -7,6 +7,7 @@ import { Empty, InfoButton, TopBar } from '../../components/ui';
 import type { ISODate } from '../../domain/types';
 import { median, rangeName } from '../../domain/cycleRange';
 import { cyclePatterns, MAX_DAY, type CyclePatterns } from '../../domain/cyclePatterns';
+import { cycleNow } from '../../domain/cycle';
 import { rangeStart, type RangeDays } from '../../domain/progressStats';
 import { getProgressRange, setProgressRange } from '../../lib/progressRange';
 import { RangePicker } from '../progress/RangePicker';
@@ -20,6 +21,8 @@ export function CycleInsights() {
   const setRange = (r: RangeDays) => { setProgressRange(r); setRangeState(r); };
   const today = localToday();
   const p = useMemo(() => cyclePatterns(days, workouts, weights, checkins, today, rangeStart(range)), [days, workouts, weights, checkins, today, range]);
+  const now = useMemo(() => cycleNow(days, today), [days, today]);
+  const periodLen = Math.max(1, p.periodDays.filter((x) => x.n).length);
   const hasPeriod = p.periodDays.some((x) => x.n), hasMood = p.weeks.some((w) => w.n), hasBody = compare && p.body.some((b) => (b.workouts ?? 0) > 0 || b.weight !== null || b.sleep !== null);
 
   return <>
@@ -28,14 +31,23 @@ export function CycleInsights() {
       <RangePicker value={range} onChange={setRange} />
       {p.cycles === 0 ? <Empty title={`No cycle in ${rangeName(range).toLowerCase()}`}>Patterns appear once a period is logged in this range.</Empty> : <>
         <p className="cy-ins-sub">Patterns across your cycle · {p.cycles} {p.cycles === 1 ? 'cycle' : 'cycles'} · {rangeName(range).toLowerCase()}</p>
-        {p.symptoms.length > 0 && <section className="cy-sec"><div className="cy-sech"><h3>Symptoms by cycle day <InfoButton title="Symptoms by cycle day" label="About this chart" lines={[
-          'Each row is a symptom, each column a day of your cycle (day 1 = first day of your period).',
-          'The darker the square, the more often you logged that symptom on that cycle day. Grey: no logs on that day yet.',
+        {p.symptoms.length > 0 && <section className="cy-sec"><div className="cy-sech"><h3>Your cycle ring <InfoButton title="Your cycle ring" label="How to read it" lines={[
+          'Your cycle drawn as a circle: day 1 (the first day of your period) at the top, going clockwise. The orange outer arc is your usual period; the dark dot is today.',
+          'Each coloured ring is one symptom (key below). The brighter the ring, the more often you logged that symptom on that day.',
+          'Read it like a clock: from today’s dot you can see which symptoms often come next.',
           'Only days you logged count. A pattern to show your doctor, not a diagnosis.']} /></h3></div>
-          <div className="card cy-chartcard"><SymptomMap p={p} /></div></section>}
-        {hasPeriod && <section className="cy-sec"><div className="cy-sech"><h3>Your period, day by day <InfoButton title="Your period, day by day" label="About this chart" lines={[
-          'Average flow (light to very heavy) and pain (0–10) on each day of your periods, from the days where you recorded them.']} /></h3></div>
-          <div className="card cy-chartcard"><PeriodDays p={p} /></div></section>}
+          <div className="card cy-chartcard"><CycleRing p={p} today={now.day} periodLen={periodLen} /></div></section>}
+        {p.symptoms.length > 0 && <section className="cy-sec"><div className="cy-sech"><h3>Symptom waves <InfoButton title="Symptom waves" label="How to read it" lines={[
+          'Each line is one symptom. The higher the line on a day, the more often you logged that symptom on that day of your cycle (share of your logged days, averaged over 5 days).',
+          'Peaks show when a symptom is most likely, for example acne building up before a period.',
+          'Gaps are days with no logs yet. Only days you logged count.']} /></h3></div>
+          <div className="card cy-chartcard"><SymptomWaves p={p} periodLen={periodLen} /></div></section>}
+        {hasPeriod && <section className="cy-sec"><div className="cy-sech"><h3>Flow and pain <InfoButton title="Flow and pain, day by day" label="How to read it" lines={[
+          'Bars: how heavy your flow usually is on each day of your period (light, medium, heavy, very heavy).',
+          'Line: your average pain that day, from 0 (none) to 10 (worst), with the number on each dot.',
+          'Together they show whether the heaviest days are also the most painful, which is useful to tell your doctor.',
+          'Only days where you recorded flow or pain count.']} /></h3></div>
+          <div className="card cy-chartcard"><FlowPain p={p} /></div></section>}
         {hasMood && <section className="cy-sec"><div className="cy-sech"><h3>Mood & energy <InfoButton title="Mood & energy by cycle week" label="About this chart" lines={[
           'Your average mood, energy and calm (1–5) in each week of your cycles. Week 4 includes any later days.', 'Only days where you logged them count.']} /></h3></div>
           <div className="card cy-chartcard"><MoodWeeks p={p} /></div></section>}
@@ -47,31 +59,72 @@ export function CycleInsights() {
   </>;
 }
 
-function SymptomMap({ p }: { p: CyclePatterns }) {
-  const L = 78, W = 334, cw = (W - L) / MAX_DAY, rh = 22, H = p.symptoms.length * rh + 22;
-  return <svg className="cy-chart" viewBox={`0 0 ${W} ${H}`} role="img" aria-label={p.symptoms.map((s) => `${s.name}: most often on cycle days ${s.byDay.map((v, i) => [v ?? 0, i + 1] as const).sort((a, b) => b[0] - a[0]).slice(0, 3).map((x) => x[1]).sort((a, b) => a - b).join(', ')}`).join('; ')}>
-    {p.symptoms.map((s, r) => <g key={s.name}>
-      <text x="0" y={r * rh + 15} fontSize="11.5" fontWeight="700" fill="var(--ink)">{s.name.length > 11 ? s.name.slice(0, 10) + '…' : s.name}</text>
-      {s.byDay.map((v, i) => <rect key={i} x={L + i * cw + 0.6} y={r * rh + 3} width={cw - 1.2} height={rh - 6} rx="2"
-        fill={v === null ? 'var(--surface-2)' : 'var(--brand)'} fillOpacity={v === null ? 1 : 0.1 + 0.9 * v} />)}
-    </g>)}
-    {[1, 7, 14, 21, 28, 35].map((d) => <text key={d} x={d === 35 ? W : L + (d - 0.5) * cw} y={H - 4} textAnchor={d === 35 ? 'end' : 'middle'} fontSize="10" fill="var(--muted)">{d}</text>)}
-  </svg>;
+// Orange is the period's colour, so symptoms use the app's other chart colours.
+const SYM_COLORS = ['var(--ai)', 'var(--fibre)', 'var(--fat)', 'var(--carbs)', 'var(--water)'];
+
+/** The cycle as a ring: day 1 at the top, clockwise; one ring per symptom (brighter = more often); period arc and today's dot. */
+function CycleRing({ p, today, periodLen }: { p: CyclePatterns; today: number | null; periodLen: number }) {
+  const W = 360, H = 350, cx = W / 2, cy = 175, step = (2 * Math.PI) / MAX_DAY, a = (d: number) => -Math.PI / 2 + (d - 1) * step;
+  const pt = (r: number, t: number) => `${(cx + r * Math.cos(t)).toFixed(1)} ${(cy + r * Math.sin(t)).toFixed(1)}`;
+  const arc = (r1: number, r2: number, a1: number, a2: number) => `M${pt(r2, a1)}A${r2} ${r2} 0 ${a2 - a1 > Math.PI ? 1 : 0} 1 ${pt(r2, a2)}L${pt(r1, a2)}A${r1} ${r1} 0 ${a2 - a1 > Math.PI ? 1 : 0} 0 ${pt(r1, a1)}Z`;
+  const rp = 62 + p.symptoms.length * 19 + 6, tt = today ? a(Math.min(today, MAX_DAY)) + step / 2 : 0;
+  return <>
+    <svg className="cy-chart" viewBox={`0 0 ${W} ${H}`} role="img" aria-label={`Cycle ring: ${p.symptoms.map((s) => s.name).join(', ')}${today ? `; today is cycle day ${today}` : ''}`}>
+      {p.symptoms.map((s, i) => s.byDay.map((v, d) => <path key={s.name + d} d={arc(62 + i * 19, 77 + i * 19, a(d + 1) + 0.02, a(d + 2) - 0.02)}
+        fill={v === null || v < 0.06 ? 'var(--line)' : SYM_COLORS[i]} opacity={v === null ? 0.35 : v < 0.06 ? 0.7 : (0.18 + 0.82 * v).toFixed(2)} />))}
+      <path d={arc(rp, rp + 9, a(1), a(periodLen + 1))} fill="var(--brand)" />
+      {today && <circle cx={cx + (rp + 4) * Math.cos(tt)} cy={cy + (rp + 4) * Math.sin(tt)} r="9" fill="var(--ink)" stroke="var(--surface)" strokeWidth="3" />}
+      {today && <><text x={cx} y={cy - 4} textAnchor="middle" fontSize="20" fontWeight="800" fill="var(--ink)">Day {today}</text>
+        <text x={cx} y={cy + 16} textAnchor="middle" fontSize="12" fill="var(--muted)">today</text></>}
+      {[1, 7, 14, 21, 28].map((d) => <text key={d} x={cx + 50 * Math.cos(a(d) + step / 2)} y={cy + 50 * Math.sin(a(d) + step / 2) + 4} textAnchor="middle" fontSize="10" fill="var(--faint)">{d}</text>)}
+    </svg>
+    <div className="cy-legend cy-legend-wrap"><span><i style={{ background: 'var(--brand)' }} />Period (outer arc)</span>
+      {p.symptoms.map((s, i) => <span key={s.name}><i style={{ background: SYM_COLORS[i] }} />{s.name}{i === 0 ? ' (inner ring)' : ''}</span>)}</div>
+  </>;
 }
 
-function PeriodDays({ p }: { p: CyclePatterns }) {
-  const W = 334, H = 150, L = 40, cw = (W - L) / 7, bw = Math.min(16, cw * 0.32), fy = (v: number) => 60 - (v / 4) * 48, py = (v: number) => 118 - (v / 10) * 48;
-  return <svg className="cy-chart" viewBox={`0 0 ${W} ${H}`} role="img" aria-label={p.periodDays.map((d, i) => `Day ${i + 1}: flow ${d.flow?.toFixed(1) ?? 'not logged'}, pain ${d.pain?.toFixed(1) ?? 'not logged'}`).join('; ')}>
-    <text x="0" y="40" fontSize="11" fontWeight="700" fill="var(--muted)">Flow</text>
-    <text x="0" y="98" fontSize="11" fontWeight="700" fill="var(--muted)">Pain</text>
-    {p.periodDays.map((d, i) => { const x = L + i * cw + cw / 2; return <g key={i}>
-      {d.flow !== null && <rect x={x - bw / 2} y={fy(d.flow)} width={bw} height={60 - fy(d.flow)} rx="4" fill="var(--brand)" />}
-      {d.pain !== null && <><rect x={x - bw / 2} y={py(d.pain)} width={bw} height={118 - py(d.pain)} rx="4" fill="var(--brand-2)" />
-        <text x={x} y={py(d.pain) - 4} textAnchor="middle" fontSize="10" fontWeight="800" fill="var(--ink)">{Math.round(d.pain)}</text></>}
-      <text x={x} y={H - 6} textAnchor="middle" fontSize="10.5" fontWeight="700" fill="var(--muted)">{i === 0 ? 'Day 1' : i + 1}</text>
-    </g>; })}
-    <line x1={L} x2={W} y1="60" y2="60" stroke="var(--line)" /><line x1={L} x2={W} y1="118" y2="118" stroke="var(--line)" />
-  </svg>;
+/** How often each symptom happens on each cycle day (3-day average of logged days), as smooth lines; gaps where nothing is logged. */
+export function SymptomWaves({ p, periodLen }: { p: CyclePatterns; periodLen: number }) {
+  const W = 340, H = 200, L = 34, T = 10, B = 26, x = (d: number) => L + (d - 1) * ((W - L - 6) / (MAX_DAY - 1)), y = (v: number) => H - B - v * (H - B - T);
+  // Average of the logged days within ±2 days (bridges a day or two without logs; longer gaps stay gaps).
+  const smooth = (v: (number | null)[]) => v.map((_, i) => { const w = v.slice(Math.max(0, i - 2), i + 3).filter((z): z is number => z !== null && z !== undefined); return w.length ? w.reduce((a, b) => a + b, 0) / w.length : null; });
+  // Smooth curve; control points kept between 0% and 100% so it never dips below the axis.
+  const cl = (v: number) => Math.min(y(0), Math.max(y(1), v)).toFixed(1);
+  const curve = (pts: [number, number][]) => pts.map((q, i) => { if (!i) return `M${q[0].toFixed(1)} ${q[1].toFixed(1)}`; const p0 = pts[i - 2] ?? pts[i - 1]!, p1 = pts[i - 1]!, p3 = pts[i + 1] ?? q;
+    return `C${(p1[0] + (q[0] - p0[0]) / 6).toFixed(1)} ${cl(p1[1] + (q[1] - p0[1]) / 6)} ${(q[0] - (p3[0] - p1[0]) / 6).toFixed(1)} ${cl(q[1] - (p3[1] - p1[1]) / 6)} ${q[0].toFixed(1)} ${q[1].toFixed(1)}`; }).join('');
+  // Runs of known days become separate curves (a day with no logs is a gap, never 0).
+  const runs = (v: (number | null)[]) => { const out: [number, number][][] = []; let cur: [number, number][] = []; v.forEach((z, i) => { if (z === null) { if (cur.length) out.push(cur); cur = []; } else cur.push([x(i + 1), y(z)]); }); if (cur.length) out.push(cur); return out; };
+  return <>
+    <svg className="cy-chart" viewBox={`0 0 ${W} ${H}`} role="img" aria-label={p.symptoms.map((s) => `${s.name}: most often around day ${s.byDay.reduce<number>((m, v, i, arr) => ((v ?? 0) > (arr[m] ?? 0) ? i : m), 0) + 1}`).join('; ')}>
+      <rect x={x(1)} y={T} width={x(periodLen + 0.5) - x(1)} height={H - B - T} rx="6" fill="var(--surface-2)" />
+      {[0, 0.5, 1].map((v) => <g key={v}><line x1={L} x2={W - 6} y1={y(v)} y2={y(v)} stroke="var(--line)" /><text x={L - 6} y={y(v) + 4} textAnchor="end" fontSize="10" fill="var(--faint)">{v * 100}%</text></g>)}
+      {p.symptoms.map((s, i) => runs(smooth(s.byDay)).map((r, k) => <path key={s.name + k} d={curve(r)} fill="none" stroke={SYM_COLORS[i]} strokeWidth="2.6" strokeLinecap="round" />))}
+      {[1, 7, 14, 21, 28, 35].map((d) => <text key={d} x={x(d)} y={H - 8} textAnchor="middle" fontSize="11" fill="var(--faint)">{d}</text>)}
+    </svg>
+    <div className="cy-legend cy-legend-wrap">{p.symptoms.map((s, i) => <span key={s.name}><i style={{ background: SYM_COLORS[i] }} />{s.name}</span>)}</div>
+  </>;
+}
+
+/** Period days 1…7: average flow as bars, average pain (0–10) as a line with the value on each dot. */
+export function FlowPain({ p }: { p: CyclePatterns }) {
+  const days = p.periodDays.map((d, i) => ({ ...d, day: i + 1 })).filter((d) => d.n), n = Math.max(1, days.length);
+  const W = 340, H = 210, L = 66, R = 26, T = 22, B = 28, slot = (W - L - R) / n, cxs = (i: number) => L + slot * i + slot / 2;
+  const yf = (v: number) => H - B - (v / 4) * (H - B - T), yp = (v: number) => H - B - (v / 10) * (H - B - T);
+  const pains = days.map((d, i) => (d.pain === null ? null : ([cxs(i), yp(d.pain)] as const)));
+  return <>
+    <svg className="cy-chart" viewBox={`0 0 ${W} ${H}`} role="img" aria-label={days.map((d) => `Day ${d.day}: flow ${d.flow?.toFixed(1) ?? 'not logged'}, pain ${d.pain?.toFixed(1) ?? 'not logged'}`).join('; ')}>
+      {['light', 'medium', 'heavy', 'very heavy'].map((lab, i) => <g key={lab}><line x1={L} x2={W - R} y1={yf(i + 1)} y2={yf(i + 1)} stroke="var(--line)" />
+        <text x={L - 8} y={yf(i + 1) + 4} textAnchor="end" fontSize="10.5" fill="var(--muted)">{lab}</text></g>)}
+      {[0, 5, 10].map((v) => <text key={v} x={W - R + 7} y={yp(v) + 4} fontSize="10" fill="var(--faint)">{v}</text>)}
+      <text x={W - R + 7} y={T - 8} fontSize="10" fill="var(--faint)">pain</text>
+      {days.map((d, i) => d.flow !== null && <rect key={'f' + i} x={cxs(i) - slot * 0.26} y={yf(d.flow)} width={slot * 0.52} height={yf(0) - yf(d.flow)} rx="9" fill="var(--brand-2)" />)}
+      <polyline points={pains.filter(Boolean).map((q) => q!.join(',')).join(' ')} fill="none" stroke="var(--ink)" strokeWidth="2.5" strokeLinejoin="round" />
+      {pains.map((q, i) => q && <g key={'p' + i}><circle cx={q[0]} cy={q[1]} r="12" fill="var(--ink)" />
+        <text x={q[0]} y={q[1] + 4.5} textAnchor="middle" fontSize="11.5" fontWeight="800" fill="var(--surface)">{Math.round(days[i]!.pain!)}</text></g>)}
+      {days.map((d, i) => <text key={'d' + i} x={cxs(i)} y={H - 7} textAnchor="middle" fontSize="11" fontWeight="700" fill="var(--muted)">{d.day === 1 ? 'Day 1' : d.day}</text>)}
+    </svg>
+    <div className="cy-legend cy-legend-wrap"><span><i style={{ background: 'var(--brand-2)' }} />Flow (bars)</span><span><i style={{ background: 'var(--ink)', borderRadius: '50%' }} />Pain 0–10 (line)</span></div>
+  </>;
 }
 
 const LINES = [['mood', 'Mood', 'var(--brand)'], ['energy', 'Energy', 'var(--ink)'], ['calm', 'Calm', 'var(--faint)']] as const;

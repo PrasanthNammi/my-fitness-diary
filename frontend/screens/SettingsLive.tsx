@@ -3,9 +3,10 @@ import { MFD3 } from '../lib/release';
 import { appVersion } from '../lib/appUpdate';
 import {ExercisePicker} from './training/ExercisePicker';
 import {useRef,useState,useSyncExternalStore,type ReactNode} from 'react';
-import {Timer,UserRound,Ruler,Goal,Library,Database,ShieldUser,Utensils,Dumbbell,Flag,Download,Upload,Archive,LogOut,RefreshCw,Bell,Palette,Bot,ChevronRight,HeartPulse,Droplet,ShieldCheck} from 'lucide-react';
+import {Timer,UserRound,Ruler,Goal,Library,Database,ShieldUser,Utensils,Dumbbell,Flag,Download,Upload,Archive,LogOut,RefreshCw,Bell,Palette,Bot,ChevronRight,HeartPulse,Droplet,ShieldCheck,Trash2} from 'lucide-react';
 import {CycleSettingsPage} from './cycle/CycleSettings';
 import {PrivacyPage} from './settings/PrivacyPage';
+import {DeleteAccountSheet} from './settings/DeleteAccount';
 import {cycleAllowed} from '../data/cycle';
 import {HealthDevices} from './settings/HealthDevices';
 import {healthSupported} from '../lib/health';
@@ -31,7 +32,7 @@ function Rows({items}:{items:Item[]}){return <div className="card settings-rows"
 function appearance(){try{const v=localStorage.getItem('mfd-appearance');return v==='light'?'Light':v==='dark'?'Dark':'System'}catch{return 'System'}}
 
 export function SettingsLive({section}:{section:string|null}){
- const [importing,setImporting]=useState(false),[leaving,setLeaving]=useState(false),[exporting,setExporting]=useState(false);
+ const [importing,setImporting]=useState(false),[leaving,setLeaving]=useState(false),[exporting,setExporting]=useState(false),[deleting,setDeleting]=useState(false);
  const syncState=useSyncExternalStore(fn=>engine()?.subscribe(fn)||(()=>{}),syncKey);const [sync,syncText]=syncState.split('|') as [string,string];
  const profile=useDB(d=>d.profile),settings=useDB(d=>d.settings),account=useDB(d=>d.account),t=useTargets()?.targets,cycleSettings=useDB(d=>d.cycle.settings);
  const file=useRef<HTMLInputElement>(null);
@@ -54,7 +55,8 @@ export function SettingsLive({section}:{section:string|null}){
    {icon:<Flag/>,label:'Reports',sub:'Nutrition data you reported',onClick:()=>openTool('reports')}]},
   account:{title:'Account',items:[
    {icon:<RefreshCw/>,label:'Sync now',sub:syncText,dot:sync==='attention',onClick:()=>{void syncNow()}},
-   {icon:<LogOut/>,label:'Log out',danger:true,onClick:()=>setLeaving(true)}]},
+   {icon:<LogOut/>,label:'Log out',danger:true,onClick:()=>setLeaving(true)},
+   {icon:<Trash2/>,label:'Delete account',sub:'Your account and everything in it',danger:true,onClick:()=>setDeleting(true)}]},
  };
  const page=section?pages[section]:undefined;
  const name=profile?.firstName||profile?.name||'You';
@@ -92,6 +94,7 @@ export function SettingsLive({section}:{section:string|null}){
   <input ref={file} type="file" accept=".json,application/json" hidden onChange={async e=>{let f=e.target.files?.[0];e.target.value='';if(!f)return;setImporting(false);try{await engine().restore(f);openTool('restore')}catch(error){toast(error instanceof Error?error.message:'Import failed')}}}/>
   <ExportSheet open={exporting} onClose={()=>setExporting(false)} onFullBackup={()=>{setExporting(false);openTool('backup')}}/>
   <Sheet open={importing} onClose={()=>setImporting(false)} title="Import"><Rows items={[{icon:<Dumbbell/>,label:'Hevy',sub:'Workouts from a Hevy CSV export',onClick:()=>{setImporting(false);openTool('import')}},{icon:<Archive/>,label:'Backup',sub:'An MFD backup file (.json)',onClick:()=>file.current?.click()}]}/></Sheet>
+  <DeleteAccountSheet open={deleting} onClose={()=>setDeleting(false)}/>
   <ConfirmSheet open={leaving} onClose={()=>setLeaving(false)} danger title="Log out of My Fitness Diary?" body={sync==='saved'?undefined:'Some changes are not saved to the cloud yet. They stay on this device.'} confirmLabel="Log out" onConfirm={()=>{setLeaving(false);auth.signOut()}}/>
  </>;
 }

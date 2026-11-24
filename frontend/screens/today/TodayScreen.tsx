@@ -1,3 +1,4 @@
+import { SwipeRow } from '../../components/SwipeRow';
 import { useMemo, useState, type ReactNode } from 'react';
 import { Bot, ChevronRight, Droplets, Minus, Play, Plus, Sparkles, TrendingDown, TrendingUp, X } from 'lucide-react';
 import { AiBadge, ConfirmSheet, Empty, InfoButton, TopBar, toast } from '../../components/ui';
@@ -98,14 +99,14 @@ export function TodayScreen() {
         <DateStrip date={date} />
 
         {ai.recent.length > 0 && (
-          <div className="ai-notice" role="status">
-            <button type="button" className="ai-notice-open" onClick={openAiHub} aria-label={`${aiSummary(ai.recent).text}. Review`}>
-              <span className="ai-notice-icon"><Sparkles aria-hidden="true" /></span>
+          <SwipeRow as="div" className="ai-notice-swipe" onOpen={openAiHub} onClear={() => hideAiActivity(ai.recent, ai.recentAll, aiHiddenNow)} label={`${aiSummary(ai.recent).text}. Review`}>
+            <div className="ai-notice" role="status">
+              <span className="ai-notice-open"><span className="ai-notice-icon"><Sparkles aria-hidden="true" /></span>
               <span className="grow"><span className="by ellipsis">{aiSummary(ai.recent).who}{new Set(ai.recent.map((a) => a.by)).size === 1 ? ` · ${aiAgo(Math.max(...ai.recent.map((a) => a.at)), now)}` : ''}</span><span className="what ellipsis">{aiSummary(ai.recent).what}</span></span>
-              <span className="ai-notice-review">Review</span>
-            </button>
-            <button type="button" className="icon-btn ai-notice-x" aria-label="Hide (keeps everything)" title="Hide (keeps everything)" onClick={() => hideAiActivity(ai.recent, ai.recentAll, aiHiddenNow)}><X aria-hidden="true" /></button>
-          </div>
+              <span className="ai-notice-review">Review</span></span>
+              <button type="button" className="icon-btn ai-notice-x" aria-label="Hide (keeps everything)" title="Hide (keeps everything)" onClick={() => hideAiActivity(ai.recent, ai.recentAll, aiHiddenNow)}><X aria-hidden="true" /></button>
+            </div>
+          </SwipeRow>
         )}
 
         {isToday && <WeekRecap />}

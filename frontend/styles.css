@@ -2257,7 +2257,7 @@ input.switch:focus-visible { outline: 3px solid var(--accent); outline-offset: 2
 .cy-report th { font-weight: 700; color: var(--muted); font-size: 12px; }
 #print-root { display: none; }
 @media print {
-  html, body { background: #fff !important; height: auto !important; overflow: visible !important; }
+  :root, html, body { background: #fff !important; height: auto !important; overflow: visible !important; color-scheme: light !important; }
   body > *:not(#print-root) { display: none !important; }
   #print-root { display: block !important; }
   #print-root .cy-report { border: 0; border-radius: 0; padding: 0; background: #fff; }
@@ -2304,3 +2304,20 @@ input.switch:focus-visible { outline: 3px solid var(--accent); outline-offset: 2
 .ai-hub-list li.swipe-row { display: block; padding: 0; border-bottom: 1px solid var(--line-2); border-radius: 0; }
 .ai-hub-list .swipe-front > svg:first-child { flex: none; width: 18px; height: 18px; color: var(--ai-text); }
 .ai-hub-list .swipe-front .grow { flex: 1; min-width: 0; }
+.cy-legend-wrap { flex-wrap: wrap; justify-content: flex-start; gap: 6px 14px; }
+.delete-account { display: flex; flex-direction: column; gap: 10px; }
+.delete-account p { margin: 0; }
+.delete-account ul { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 4px; }
+.delete-account .delete-confirm { font-size: 14px; margin-top: 6px; }
+.ai-notice-swipe { border-radius: var(--r-lg); max-height: 160px; }
+.ai-notice-swipe .swipe-front { background: transparent; display: block; }
+.ai-notice-swipe .swipe-under { border-radius: var(--r-lg); }
+.ai-notice-swipe .ai-notice-open { cursor: pointer; }
+@media (hover: none) { .ai-notice-swipe .ai-notice-x { display: none; } }
+.cy-report .cy-rchart { break-inside: avoid; margin-top: 4px; }
+.cy-report .cy-rchart .cy-chart { max-width: 460px; }
+@media print {
+  /* Paper is white: the charts always print with the light colours, also when the phone is in dark mode. */
+  #print-root { --ink: #1d1b1a; --muted: #6f6760; --faint: #9a918a; --line: #e4ded8; --surface: #ffffff; --surface-2: #f3efea; color-scheme: light; }
+  #print-root .cy-rchart .cy-chart { max-width: 420px; }
+}

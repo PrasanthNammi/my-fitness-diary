@@ -13,6 +13,8 @@ import { getProgressRange, setProgressRange } from '../../lib/progressRange';
 import { ask, inApp } from '../../lib/native';
 import { cycleAppSupported } from '../../lib/cycleHealth';
 import { RangePicker } from '../progress/RangePicker';
+import { cyclePatterns } from '../../domain/cyclePatterns';
+import { FlowPain, SymptomWaves } from './CycleInsights';
 
 const localToday = (): ISODate => { const d = new Date(); return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 10); };
 const long = (d?: ISODate) => (d ? new Date(d + 'T12:00:00').toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : '');
@@ -21,11 +23,14 @@ const LAB: Record<string, string> = { tsh: 'TSH', ft4: 'Free T4', ft3: 'Free T3'
 const COND: Record<string, string> = { pcos: 'PCOS', hypothyroidism: 'Hypothyroidism', hyperthyroidism: 'Hyperthyroidism', thyroid_other: 'Thyroid condition' };
 
 export function CycleReport() {
-  const c = useDB((d) => d.cycle), workouts = useDB((d) => d.workouts), profile = useDB((d) => d.profile);
+  const c = useDB((d) => d.cycle), workouts = useDB((d) => d.workouts), profile = useDB((d) => d.profile), weights = useDB((d) => d.weights), checkins = useDB((d) => d.checkins);
   const [range, setRangeState] = useState<RangeDays>(getProgressRange() === 30 ? 365 : getProgressRange());
   const setRange = (r: RangeDays) => { setProgressRange(r); setRangeState(r); };
   const today = localToday(), from = rangeStart(range);
   const st = useMemo(() => cycleRangeStats(c.days, workouts, today, from), [c.days, workouts, today, from]);
+  // When in the cycle symptoms, flow and pain happen (the same charts as Insights).
+  const pat = useMemo(() => cyclePatterns(c.days, workouts, weights, checkins, today, from), [c.days, workouts, weights, checkins, today, from]);
+  const periodLen = Math.max(1, pat.periodDays.filter((x) => x.n).length);
   const rows = useMemo(() => {
     const byDate = new Map(c.days.map((d) => [d.date, d] as const));
     return periods(c.days.filter((d) => d.date <= today)).filter((p) => !from || p.start >= from).map((p, i, all) => {
@@ -88,6 +93,14 @@ export function CycleReport() {
 
         {st.top.length > 0 && <><h2>Most frequent symptoms</h2>
           <p>{st.top.map(([s, p]) => `${s} ${p}%`).join(' · ')} <span className="cy-rnote">(share of {st.logDays} logged days)</span></p></>}
+
+        {pat.symptoms.length > 0 && <section className="cy-rchart"><h2>When symptoms happen</h2>
+          <p className="cy-rnote">Share of logged days with each symptom on each day of the cycle (day 1 = first day of the period), averaged over 5 days.</p>
+          <SymptomWaves p={pat} periodLen={periodLen} /></section>}
+
+        {pat.periodDays.some((x) => x.n) && <section className="cy-rchart"><h2>Flow and pain, day by day</h2>
+          <p className="cy-rnote">Average flow (bars) and pain 0–10 (line) on each day of the period.</p>
+          <FlowPain p={pat} /></section>}
       </article>
     </div>
   </>;
