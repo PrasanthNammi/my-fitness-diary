@@ -23,7 +23,8 @@ function base() {
 function edit(d, k) {
   const r = rnd(), L = (key) => (d[key] = Array.isArray(d[key]) ? d[key] : []);
   if (r < 0.06) d.cycleSettings = {enabled: true, reminderStyle: pick(['discreet', 'private', 'detailed']), lockDetails: rnd() < 0.3, aiAccess: false, compare: rnd() < 0.5,
-    healthSync: false, medReminders: true, periodSoon: rnd() < 0.5, favourites: ['Fatigue', 'Acne'], customSymptoms: rnd() < 0.3 ? ['Jaw pain'] : [], ...(rnd() < 0.5 ? {logReminder: '21:00'} : {})};
+    healthSync: false, medReminders: true, periodSoon: rnd() < 0.5, favourites: ['Fatigue', 'Acne'], customSymptoms: rnd() < 0.3 ? ['Jaw pain'] : [], ...(rnd() < 0.5 ? {logReminder: '21:00'} : {}),
+    ...pick([{}, {pause: pick(['hormonal', 'pregnant', 'breastfeeding']), pauseSince: pick(['2026-10-01', '2026-11-20'])}, {pauseSince: '2026-06-01', pauseUntil: pick(['2026-09-15', '2026-11-01'])}])};
   else if (r < 0.4) {
     const date = day(Math.floor(rnd() * 40)), days = L('cycleDays'), i = days.findIndex((x) => x.date === date);
     const v = rnd() < 0.15 ? {id: date, date, nothing: true} : {id: date, date, bleeding: pick(['none', 'spotting', 'period', 'withdrawal', 'unsure']),
@@ -115,6 +116,9 @@ function edit(d, k) {
     assert.equal(row.bleeding, x.bleeding ?? null); assert.equal(row.source, x.source ?? null, 'where the day came from'); assert.equal(row.nothing, !!x.nothing); assert.equal(row.mood, x.mood ?? null);
     assert.equal(row.pain, x.pain >= 0 && x.pain <= 10 ? x.pain : null, 'pain 0–10 only'); assert.equal(row.bbt, x.fertility?.bbt >= 34 && x.fertility?.bbt <= 43 ? x.fertility.bbt : null, 'temperature 34–43 °C only');
   }
+  { const set = phone.cycleSettings, row = await sql(`select pause, pause_since::text since, pause_until::text until from diary.cycle_settings where user_id = $1`, [alice]);
+    assert.equal(row.pause, set?.pause ?? null, '"Right now" pause'); assert.equal(row.since, set?.pauseSince ?? null, 'when it began');
+    assert.equal(row.until, set?.pause ? null : set?.pauseUntil ?? null, 'when it ended (none while paused)'); }
   const meds = phone.cycleMeds || [], doses = phone.cycleDoses || [];
   assert.equal((await sql(`select count(*)::int n from diary.medications where user_id = $1 and deleted_at is null`, [alice])).n, meds.length);
   assert.equal((await sql(`select count(*)::int n from diary.medication_doses d where d.user_id = $1 and d.deleted_at is null and d.medication_id is not null`, [alice])).n,

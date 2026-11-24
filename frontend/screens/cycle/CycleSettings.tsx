@@ -53,7 +53,9 @@ export function CycleSettingsPage() {
             {[{ value: undefined as CyclePause | undefined, label: 'None of these', sub: 'Period estimates on' }, ...PAUSES].map((o) => {
               const sel = (s?.pause ?? undefined) === o.value;
               return <button key={o.label} type="button" role="radio" aria-checked={sel} className="cy-row cy-linkrow cy-choice"
-                onClick={() => !sel && cycle.setSettings({ pause: o.value, pauseSince: o.value ? todayISO() : undefined })}>
+                onClick={() => !sel && cycle.setSettings(o.value
+                  ? { pause: o.value, pauseSince: s?.pause ? s.pauseSince : todayISO(), pauseUntil: undefined }   // switching between pauses keeps the start
+                  : { pause: undefined, pauseUntil: todayISO() })}>
                 <span className="grow"><b>{o.label}</b>{o.sub && <span>{o.sub}</span>}</span>
                 {sel && <Check className="cy-tick" aria-hidden="true" />}
               </button>;

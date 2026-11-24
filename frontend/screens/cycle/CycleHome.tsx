@@ -8,7 +8,7 @@ import { navigate } from '../../lib/router';
 import { InfoButton } from '../../components/ui';
 import { cycleNow, dayMark, daysBetween } from '../../domain/cycle';
 import type { CycleDay, ISODate } from '../../domain/types';
-import { estimateNext, type Estimate } from '../../domain/cyclePredict';
+import { estimateNext, lengthsOutsidePause, type Estimate } from '../../domain/cyclePredict';
 import { cycleRangeStats, rangeName } from '../../domain/cycleRange';
 import { rangeStart, type RangeDays } from '../../domain/progressStats';
 import { Bars, Ring } from './CycleInsights';
@@ -22,8 +22,11 @@ export function CycleHome({ range = 90 }: { range?: RangeDays }) {
   const days = useDB((d) => d.cycle.days), weekStart = useDB((d) => d.settings.weekStart ?? 1);
   const today = localToday();
   const now = useMemo(() => cycleNow(days, today), [days, today]);
-  const pause = useDB((d) => d.cycle.settings?.pause);
-  const real = useMemo(() => estimateNext(days, today), [days, today]);
+  const cs = useDB((d) => d.cycle.settings), pause = cs?.pause;
+  const real = useMemo(() => estimateNext(days, today, { since: cs?.pauseSince, until: cs?.pauseUntil }), [days, today, cs?.pauseSince, cs?.pauseUntil]);
+  // Own cycles only: those overlapping a past pause (pill bleeds, pregnancy, breastfeeding) are left out.
+  const own = useMemo(() => lengthsOutsidePause(days.filter((d) => d.date <= today), { since: cs?.pauseSince, until: cs?.pauseUntil }).filter((x) => x > 0 && x <= 150), [days, today, cs?.pauseSince, cs?.pauseUntil]);
+  const lo = own.length ? Math.min(...own) : 0, hi = own.length ? Math.max(...own) : 0;
   const est: Estimate = pause ? { state: 'insufficient', about: [] } : real;   // paused: no estimate anywhere
   useEffect(() => { syncCyclePeriods().catch(() => {}); }, []);   // period days from Health Connect, when switched on
   return (
@@ -32,7 +35,7 @@ export function CycleHome({ range = 90 }: { range?: RangeDays }) {
         {now.day ? <>
           <div className="cy-daylbl">Cycle day</div>
           <div className="cy-daynum tnum">{now.day}<small>since {short(now.lastStart!)}</small></div>
-          {now.shortest !== null && !pause && <div className="cy-range">Your cycles: {now.shortest === now.longest ? `${now.shortest}` : `${now.shortest}–${now.longest}`} days{now.longest! - now.shortest! > 9 ? ' · they vary a lot' : ''}</div>}
+          {own.length > 0 && !pause && <div className="cy-range">Your cycles: {lo === hi ? `${lo}` : `${lo}–${hi}`} days{hi - lo > 9 ? ' · they vary a lot' : ''}</div>}
           <Timeline day={now.day} periodDays={now.lastPeriod?.length ?? 0} est={est} lastStart={now.lastStart!} />
         </> : <>
           <div className="cy-daylbl">Cycle & Health</div>
@@ -74,7 +77,7 @@ function EstimateLine({ est }: { est: Estimate }) {
   return (
     <div className="cy-est">
       <span className="cy-dash" aria-hidden="true" />
-      <span className="grow">{est.state === 'range' ? <>Next period <b>{short(est.from)} – {short(est.to)}</b></> : <>Next period: <b>not enough data yet</b></>}</span>
+      <span className="grow">{est.state === 'range' ? <>Next period <b>{short(est.from)} – {short(est.to)}</b></> : est.restart ? <>Estimates restart <b>after your next period</b></> : <>Next period: <b>not enough data yet</b></>}</span>
       <InfoButton title="About this estimate" label="About this estimate" lines={est.about} />
     </div>
   );
