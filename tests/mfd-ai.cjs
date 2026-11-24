@@ -43,12 +43,12 @@ assert.equal(M.maskedKey('AIzaSyABCDEFGHIJKLMNOPQRSTUVWQx4'),'AIza••••�
 (async()=>{
 const store={};global.localStorage={getItem:k=>store[k]??null,setItem:(k,v)=>{store[k]=String(v)},removeItem:k=>{delete store[k]}};
 const calls=[];global.fetch=async(u,o)=>{calls.push({u,o});return {ok:true,status:200,json:async()=>({models:[{name:'models/gemini-2.5-flash',supportedGenerationMethods:['generateContent']},{name:'models/gemini-3-flash',supportedGenerationMethods:['generateContent']}]})}};
-await M.saveGeminiKey('  AQ.Ab8RN6Jv18XdfLCkU65yUBA6iZ0VSywH_test-key  ');
-assert.equal(calls.length,1);assert.equal(calls[0].o.headers['x-goog-api-key'],'AQ.Ab8RN6Jv18XdfLCkU65yUBA6iZ0VSywH_test-key');assert.ok(!calls[0].u.includes('AQ.'),'key not in the URL');
-assert.equal(M.geminiKey(),'AQ.Ab8RN6Jv18XdfLCkU65yUBA6iZ0VSywH_test-key');assert.equal(store['mfd-ai-gemini-model'],'gemini-2.5-flash');assert.equal(store['mfd-ai-gemini-models'],JSON.stringify(['gemini-2.5-flash','gemini-3-flash']));
+await M.saveGeminiKey('  AQ.FakeExampleKeyForTestsOnly0000000_test-key  ');
+assert.equal(calls.length,1);assert.equal(calls[0].o.headers['x-goog-api-key'],'AQ.FakeExampleKeyForTestsOnly0000000_test-key');assert.ok(!calls[0].u.includes('AQ.'),'key not in the URL');
+assert.equal(M.geminiKey(),'AQ.FakeExampleKeyForTestsOnly0000000_test-key');assert.equal(store['mfd-ai-gemini-model'],'gemini-2.5-flash');assert.equal(store['mfd-ai-gemini-models'],JSON.stringify(['gemini-2.5-flash','gemini-3-flash']));
 await assert.rejects(M.saveGeminiKey('my key is secret!'),e=>e.kind==='format');assert.equal(calls.length,1,'no call for junk');
 global.fetch=async()=>({ok:false,status:401,json:async()=>({error:{details:[{reason:'ACCESS_TOKEN_TYPE_UNSUPPORTED'}]}})});
-await assert.rejects(M.saveGeminiKey('AQ.Ab8RN6Jv18XdfLCkU65yUBA6iZ0VSywH'),e=>e.kind==='keytype'&&/limit it to the Gemini API/.test(M.geminiErrorText(e)));
+await assert.rejects(M.saveGeminiKey('AQ.FakeExampleKeyForTestsOnly0000000'),e=>e.kind==='keytype'&&/limit it to the Gemini API/.test(M.geminiErrorText(e)));
 // Busy (503): one retry on the same model, then the next Flash model; a 400 (schema refused) → asked again without it; fenced JSON read.
 const seen=[];global.fetch=async(u,o)=>{const b=JSON.parse(o.body);seen.push({m:u.split('/models/')[1].split(':')[0],schema:!!b.generationConfig.responseJsonSchema});assert.equal(b.generationConfig.thinkingConfig.thinkingBudget,0);assert.equal(b.generationConfig.responseSchema,undefined);
   if(seen.length<=2)return {ok:false,status:503,json:async()=>({error:{message:'This model is currently experiencing high demand.'}})};
