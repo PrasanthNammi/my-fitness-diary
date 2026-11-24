@@ -2321,3 +2321,55 @@ input.switch:focus-visible { outline: 3px solid var(--accent); outline-offset: 2
   #print-root { --ink: #1d1b1a; --muted: #6f6760; --faint: #9a918a; --line: #e4ded8; --surface: #ffffff; --surface-2: #f3efea; color-scheme: light; }
   #print-root .cy-rchart .cy-chart { max-width: 420px; }
 }
+
+/* Cycle: estimate paused ("Right now" in Cycle & Health settings) */
+.cy-paused .cy-pausebtn { flex: 1; min-width: 0; display: flex; align-items: center; gap: 8px; padding: 0; border: 0; background: none; font: inherit; color: var(--muted); text-align: left; cursor: pointer; }
+.cy-paused .cy-pausebtn svg { width: 20px; height: 20px; flex: none; color: var(--muted); }
+.cy-paused b { color: var(--ink); font-weight: 700; }
+.cy-settings .cy-choice { min-height: 52px; }
+.cy-settings .cy-tick { width: 20px; height: 20px; color: var(--accent); flex: none; }
+
+/* MFD AI (quick logging chat): replies without a bubble, cards to check before anything is added */
+.mfdai .chat-body { gap: 14px; }
+.mfdai-avatar { width: 36px; height: 36px; flex: none; border-radius: 50%; display: grid; place-items: center; background: var(--ai-soft); color: var(--ai-text); }
+.mfdai-avatar svg { width: 18px; height: 18px; }
+.mfdai-avatar.lg { width: 56px; height: 56px; }
+.mfdai-avatar.lg svg { width: 26px; height: 26px; }
+.mfdai-empty, .mfdai-setup { display: flex; flex-direction: column; align-items: center; text-align: center; gap: 10px; }
+.mfdai-empty { margin: auto; max-width: 300px; }
+.mfdai-empty h2, .mfdai-setup h2 { margin: 4px 0 0; font-size: 20px; font-weight: 800; text-wrap: balance; }
+.mfdai-empty p, .mfdai-lead { margin: 0; color: var(--ink-3); font-size: 14px; line-height: 1.45; }
+.mfdai-setup { padding-top: 12px; }
+.mfdai-setup > .card { align-self: stretch; text-align: left; margin-top: 6px; }
+.mfdai-setup .ai-steps b { font-size: 15px; }
+.mfdai-keyinput { font-family: ui-monospace, Menlo, monospace; font-size: 14px; margin-top: 4px; }
+.mfdai-note { align-self: stretch; text-align: left; margin: 0 4px; font-size: 13px; line-height: 1.5; color: var(--ink-3); }
+.mfdai-note b { color: var(--ink-2); }
+.mfdai-reply { display: flex; flex-direction: column; gap: 10px; max-width: 100%; }
+.mfdai-reply > p { margin: 0; font-size: 15px; line-height: 1.5; color: var(--ink); }
+.mfdai-card { padding: 4px 14px 12px; }
+.mfdai-where { font-size: 12px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; color: var(--ink-3); padding: 10px 0 4px; }
+.mfdai-item { display: flex; align-items: center; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--line-2); }
+.mfdai-item .grow { display: flex; flex-direction: column; }
+.mfdai-item b { font-size: 15px; font-weight: 600; }
+.mfdai-item .grow > span { font-size: 13px; color: var(--ink-3); }
+.mfdai-ic { width: 36px; height: 36px; flex: none; border-radius: 10px; display: grid; place-items: center; background: var(--field); color: var(--ink-2); }
+.mfdai-ic svg { width: 18px; height: 18px; }
+.mfdai-ic.k-food { background: var(--accent-soft); color: var(--accent); }
+.mfdai-ic.k-water { background: var(--water-soft); color: var(--water-text); }
+.mfdai-ic.k-workout { background: var(--superset-soft); color: var(--superset); }
+.mfdai-actions { display: grid; grid-template-columns: 1fr 1.6fr; gap: 8px; padding-top: 12px; }
+.mfdai-done { display: flex; align-items: center; gap: 8px; padding-top: 10px; color: var(--success-text); font-weight: 700; font-size: 14px; }
+.mfdai-done > svg { width: 18px; height: 18px; flex: none; }
+.mfdai-keyrow { display: flex; align-items: center; gap: 12px; padding: 12px 14px; border-radius: var(--r); background: var(--field); }
+.mfdai-keyrow > svg { width: 20px; height: 20px; color: var(--ink-3); flex: none; }
+.mfdai-keyrow .grow { display: flex; flex-direction: column; }
+.mfdai-keyrow .grow span { font-size: 13px; color: var(--ink-3); }
+.mfdai-keyrow b { font-family: ui-monospace, Menlo, monospace; font-size: 14px; }
+.mfdai-ok { display: inline-flex; align-items: center; gap: 4px; color: var(--success-text); font-weight: 700; font-size: 13px; }
+.mfdai-ok svg { width: 14px; height: 14px; }
+.ai-hub-ask { display: flex; align-items: center; gap: 10px; width: 100%; min-height: 48px; padding: 0 8px 0 14px; border: 1px solid var(--line); border-radius: 999px; background: var(--field); color: var(--ink-3); font: inherit; font-size: 15px; text-align: left; cursor: pointer; }
+.ai-hub-ask > svg { width: 18px; height: 18px; color: var(--ai-text); flex: none; }
+.ai-hub-ask .grow { flex: 1; }
+.ai-hub-ask .round-icon { width: 34px; height: 34px; background: var(--ai-soft); color: var(--ai-text); }
+.mfdai .chat-input .round-icon:disabled { background: var(--surface-2); color: var(--ink-3); cursor: default; }

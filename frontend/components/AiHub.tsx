@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Bot, ChevronRight, Droplet, Dumbbell, ExternalLink, Folder, FolderInput, Link2, ListChecks, Ruler, Scale, SlidersHorizontal, Sparkles, Undo2, Utensils, X } from 'lucide-react';
+import { ArrowUp, Bot, ChevronRight, Droplet, Dumbbell, ExternalLink, Folder, FolderInput, Link2, ListChecks, Ruler, Scale, SlidersHorizontal, Sparkles, Undo2, Utensils, X } from 'lucide-react';
 import { activeSuggestions, type AiSuggestion } from '../domain/aiSuggestions';
 import { openSuggestion, suggestionSource } from '../screens/training/SuggestionReview';
 import { useDB } from '../data/store';
@@ -46,6 +46,9 @@ export function AiHub({ open, onClose }: { open: boolean; onClose: () => void })
       {/* One sheet at a time: the hub steps aside while an Undo is confirmed, then comes back. */}
       <Sheet open={open && !confirm} onClose={onClose} title="AI assistants" label="AI assistants">
         <div className="ai-hub">
+          <button type="button" className="ai-hub-ask" onClick={() => { onClose(); navigate('/ai'); }}>
+            <Sparkles aria-hidden="true" /><span className="grow">Message MFD AI</span><span className="round-icon" aria-hidden="true"><ArrowUp /></span>
+          </button>
           <div className="ai-hub-apps">
             {['ChatGPT', 'Claude'].map((name) => {
               const t = last(name);
