@@ -18,6 +18,7 @@
 // Update 9: 12, 14, 15, workouts rebuilt in one pass, saves redo only the areas (and meals) they change, 25 MB saves.
 // Update 10: Cycle & Health (17-cycle, with 12 and 14 that read and save it, and database/mcp-cycle.sql for the AI
 // permission). Every diary must come back exactly as before (checked against a fingerprint taken first; undone otherwise).
+// Update 11: database/account-delete.sql (Delete account) and the 8 Nov safety copies dropped.
 // Usage: node scripts-diary-update.cjs [update number, default 10] [out-file]
 const fs = require('fs'), os = require('os'), path = require('path');
 const strip = (sql) => sql.split('\n').filter((l) => !/^\s*(begin|commit);\s*$/i.test(l)).join('\n');
@@ -129,6 +130,20 @@ select (select count(*) from diary._update10_before) as diaries, 'IDENTICAL' as 
        (select count(*) from pg_proc where proname = 'mfd_mcp' and pg_get_functiondef(oid) like '%mfd_mcp.cycle(args)%') as ai_router_has_cycle,
        (select count(*) from diary.fill_problems) as problems_left;
 drop table diary._update10_before;` },
+  11: { title: 'update 11 (2026-11-24): Delete account (Settings → Account), and the old safety copies from 8 Nov are removed',
+       parts: ['database/account-delete.sql'], fills: [],
+       after: `-- The old safety copies from the 8 Nov compaction (every diary is verified in the new tables; nightly encrypted
+-- backups exist). The 20 Nov move copies (diary.moved_payloads) stay until they are 30 days old.
+do $old$ declare t text; begin
+  for t in select n.nspname || '.' || c.relname from pg_class c join pg_namespace n on n.oid = c.relnamespace
+           where n.nspname = 'mfd_private' and c.relkind = 'r' and (c.relname like 'backup\\_20261108\\_%' or c.relname = 'workspaces_before_compaction') loop
+    execute 'drop table ' || t;
+  end loop;
+end $old$;
+select (select count(*) from pg_proc where proname = 'mfd_delete_account') as delete_account_installed,
+       (select is_nullable from information_schema.columns where table_schema = 'public' and table_name = 'mfd_catalogue' and column_name = 'creator_id') as shared_items_can_be_anonymous,
+       (select count(*) from pg_class c join pg_namespace n on n.oid = c.relnamespace where n.nspname = 'mfd_private' and (c.relname like 'backup\\_20261108\\_%' or c.relname = 'workspaces_before_compaction')) as old_copies_left,
+       (select count(*) from public.forma_workspaces) as diaries;` },
 };
 const n = Number(process.argv[2] || 10), u = updates[n];
 if (!u) throw new Error('Unknown update ' + n);

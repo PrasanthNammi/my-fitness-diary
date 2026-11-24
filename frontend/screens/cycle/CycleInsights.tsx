@@ -84,7 +84,7 @@ function CycleRing({ p, today, periodLen }: { p: CyclePatterns; today: number | 
 }
 
 /** How often each symptom happens on each cycle day (3-day average of logged days), as smooth lines; gaps where nothing is logged. */
-function SymptomWaves({ p, periodLen }: { p: CyclePatterns; periodLen: number }) {
+export function SymptomWaves({ p, periodLen }: { p: CyclePatterns; periodLen: number }) {
   const W = 340, H = 200, L = 34, T = 10, B = 26, x = (d: number) => L + (d - 1) * ((W - L - 6) / (MAX_DAY - 1)), y = (v: number) => H - B - v * (H - B - T);
   // Average of the logged days within ±2 days (bridges a day or two without logs; longer gaps stay gaps).
   const smooth = (v: (number | null)[]) => v.map((_, i) => { const w = v.slice(Math.max(0, i - 2), i + 3).filter((z): z is number => z !== null && z !== undefined); return w.length ? w.reduce((a, b) => a + b, 0) / w.length : null; });
@@ -106,7 +106,7 @@ function SymptomWaves({ p, periodLen }: { p: CyclePatterns; periodLen: number })
 }
 
 /** Period days 1…7: average flow as bars, average pain (0–10) as a line with the value on each dot. */
-function FlowPain({ p }: { p: CyclePatterns }) {
+export function FlowPain({ p }: { p: CyclePatterns }) {
   const days = p.periodDays.map((d, i) => ({ ...d, day: i + 1 })).filter((d) => d.n), n = Math.max(1, days.length);
   const W = 340, H = 210, L = 66, R = 26, T = 22, B = 28, slot = (W - L - R) / n, cxs = (i: number) => L + slot * i + slot / 2;
   const yf = (v: number) => H - B - (v / 4) * (H - B - T), yp = (v: number) => H - B - (v / 10) * (H - B - T);
