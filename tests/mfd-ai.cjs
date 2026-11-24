@@ -6,7 +6,7 @@ const out=path.join(os.tmpdir(),'mfd-ai-test.cjs');
 esbuild.buildSync({stdin:{contents:`export {parseAnswer,systemPrompt,RESPONSE_SCHEMA,cardSummary} from './frontend/domain/mfdAi';export {pickFlash,flashOrder,maskedKey,saveGeminiKey,geminiErrorText,geminiErrorDetail,geminiKey,geminiJson,alternate,jsonIn} from './frontend/lib/gemini';export {applyCard,resolveCard} from './frontend/lib/mfdAiApply';export {getDB} from './frontend/data/store';export {nutrientsFor} from './frontend/domain/nutrition';`,resolveDir:process.cwd(),loader:'ts'},bundle:true,platform:'node',format:'cjs',outfile:out,logLevel:'silent'});
 const ex=(id,name)=>({id,name,primaryMuscle:'Chest',secondaryMuscles:[],equipment:'Barbell',tracking:'weight_reps',source:'mfd',sourceRef:null,mediaUrl:null});
 let state={profile:{onboarded:true,name:'Test',sex:'male',height:180,activity:1.55,goal:'Maintain',days:3},sessions:[],meals:[],products:[],weights:[{id:'w1',date:'2026-11-19',kg:72.9}],checkins:[],water:{},active:null,folders:[],routines:[],
-  mfdExercises:[ex('bench','Bench Press (Barbell)'),ex('pulldown','Lat Pulldown (Cable)')]},v=0,subs=[];
+  mfdExercises:[{...ex('onearm','Cable One Arm Tricep Extension'),entry:{aliases:['Triceps Pushdown (Single Arm, Underhand)'],search_terms:['triceps pushdown','tricep pushdown']}},ex('bench','Bench Press (Barbell)'),ex('pulldown','Lat Pulldown (Cable)'),{...ex('push','Triceps Pushdown'),entry:{aliases:['tricep pushdown','cable pushdown'],search_terms:['triceps pushdown','tris pushdown']}},{...ex('rope','Triceps Rope Pushdown'),entry:{aliases:['rope pushdown'],search_terms:['triceps pushdown']}},ex('latdb','Lateral Raise (Dumbbell)'),ex('latcab','Lateral Raise (Cable)')]},v=0,subs=[];
 const bridge={peek:()=>({state,ready:true,version:v,dataVersion:v,user:{id:'synthetic',email:'test@example.invalid'}}),catalogue:()=>({foods:[],exercises:[]}),subscribe:f=>{subs.push(f);return()=>{}},set:next=>{state=next;v++;subs.forEach(f=>f())}};
 global.document={getElementById:()=>({contentWindow:{MFDBridge:bridge}})};global.window={addEventListener(){}};
 const M=require(out);
@@ -93,7 +93,11 @@ const wc=M.resolveCard({kind:'weight',day:T,kg:72.4});assert.equal(wc.lastKg,72.
 a=M.applyCard(wc);assert.equal(M.getDB().weights.find(w=>w.date===T).kg,72.4);a.undo();assert.equal(M.getDB().weights.some(w=>w.date===T),false);
 
 const wk=M.resolveCard({kind:'workout',day:T,title:'Push',minutes:40,exercises:[{name:'bench press barbell',sets:[{reps:8,kg:60},{reps:8,kg:60}]},{name:'Mystery Move',sets:[{reps:10}]}]});
-assert.equal(wk.exercises[0].exerciseId,'bench');assert.equal(wk.exercises[1].isNew,true);
+assert.equal(wk.exercises[0].exerciseId,'bench');
+assert.equal(M.resolveCard({kind:'workout',day:T,title:'x',exercises:[{name:'Triceps Pushdown (Cable)',sets:[{reps:12}]}]}).exercises[0].exerciseId,'push','name without the equipment in brackets (the exercise named so beats one that only lists it as a search word)');
+assert.equal(M.resolveCard({kind:'workout',day:T,title:'x',exercises:[{name:'Triceps Pushdown',sets:[{reps:12}]}]}).exercises[0].exerciseId,'push');
+assert.equal(M.resolveCard({kind:'workout',day:T,title:'x',exercises:[{name:'cable pushdown',sets:[{reps:12}]}]}).exercises[0].exerciseId,'push','other names from the catalogue');
+assert.equal(M.resolveCard({kind:'workout',day:T,title:'x',exercises:[{name:'Lateral Raise (Cable)',sets:[{reps:12}]}]}).exercises[0].exerciseId,'latcab','same equipment preferred');assert.equal(wk.exercises[1].isNew,true);
 a=M.applyCard(wk);let w=M.getDB().workouts.at(-1);
 assert.equal(w.exercises.length,1,'unknown exercise left out');assert.ok(w.exercises[0].sets.every(s=>s.done&&s.reps===8&&s.weightKg===60));assert.equal(Math.round((w.endedAt-w.startedAt)/60000),40);
 a.undo();assert.equal(M.getDB().workouts.length,0);

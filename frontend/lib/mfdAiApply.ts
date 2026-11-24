@@ -57,9 +57,33 @@ function estimateFood(l: FoodLine): { food: Food; amount: number; unit: PortionU
 export function matchExercise(e: Ex): Ex {
   let id = suggestedExerciseId({ exercise: e.name });
   if (!id) {
-    let score = 0;
-    for (const x of exRepo.all()) { const s = similar(x.name, e.name); if (s > score) { score = s; id = x.id; } }
-    if (score < 0.67) id = null;
+    // The catalogue's other names count too ("tricep pushdown", "cable pushdown"), and the name without its
+    // equipment in brackets ("Triceps Pushdown (Cable)" → "Triceps Pushdown"), preferring the same equipment.
+    const all = exRepo.all(), want = norm(e.name), base = norm(e.name.replace(/\([^)]*\)/g, '')), kit = norm((e.name.match(/\(([^)]*)\)/) ?? [])[1] ?? '');
+    // Best first: the name itself, then other names (aliases), then search words; within a tier, the same equipment.
+    // Compared without spaces too ("Skull Crusher" = "Skullcrusher").
+    const flat = (t: string) => norm(t).replace(/ /g, '');
+    const tiers = (x: (typeof all)[number]) => [[flat(x.name), flat(x.name.replace(/\([^)]*\)/g, ''))], (x.entry?.aliases ?? []).map(flat), (x.entry?.search_terms ?? []).map(flat)];
+    let pick: (typeof all)[number] | undefined;
+    for (const term of [want, base].map((t) => t.replace(/ /g, ''))) {
+      for (let t = 0; t < 3 && !pick; t++) {
+        const hits = all.filter((x) => tiers(x)[t].includes(term));
+        pick = hits.find((x) => kit && norm(x.name).includes(kit)) ?? hits.find((x) => norm(x.name) === term) ?? hits[0];
+      }
+      if (pick) break;
+    }
+    // Then: a name that contains every word asked for ("Seated Cable Row" → "Seated Cable Row - Bar Grip"), shortest first.
+    if (!pick) {
+      const ws = [...words(base || want)].map(plural);
+      pick = all.filter((x) => { const n = new Set([...words(x.name)].map(plural)); return ws.length > 1 && ws.every((w) => n.has(w)); })
+        .sort((a, b) => a.name.length - b.name.length)[0];
+    }
+    if (pick) id = pick.id;
+    else {
+      let score = 0;
+      for (const x of all) { const s = similar(x.name, e.name); if (s > score) { score = s; id = x.id; } }
+      if (score < 0.67) id = null;
+    }
   }
   const ex = id ? exRepo.byId(id) : undefined;
   return { ...e, exerciseId: ex?.id ?? null, name: ex?.name ?? e.name, isNew: !ex };
