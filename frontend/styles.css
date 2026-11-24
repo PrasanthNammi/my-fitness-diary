@@ -2495,3 +2495,28 @@ input.switch:focus-visible { outline: 3px solid var(--accent); outline-offset: 2
 .mfdai-setup form .mfdai-carderr { margin: 0; }
 .mfdai-errdetail { margin: -4px 0 0 24px; font-size: 12px; color: var(--ink-3); word-break: break-word; }
 .mfdai-slow { margin-left: 24px; font-size: 13px; color: var(--ink-3); line-height: 1.4; }
+/* MFD AI: Overview card and chat history */
+.mfdai-entry { width: 100%; display: flex; flex-direction: column; gap: 14px; padding: 16px; border: 1px solid var(--line); border-radius: var(--r-lg); background: var(--surface); color: var(--ink); font: inherit; text-align: left; cursor: pointer; box-shadow: var(--shadow); }
+.mfdai-entry-top { display: flex; align-items: center; gap: 12px; }
+.mfdai-entry-top .grow { display: flex; flex-direction: column; min-width: 0; }
+.mfdai-entry-top b { font-size: 16px; font-weight: 800; }
+.mfdai-entry-top .grow > span { font-size: 14px; color: var(--ink-3); }
+.mfdai-entry-field { display: flex; align-items: center; gap: 8px; min-height: 48px; padding: 4px 4px 4px 16px; border-radius: 999px; background: var(--field); color: var(--ink-3); font-size: 15px; }
+.mfdai-entry-send { width: 40px; height: 40px; border-radius: 50%; display: grid; place-items: center; background: var(--accent); color: var(--on-accent); flex: none; }
+.mfdai-entry-send svg { width: 18px; height: 18px; }
+.mfdai-entry:active { transform: scale(.99); }
+.mfdai-history section { display: flex; flex-direction: column; gap: 6px; }
+.mfdai-history .mfdai-eyebrow { margin: 4px 4px 0; }
+.mfdai-chats { list-style: none; margin: 0; padding: 0; border: 1px solid var(--line); border-radius: var(--r); overflow: hidden; background: var(--surface); }
+.mfdai-chats .swipe-row + .swipe-row { border-top: 1px solid var(--line-2); }
+.mfdai-chatrow { display: flex; align-items: center; gap: 12px; padding: 10px 12px; min-height: 56px; }
+.mfdai-chatrow .grow { display: flex; flex-direction: column; min-width: 0; }
+.mfdai-chatrow b { font-size: 15px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mfdai-chatrow .grow > span { font-size: 13px; color: var(--ink-3); }
+.mfdai-chatrow .chev { width: 18px; height: 18px; color: var(--ink-3); flex: none; }
+.mfdai-chatic { width: 34px; height: 34px; border-radius: 10px; display: grid; place-items: center; background: var(--ai-soft); color: var(--ai-text); flex: none; }
+.mfdai-chatic svg { width: 17px; height: 17px; }
+.mfdai-chats .current .mfdai-chatrow b::after { content: ' · open'; font-weight: 500; color: var(--ink-3); }
+.mfdai-history .btn svg { width: 18px; height: 18px; }
+.mfdai-avatar { width: 40px; height: 40px; flex: none; border-radius: 50%; display: grid; place-items: center; background: var(--ai-soft); color: var(--ai-text); }
+.mfdai-avatar svg { width: 20px; height: 20px; }
