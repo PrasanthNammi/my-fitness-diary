@@ -2,16 +2,18 @@
 // (Log today, Insights, Records) and the month calendar. Recorded, estimated and unknown always look different.
 import { useEffect, useMemo, useState } from 'react';
 import { syncCyclePeriods } from '../../lib/cycleHealth';
-import { BarChart3, CalendarCheck, ChevronLeft, ChevronRight, Droplet, FileHeart, MoveHorizontal, Plus, RefreshCw, Sparkles } from 'lucide-react';
+import { BarChart3, CalendarCheck, ChevronLeft, ChevronRight, Droplet, FileHeart, MoveHorizontal, PauseCircle, Plus, RefreshCw, Sparkles } from 'lucide-react';
 import { useDB } from '../../data/store';
 import { navigate } from '../../lib/router';
 import { InfoButton } from '../../components/ui';
 import { cycleNow, dayMark, daysBetween } from '../../domain/cycle';
 import type { CycleDay, ISODate } from '../../domain/types';
-import { estimateNext, type Estimate } from '../../domain/cyclePredict';
+import { estimateNext, lengthsOutsidePause, type Estimate } from '../../domain/cyclePredict';
 import { cycleRangeStats, rangeName } from '../../domain/cycleRange';
 import { rangeStart, type RangeDays } from '../../domain/progressStats';
 import { Bars, Ring } from './CycleInsights';
+import { PAUSE_ABOUT, pauseLabel } from '../../domain/cyclePause';
+import type { CyclePause } from '../../domain/types';
 
 const localToday = (): ISODate => { const d = new Date(); return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 10); };
 const short = (d: ISODate) => new Date(d + 'T12:00:00').toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
@@ -20,7 +22,12 @@ export function CycleHome({ range = 90 }: { range?: RangeDays }) {
   const days = useDB((d) => d.cycle.days), weekStart = useDB((d) => d.settings.weekStart ?? 1);
   const today = localToday();
   const now = useMemo(() => cycleNow(days, today), [days, today]);
-  const est = useMemo(() => estimateNext(days, today), [days, today]);
+  const cs = useDB((d) => d.cycle.settings), pause = cs?.pause;
+  const real = useMemo(() => estimateNext(days, today, { since: cs?.pauseSince, until: cs?.pauseUntil }), [days, today, cs?.pauseSince, cs?.pauseUntil]);
+  // Own cycles only: those overlapping a past pause (pill bleeds, pregnancy, breastfeeding) are left out.
+  const own = useMemo(() => lengthsOutsidePause(days.filter((d) => d.date <= today), { since: cs?.pauseSince, until: cs?.pauseUntil }).filter((x) => x > 0 && x <= 150), [days, today, cs?.pauseSince, cs?.pauseUntil]);
+  const lo = own.length ? Math.min(...own) : 0, hi = own.length ? Math.max(...own) : 0;
+  const est: Estimate = pause ? { state: 'insufficient', about: [] } : real;   // paused: no estimate anywhere
   useEffect(() => { syncCyclePeriods().catch(() => {}); }, []);   // period days from Health Connect, when switched on
   return (
     <div className="cycle-home">
@@ -28,21 +35,21 @@ export function CycleHome({ range = 90 }: { range?: RangeDays }) {
         {now.day ? <>
           <div className="cy-daylbl">Cycle day</div>
           <div className="cy-daynum tnum">{now.day}<small>since {short(now.lastStart!)}</small></div>
-          {now.shortest !== null && <div className="cy-range">Your cycles: {now.shortest === now.longest ? `${now.shortest}` : `${now.shortest}–${now.longest}`} days{now.longest! - now.shortest! > 9 ? ' · they vary a lot' : ''}</div>}
+          {own.length > 0 && !pause && <div className="cy-range">Your cycles: {lo === hi ? `${lo}` : `${lo}–${hi}`} days{hi - lo > 9 ? ' · they vary a lot' : ''}</div>}
           <Timeline day={now.day} periodDays={now.lastPeriod?.length ?? 0} est={est} lastStart={now.lastStart!} />
         </> : <>
           <div className="cy-daylbl">Cycle & Health</div>
           <div className="cy-empty-title">Log your period to start</div>
           <div className="cy-range">Your cycle day and estimates appear once your first period is logged.</div>
         </>}
-        <EstimateLine est={est} />
+        {pause ? <PausedLine pause={pause} /> : <EstimateLine est={est} />}
       </section>
       <div className="cy-acts">
         <button className="cy-act main" onClick={() => navigate(`/progress/cycle/log/${today}`)}><span className="ai"><Plus /></span>Log today</button>
         <button className="cy-act" onClick={() => navigate('/progress/cycle/insights')}><span className="ai"><BarChart3 /></span>Insights</button>
         <button className="cy-act" onClick={() => navigate('/progress/cycle/records')}><span className="ai"><FileHeart /></span>Records</button>
       </div>
-      <Calendar days={days} today={today} est={est} weekStart={weekStart} />
+      <Calendar days={days} today={today} est={est} weekStart={weekStart} paused={!!pause} />
       <InRange range={range} today={today} />
     </div>
   );
@@ -70,13 +77,24 @@ function EstimateLine({ est }: { est: Estimate }) {
   return (
     <div className="cy-est">
       <span className="cy-dash" aria-hidden="true" />
-      <span className="grow">{est.state === 'range' ? <>Next period <b>{short(est.from)} – {short(est.to)}</b></> : <>Next period: <b>not enough data yet</b></>}</span>
+      <span className="grow">{est.state === 'range' ? <>Next period <b>{short(est.from)} – {short(est.to)}</b></> : est.restart ? <>Estimates restart <b>after your next period</b></> : <>Next period: <b>not enough data yet</b></>}</span>
       <InfoButton title="About this estimate" label="About this estimate" lines={est.about} />
     </div>
   );
 }
 
-function Calendar({ days, today, est, weekStart }: { days: CycleDay[]; today: ISODate; est: Estimate; weekStart: 0 | 1 | 6 }) {
+function PausedLine({ pause }: { pause: CyclePause }) {
+  return (
+    <div className="cy-est cy-paused">
+      <button type="button" className="cy-pausebtn" onClick={() => navigate('/settings/cycle')}>
+        <PauseCircle aria-hidden="true" /><span className="grow">Estimates paused · <b>{pauseLabel(pause)}</b></span>
+      </button>
+      <InfoButton title="Why estimates are paused" label="Why estimates are paused" lines={[...PAUSE_ABOUT, 'Change it in Cycle & Health settings → Right now.']} />
+    </div>
+  );
+}
+
+function Calendar({ days, today, est, weekStart, paused }: { days: CycleDay[]; today: ISODate; est: Estimate; weekStart: 0 | 1 | 6; paused: boolean }) {
   const [month, setMonth] = useState(today.slice(0, 7));
   const byDate = useMemo(() => new Map(days.map((d) => [d.date, d])), [days]);
   const y = +month.slice(0, 4), m = +month.slice(5, 7);
@@ -109,7 +127,7 @@ function Calendar({ days, today, est, weekStart }: { days: CycleDay[]; today: IS
         {Array.from({ length: trail }, (_, i) => <span key={'a' + i} className="cy-d out" aria-hidden="true"><span className="c">{i + 1}</span></span>)}
       </div>
       <div className="cy-key">
-        <span><i className="k-per" />Period</span><span><i className="k-spot" />Spotting</span><span><i className="k-est" />Estimated</span>
+        <span><i className="k-per" />Period</span><span><i className="k-spot" />Spotting</span>{!paused && <span><i className="k-est" />Estimated</span>}
         <span><i className="k-sym" />Symptoms</span><span><i className="k-ok" />Nothing to note</span>
         <InfoButton title="The calendar" label="About the calendar" lines={[
           'Period (solid orange): a day you logged as your period.',

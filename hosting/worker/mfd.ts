@@ -6,7 +6,7 @@ const ORIGIN='https://prasanth-nammi-portfolio.shanustylish777.chatgpt.site';
 const PUSH='https://mfd-connect.shanustylish777.workers.dev';
 const PUSH_PATHS=/^\/push\/(key|devices|devices\/remove|prefs|rests|rests\/adjust)$/;
 const MAX_BODY=6*1024*1024;
-export const CSP="default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; script-src-attr 'none'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' https: data: blob:; media-src 'self' blob:; connect-src 'self' https://world.openfoodfacts.org; frame-src 'self'; frame-ancestors 'self'; worker-src 'self'; object-src 'none'; base-uri 'none'; form-action 'self'; upgrade-insecure-requests";
+export const CSP="default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; script-src-attr 'none'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' https: data: blob:; media-src 'self' blob:; connect-src 'self' https://world.openfoodfacts.org https://generativelanguage.googleapis.com; frame-src 'self'; frame-ancestors 'self'; worker-src 'self'; object-src 'none'; base-uri 'none'; form-action 'self'; upgrade-insecure-requests";
 type Deps={fetch:typeof fetch;assets:{fetch:(request:Request)=>Promise<Response>};origin?:string};
 class HttpError extends Error{constructor(public status:number,message:string){super(message)}}
 function cookie(name:string,value:string,age=2592000){return `${name}=${encodeURIComponent(value)}; Path=/; Max-Age=${age}; HttpOnly; Secure; SameSite=Lax`}

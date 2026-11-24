@@ -30,6 +30,9 @@ create table if not exists diary.cycle_settings (
   period_soon     boolean not null default false,
   favourites      text[] not null default '{}' check (cardinality(favourites) <= 50),
   custom_symptoms text[] not null default '{}' check (cardinality(custom_symptoms) <= 50),
+  pause           text check (pause in ('hormonal', 'pregnant', 'breastfeeding')),   -- "Right now": estimates paused
+  pause_since     date,                                                               -- when the current or last pause began
+  pause_until     date,                                                               -- when the last pause ended (none while paused)
   created_at      timestamptz not null default now(),
   updated_at      timestamptz not null default now(),
   version         bigint not null default 0,
@@ -68,6 +71,9 @@ create table if not exists diary.cycle_days (
   primary key (user_id, local_date)
 );
 alter table diary.cycle_days add column if not exists source text check (source in ('health_connect'));
+alter table diary.cycle_settings add column if not exists pause text check (pause in ('hormonal', 'pregnant', 'breastfeeding'));
+alter table diary.cycle_settings add column if not exists pause_since date;
+alter table diary.cycle_settings add column if not exists pause_until date;
 
 create table if not exists diary.medications (
   id          uuid primary key default gen_random_uuid(),
@@ -186,19 +192,22 @@ begin
   -- Settings.
   s := doc->'cycleSettings';
   if jsonb_typeof(s) = 'object' then
-    insert into diary.cycle_settings as t (user_id, enabled, reminder_style, lock_details, ai_access, compare, health_sync, log_reminder, med_reminders, period_soon, favourites, custom_symptoms)
+    insert into diary.cycle_settings as t (user_id, enabled, reminder_style, lock_details, ai_access, compare, health_sync, log_reminder, med_reminders, period_soon, favourites, custom_symptoms, pause, pause_since, pause_until)
     values (u, coalesce(diary.bool(s->'enabled'), false), coalesce(diary.pick(s->'reminderStyle', array['discreet', 'private', 'detailed']), 'discreet'),
       coalesce(diary.bool(s->'lockDetails'), false), coalesce(diary.bool(s->'aiAccess'), false), coalesce(diary.bool(s->'compare'), false),
       coalesce(diary.bool(s->'healthSync'), false), case when s->>'logReminder' ~ '^([01]\d|2[0-3]):[0-5]\d$' then (s->>'logReminder')::time end,
       coalesce(diary.bool(s->'medReminders'), false), coalesce(diary.bool(s->'periodSoon'), false),
-      coalesce(diary.txts(s->'favourites', 60, 50), '{}'), coalesce(diary.txts(s->'customSymptoms', 60, 50), '{}'))
+      coalesce(diary.txts(s->'favourites', 60, 50), '{}'), coalesce(diary.txts(s->'customSymptoms', 60, 50), '{}'),
+      diary.pick(s->'pause', array['hormonal', 'pregnant', 'breastfeeding']),
+      case when s->>'pauseSince' ~ '^\d{4}-\d{2}-\d{2}$' and (diary.pick(s->'pause', array['hormonal', 'pregnant', 'breastfeeding']) is not null or s->>'pauseUntil' ~ '^\d{4}-\d{2}-\d{2}$') then (s->>'pauseSince')::date end,
+      case when diary.pick(s->'pause', array['hormonal', 'pregnant', 'breastfeeding']) is null and s->>'pauseSince' ~ '^\d{4}-\d{2}-\d{2}$' and s->>'pauseUntil' ~ '^\d{4}-\d{2}-\d{2}$' then (s->>'pauseUntil')::date end)
     on conflict (user_id) do update set enabled = excluded.enabled, reminder_style = excluded.reminder_style, lock_details = excluded.lock_details,
       ai_access = excluded.ai_access, compare = excluded.compare, health_sync = excluded.health_sync, log_reminder = excluded.log_reminder,
       med_reminders = excluded.med_reminders, period_soon = excluded.period_soon, favourites = excluded.favourites, custom_symptoms = excluded.custom_symptoms,
-      deleted_at = null
-    where (t.enabled, t.reminder_style, t.lock_details, t.ai_access, t.compare, t.health_sync, t.log_reminder, t.med_reminders, t.period_soon, t.favourites, t.custom_symptoms, t.deleted_at)
+      pause = excluded.pause, pause_since = excluded.pause_since, pause_until = excluded.pause_until, deleted_at = null
+    where (t.enabled, t.reminder_style, t.lock_details, t.ai_access, t.compare, t.health_sync, t.log_reminder, t.med_reminders, t.period_soon, t.favourites, t.custom_symptoms, t.pause, t.pause_since, t.pause_until, t.deleted_at)
       is distinct from (excluded.enabled, excluded.reminder_style, excluded.lock_details, excluded.ai_access, excluded.compare, excluded.health_sync, excluded.log_reminder,
-        excluded.med_reminders, excluded.period_soon, excluded.favourites, excluded.custom_symptoms, null::timestamptz);
+        excluded.med_reminders, excluded.period_soon, excluded.favourites, excluded.custom_symptoms, excluded.pause, excluded.pause_since, excluded.pause_until, null::timestamptz);
   else
     update diary.cycle_settings set deleted_at = now_ts where user_id = u and deleted_at is null;
   end if;
@@ -335,6 +344,7 @@ begin
       'compare', s.compare, 'healthSync', s.health_sync, 'medReminders', s.med_reminders, 'periodSoon', s.period_soon,
       'favourites', to_jsonb(s.favourites), 'customSymptoms', to_jsonb(s.custom_symptoms))
       || case when s.log_reminder is not null then jsonb_build_object('logReminder', to_char(s.log_reminder, 'HH24:MI')) else '{}' end
+      || jsonb_strip_nulls(jsonb_build_object('pause', s.pause, 'pauseSince', s.pause_since::text, 'pauseUntil', s.pause_until::text))
     from diary.cycle_settings s where s.user_id = u and s.deleted_at is null); end if;
   if k = 'cycleDays' then return coalesce((
     select jsonb_agg(jsonb_strip_nulls(jsonb_build_object('id', d.local_date::text, 'date', d.local_date::text, 'nothing', case when d.nothing then true end,

@@ -16,7 +16,7 @@ function check() {
   const c = getDB().cycle, day = localToday();
   if (c === lastCycle && day === lastDay) return;
   lastCycle = c; lastDay = day;
-  const plan = JSON.stringify(reminderPlan(c, c.settings?.enabled && c.settings.periodSoon ? estimateNext(c.days, day) : { state: 'insufficient', about: [] }, day));
+  const plan = JSON.stringify(reminderPlan(c, c.settings?.enabled && c.settings.periodSoon && !c.settings.pause ? estimateNext(c.days, day, { since: c.settings.pauseSince, until: c.settings.pauseUntil }) : { state: 'insufficient', about: [] }, day));
   if (plan === lastSent) return;
   lastSent = plan;
   tell('cycleReminders', { plan });

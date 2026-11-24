@@ -34,6 +34,10 @@ when you switch them on (Art. 6(1)(a), and Art. 9(2)(a) for health data).
   feed, and your likes, comments and messages to them. Never your food, body, recovery or Cycle & Health.
 - **AI assistants** (ChatGPT by OpenAI, Claude by Anthropic) only if you connect them, and only the kinds of data you
   tick; their providers then handle it under their own terms. You can disconnect them any time.
+- **MFD AI** (quick logging in plain words) only if you add your own Google Gemini API key. What you type, with the
+  date, time and your units, goes from your device straight to Google under your own agreement with Google (Gemini
+  API terms). The key and the chat stay on your device; MFD's server never sees them. Your diary and Cycle & Health
+  are never sent. Nothing is saved to your diary until you tap Add. Remove the key in the chat (key button).
 - **Services that run MFD** (processors), each only for its job:
   - Supabase: database, sign-in and photo storage, in the EU (Frankfurt).
   - OpenAI (ChatGPT Sites): hosts the website's files; your diary is not stored there.

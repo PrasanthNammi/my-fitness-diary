@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Bot, ChevronRight, Droplet, Dumbbell, ExternalLink, Folder, FolderInput, Link2, ListChecks, Ruler, Scale, SlidersHorizontal, Sparkles, Undo2, Utensils, X } from 'lucide-react';
+import { ArrowUp, Bot, ChevronRight, Droplet, Dumbbell, ExternalLink, Folder, FolderInput, Link2, ListChecks, Ruler, Scale, SlidersHorizontal, Sparkles, Undo2, Utensils, X } from 'lucide-react';
 import { activeSuggestions, type AiSuggestion } from '../domain/aiSuggestions';
 import { openSuggestion, suggestionSource } from '../screens/training/SuggestionReview';
 import { useDB } from '../data/store';
@@ -11,6 +11,8 @@ import { navigate } from '../lib/router';
 import { ConfirmSheet, Sheet, toast } from './ui';
 
 // The connector's own page: which assistants can use the diary, and removing their access.
+/** MFD AI (Gemini, the person's own key). Free tier: ~20 fast answers a day on 2.5 Flash, then slower models (owner's choice, 2026-11-24). */
+export const MFD_AI = true;
 const CONNECTIONS = 'https://mfd-connect.shanustylish777.workers.dev/oauth/mcp/connections';
 
 /**
@@ -46,6 +48,9 @@ export function AiHub({ open, onClose }: { open: boolean; onClose: () => void })
       {/* One sheet at a time: the hub steps aside while an Undo is confirmed, then comes back. */}
       <Sheet open={open && !confirm} onClose={onClose} title="AI assistants" label="AI assistants">
         <div className="ai-hub">
+          {MFD_AI && <button type="button" className="ai-hub-ask" onClick={() => { onClose(); navigate('/ai'); }}>
+            <Sparkles aria-hidden="true" /><span className="grow">Message MFD AI</span><span className="round-icon" aria-hidden="true"><ArrowUp /></span>
+          </button>}
           <div className="ai-hub-apps">
             {['ChatGPT', 'Claude'].map((name) => {
               const t = last(name);

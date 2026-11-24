@@ -308,7 +308,13 @@ export interface CycleSettings {
   periodSoon: boolean;
   favourites: string[];
   customSymptoms: string[];
+  /** "Right now": estimates pause on hormonal contraception, in pregnancy or while breastfeeding (since that date). */
+  pause?: CyclePause;
+  pauseSince?: ISODate;
+  /** The day the last pause ended ("None of these"); cycles from pauseSince to here are left out of the estimate. */
+  pauseUntil?: ISODate;
 }
+export type CyclePause = 'hormonal' | 'pregnant' | 'breastfeeding';
 /** One day's log (id = date: one per day). A day without one is "not logged", never "no symptoms". */
 export interface CycleDay {
   id: ISODate;

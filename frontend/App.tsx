@@ -35,6 +35,8 @@ import { CycleInsights } from './screens/cycle/CycleInsights';
 import { CycleRecords } from './screens/cycle/CycleRecords';
 import { CycleReport } from './screens/cycle/CycleReport';
 import { CyclePrivacy } from './screens/cycle/CyclePrivacy';
+import { MfdAi } from './screens/ai/MfdAi';
+import { MFD_AI } from './components/AiHub';
 import { WorkoutEditor } from './screens/progress/WorkoutEditor';
 import { CoachScreen } from './screens/coach/CoachScreen';
 import { AiAssistants } from './screens/ai/AiAssistants';
@@ -114,6 +116,8 @@ function Routes({ route }: { route: string[] }) {
     case 'friends':return <FriendsScreen view={b==='u'&&c?{kind:'profile',username:c}:b==='chat'&&c?{kind:'chat',username:c}:b==='w'&&c&&d?{kind:'workout',owner:c,workout:decodeURIComponent(d)}:b==='compare'&&c?{kind:'compare',username:c,exercise:d}:b==='activity'?{kind:'activity'}:b==='me'?{kind:'me'}:{kind:'feed'}}/>;
     case 'coach':
       return <AiAssistants />;
+    case 'ai':
+      return MFD_AI ? <MfdAi /> : <TodayScreen />;
     case 'settings':
       return <SettingsLive section={b ?? null}/>;
     default:
@@ -154,7 +158,7 @@ export function App() {
   if (!profile) return (<><Onboarding /><ToastHost /></>);
 
   const top = route[0] ?? 'today';
-  const tab = top === 'workout' ? 'training' : top === 'coach' ? 'today' : top;
+  const tab = top === 'workout' ? 'training' : top === 'coach' || top === 'ai' ? 'today' : top;
   const focused = top === 'workout' || (top === 'training' && route[1] === 'routine') || (top === 'friends' && route[1] === 'chat');
   const showResume = !!active && top !== 'workout';
 

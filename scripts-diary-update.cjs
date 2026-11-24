@@ -146,6 +146,23 @@ select (select count(*) from pg_proc where proname = 'mfd_delete_account') as de
        (select is_nullable from information_schema.columns where table_schema = 'public' and table_name = 'mfd_catalogue' and column_name = 'creator_id') as shared_items_can_be_anonymous,
        (select count(*) from pg_class c join pg_namespace n on n.oid = c.relnamespace where n.nspname = 'mfd_private' and (c.relname like 'backup\\_20261108\\_%' or c.relname = 'workspaces_before_compaction')) as old_copies_left,
        (select count(*) from public.forma_workspaces) as diaries;` },
+  12: { title: 'update 12 (2026-11-25): Cycle & Health "Right now" (estimates paused on hormonal contraception, in pregnancy or while breastfeeding); every diary stays exactly the same',
+       before: `-- A fingerprint of every diary before the update (a real table: the SQL editor may drop temporary ones).
+drop table if exists diary._update12_before;
+create table diary._update12_before as select user_id, md5(diary.full_payload(user_id, payload)::text) h, md5(diary.as_envelope(user_id)::text) e from public.forma_workspaces;`,
+       parts: ['17-cycle'], fills: [],
+       after: `-- Every diary (and the AI connector's view of it) must be exactly as before; otherwise the whole update is undone.
+do $same$ declare bad text; begin
+  select string_agg(left(b.user_id::text, 8), ' ') into bad from diary._update12_before b join public.forma_workspaces w using (user_id)
+    where md5(diary.full_payload(w.user_id, w.payload)::text) is distinct from b.h or md5(diary.as_envelope(w.user_id)::text) is distinct from b.e;
+  if bad is not null then raise exception 'Not identical, nothing was changed: %', bad; end if;
+end $same$;
+-- The scratch table goes before the report (the SQL editor may run the last query again to show it).
+drop table diary._update12_before;
+select (select count(*) from public.forma_workspaces) as diaries, 'IDENTICAL' as rebuilt,
+       (select count(*) from information_schema.columns where table_schema = 'diary' and table_name = 'cycle_settings' and column_name in ('pause', 'pause_since', 'pause_until')) as pause_columns,
+       (select count(*) from pg_proc where proname = 'cycle_part' and pg_get_functiondef(oid) like '%pauseSince%') as reads_pause,
+       (select count(*) from diary.fill_problems) as problems_left;` },
 };
 const n = Number(process.argv[2] || 10), u = updates[n];
 if (!u) throw new Error('Unknown update ' + n);

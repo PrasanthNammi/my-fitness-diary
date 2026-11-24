@@ -1,6 +1,8 @@
 import { SwipeRow } from '../../components/SwipeRow';
 import { useMemo, useState, type ReactNode } from 'react';
-import { Bot, ChevronRight, Droplets, Minus, Play, Plus, Sparkles, TrendingDown, TrendingUp, X } from 'lucide-react';
+import { ArrowUp, Bot, ChevronRight, Droplets, Minus, Play, Plus, Sparkles, TrendingDown, TrendingUp, X } from 'lucide-react';
+import { MFD_AI } from '../../components/AiHub';
+import { geminiKey } from '../../lib/gemini';
 import { AiBadge, ConfirmSheet, Empty, InfoButton, TopBar, toast } from '../../components/ui';
 import { DateStrip } from '../../components/DateStrip';
 import { useDB } from '../../data/store';
@@ -50,6 +52,7 @@ function CalorieRing({ eaten, target, segments, children }: { eaten: number; tar
 }
 
 export function TodayScreen() {
+  const hasAiKey = !!geminiKey();
   const date = useSelectedDate();
   const targets = useTargets();
   const { total, entries, fibre } = useDay(date);
@@ -212,14 +215,18 @@ export function TodayScreen() {
           {spark && <svg className="weight-spark" viewBox="0 0 120 44" aria-hidden="true"><polyline points={spark} fill="none" stroke="var(--accent)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" /></svg>}
         </button>
 
-        <button className="coach-card" onClick={() => navigate('/coach')}>
+        {MFD_AI ? <button className="mfdai-entry" onClick={() => navigate('/ai')} aria-label="Message MFD AI">
+          <span className="mfdai-entry-top"><span className="mfdai-avatar" aria-hidden="true"><Sparkles /></span>
+            <span className="grow"><b>MFD AI</b><span>{hasAiKey ? 'What did you eat, drink or do?' : 'Set up with a free Gemini key'}</span></span></span>
+          <span className="mfdai-entry-field" aria-hidden="true"><span className="grow">Message MFD AI</span><span className="mfdai-entry-send"><ArrowUp /></span></span>
+        </button> : <button className="coach-card" onClick={() => navigate('/coach')}>
           <span className="coach-icon"><Bot aria-hidden="true" /></span>
           <span className="grow">
             <span className="coach-title">AI coach<span className="coach-tag">Preview</span></span>
             <span className="coach-sub">{t && isToday && total.protein < t.protein * 0.6 ? `Protein ${Math.round(total.protein)} of ${t.protein} g so far` : 'Connect ChatGPT or Claude'}</span>
           </span>
           <ChevronRight aria-hidden="true" />
-        </button>
+        </button>}
       </div>
 
     </>

@@ -1,7 +1,7 @@
 // Settings → Cycle & Health: switch it on or off (data kept); reminders on the phone and how they look; periods from
 // Health Connect; the separate AI permission (off by default); the report for a doctor; export; delete everything.
 import { useState } from 'react';
-import { Bot, Download, FileText, ShieldCheck, Trash2 } from 'lucide-react';
+import { Bot, Check, Download, FileText, ShieldCheck, Trash2 } from 'lucide-react';
 import { useDB } from '../../data/store';
 import { cycle, cycleAllowed } from '../../data/cycle';
 import { ConfirmSheet, Empty, InfoButton, Segmented, TopBar, toast } from '../../components/ui';
@@ -12,6 +12,8 @@ import { cycleExportFiles } from '../../domain/cycleExport';
 import { zip } from '../../lib/zip';
 import { connectCyclePeriods, cycleAppSupported, saveFile, syncCyclePeriods } from '../../lib/cycleHealth';
 import { todayISO } from '../../lib/format';
+import { PAUSE_ABOUT, PAUSES } from '../../domain/cyclePause';
+import type { CyclePause } from '../../domain/types';
 
 const STYLES: { value: ReminderStyle; label: string }[] = [{ value: 'discreet', label: 'Discreet' }, { value: 'private', label: 'Private' }, { value: 'detailed', label: 'Detailed' }];
 
@@ -46,12 +48,26 @@ export function CycleSettingsPage() {
             <input type="checkbox" className="switch" checked={on} onChange={(e) => { if (!e.target.checked) cycle.setEnabled(false); else if (s) { cycle.setEnabled(true); navigate('/progress/cycle'); } else setConsent(true); }} /></label>
         </div>
         {on && <>
+          <div className="eyebrow cy-seteyebrow">Right now<InfoButton title="Right now" label="About Right now" lines={PAUSE_ABOUT} /></div>
+          <div className="card cy-set" role="radiogroup" aria-label="Right now">
+            {[{ value: undefined as CyclePause | undefined, label: 'None of these', sub: 'Period estimates on' }, ...PAUSES].map((o) => {
+              const sel = (s?.pause ?? undefined) === o.value;
+              return <button key={o.label} type="button" role="radio" aria-checked={sel} className="cy-row cy-linkrow cy-choice"
+                onClick={() => !sel && cycle.setSettings(o.value
+                  ? { pause: o.value, pauseSince: s?.pause ? s.pauseSince : todayISO(), pauseUntil: undefined }   // switching between pauses keeps the start
+                  : { pause: undefined, pauseUntil: todayISO() })}>
+                <span className="grow"><b>{o.label}</b>{o.sub && <span>{o.sub}</span>}</span>
+                {sel && <Check className="cy-tick" aria-hidden="true" />}
+              </button>;
+            })}
+          </div>
+
           <div className="eyebrow cy-seteyebrow">Reminders{!app && <InfoButton title="Reminders" label="About reminders" lines={[inApp() ? 'Update the MFD app (Settings → Health & devices → Phone app) to get reminders.' : 'Reminders are set on your phone by the MFD Android app, so nothing about them goes through a server.', 'Your choices here are saved and work as soon as you use the app.']} />}</div>
           <div className="card cy-set">
             <label className="cy-row"><span className="grow"><b>Medicines</b><span>At the times set for each medicine</span></span>
               <input type="checkbox" className="switch" checked={!!s?.medReminders} onChange={(e) => cycle.setSettings({ medReminders: e.target.checked })} /></label>
-            <label className="cy-row"><span className="grow"><b>Period may start soon</b><span>Two days before the estimated range</span></span>
-              <input type="checkbox" className="switch" checked={!!s?.periodSoon} onChange={(e) => cycle.setSettings({ periodSoon: e.target.checked })} /></label>
+            <label className="cy-row"><span className="grow"><b>Period may start soon</b><span>{s?.pause ? 'Paused with the estimate' : 'Two days before the estimated range'}</span></span>
+              <input type="checkbox" className="switch" disabled={!!s?.pause} checked={!!s?.periodSoon && !s?.pause} onChange={(e) => cycle.setSettings({ periodSoon: e.target.checked })} /></label>
             <label className="cy-row"><span className="grow"><b>Daily log</b><span>{s?.logReminder ? `Every day at ${s.logReminder}` : 'Off'}</span></span>
               {s?.logReminder && <input type="time" className="cy-time" value={s.logReminder} onChange={(e) => e.target.value && cycle.setSettings({ logReminder: e.target.value })} aria-label="Daily log reminder time" />}
               <input type="checkbox" className="switch" checked={!!s?.logReminder} onChange={(e) => cycle.setSettings({ logReminder: e.target.checked ? '21:00' : undefined })} /></label>

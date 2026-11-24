@@ -19,7 +19,9 @@ import { addDays, cycleLengths, cycleNow, daysBetween, periods } from './cycle';
 
 export type Estimate =
   | { state: 'range'; from: ISODate; to: ISODate; median: ISODate; about: ReactNode[]; record: TrackRecord }
-  | { state: 'insufficient'; about: ReactNode[] };
+  | { state: 'insufficient'; about: ReactNode[]; restart?: boolean };
+/** The last "Right now" pause (hormonal contraception, pregnancy, breastfeeding): from `since`, ended `until` (none = still on). */
+export interface PauseSpan { since?: ISODate; until?: ISODate }
 export interface TrackRecord { errors: number[]; within: number; checked: number }
 
 export const MIN_CYCLES = 3, MAX_SKIPS = 2, MAX_LEN = 150;
@@ -117,8 +119,22 @@ const METHOD = 'Method: the model described by Li et al. (J Am Med Inform Assoc,
 const TESTED = 'Who it was tested on: about 186,000 Clue app users aged 21–33 who were not using hormonal contraception. It was not tested for PCOS, thyroid conditions or contraception, and it is less exact when cycles vary a lot.';
 const NOT = 'An estimate, not medical advice, and not for preventing or planning pregnancy. If something seems unusual, talk to your doctor.';
 
-export function estimateNext(days: CycleDay[], today: ISODate): Estimate {
-  const lengths = cycleLengths(days.filter((d) => d.date <= today)).filter((x) => x > 0 && x <= MAX_LEN).slice(-24);   // the last 24 cycles
+/**
+ * Cycle lengths without the cycles that overlap a past pause (those reflect the pill, a pregnancy or breastfeeding,
+ * not the person's own cycle).
+ */
+export function lengthsOutsidePause(days: CycleDay[], pause?: PauseSpan): number[] {
+  if (!pause?.since || !pause.until) return cycleLengths(days);
+  const p = periods(days);
+  return p.slice(1).flatMap((x, i) => { const start = p[i]!.start; return x.start > pause.since! && start < pause.until! ? [] : [daysBetween(start, x.start)]; });
+}
+
+export function estimateNext(days: CycleDay[], today: ISODate, pause?: PauseSpan): Estimate {
+  // After a pause, estimates start again from the first period logged on or after the day it ended.
+  if (pause?.since && pause.until && !periods(days.filter((d) => d.date <= today)).some((x) => x.start >= pause.until!)) return { state: 'insufficient', restart: true, about: [
+    `You ended “Right now” on ${short(pause.until)}. Estimates start again once your next period is logged; the cycles from the paused time are left out.`,
+    'It will always be a range, never an exact date.', METHOD, NOT] };
+  const lengths = lengthsOutsidePause(days.filter((d) => d.date <= today), pause).filter((x) => x > 0 && x <= MAX_LEN).slice(-24);   // the last 24 cycles
   const now = cycleNow(days, today);
   if (lengths.length < MIN_CYCLES || !now.lastStart || !now.day) return { state: 'insufficient', about: [
     `An estimate of your next period appears once you have logged ${MIN_CYCLES} full cycles (from one period to the next). So far: ${lengths.length}.`,
