@@ -3,7 +3,7 @@
 // weight, workout, routine with a new folder, start a routine), plus the CSP that lets the app reach Gemini.
 const assert=require('assert/strict'),esbuild=require('esbuild'),path=require('path'),os=require('os'),fs=require('fs');
 const out=path.join(os.tmpdir(),'mfd-ai-test.cjs');
-esbuild.buildSync({stdin:{contents:`export {parseAnswer,systemPrompt,RESPONSE_SCHEMA,cardSummary} from './frontend/domain/mfdAi';export {pickFlash,maskedKey} from './frontend/lib/gemini';export {applyCard,resolveCard} from './frontend/lib/mfdAiApply';export {getDB} from './frontend/data/store';export {nutrientsFor} from './frontend/domain/nutrition';`,resolveDir:process.cwd(),loader:'ts'},bundle:true,platform:'node',format:'cjs',outfile:out,logLevel:'silent'});
+esbuild.buildSync({stdin:{contents:`export {parseAnswer,systemPrompt,RESPONSE_SCHEMA,cardSummary} from './frontend/domain/mfdAi';export {pickFlash,maskedKey,saveGeminiKey,geminiErrorText,geminiKey} from './frontend/lib/gemini';export {applyCard,resolveCard} from './frontend/lib/mfdAiApply';export {getDB} from './frontend/data/store';export {nutrientsFor} from './frontend/domain/nutrition';`,resolveDir:process.cwd(),loader:'ts'},bundle:true,platform:'node',format:'cjs',outfile:out,logLevel:'silent'});
 const ex=(id,name)=>({id,name,primaryMuscle:'Chest',secondaryMuscles:[],equipment:'Barbell',tracking:'weight_reps',source:'mfd',sourceRef:null,mediaUrl:null});
 let state={profile:{onboarded:true,name:'Test',sex:'male',height:180,activity:1.55,goal:'Maintain',days:3},sessions:[],meals:[],products:[],weights:[{id:'w1',date:'2026-11-19',kg:72.9}],checkins:[],water:{},active:null,folders:[],routines:[],
   mfdExercises:[ex('bench','Bench Press (Barbell)'),ex('pulldown','Lat Pulldown (Cable)')]},v=0,subs=[];
@@ -35,6 +35,19 @@ assert.ok(M.RESPONSE_SCHEMA.properties.items.items.properties.kind.enum.includes
 assert.equal(M.pickFlash(['models/gemini-2.0-flash','models/gemini-2.5-flash','models/gemini-2.5-flash-lite','models/gemini-3.0-flash-preview','models/gemini-2.5-pro','models/gemini-3-flash']),'gemini-3-flash');
 assert.equal(M.pickFlash(['models/gemini-2.5-pro']),null);
 assert.equal(M.maskedKey('AIzaSyABCDEFGHIJKLMNOPQRSTUVWQx4'),'AIza••••••••Qx4');
+
+// Keys: new "AQ." keys (with dots) are accepted and checked with Google in the header, never the URL; junk is refused before any call.
+(async()=>{
+const store={};global.localStorage={getItem:k=>store[k]??null,setItem:(k,v)=>{store[k]=String(v)},removeItem:k=>{delete store[k]}};
+const calls=[];global.fetch=async(u,o)=>{calls.push({u,o});return {ok:true,status:200,json:async()=>({models:[{name:'models/gemini-2.5-flash',supportedGenerationMethods:['generateContent']},{name:'models/gemini-3-flash',supportedGenerationMethods:['generateContent']}]})}};
+await M.saveGeminiKey('  AQ.Ab8RN6Jv18XdfLCkU65yUBA6iZ0VSywH_test-key  ');
+assert.equal(calls.length,1);assert.equal(calls[0].o.headers['x-goog-api-key'],'AQ.Ab8RN6Jv18XdfLCkU65yUBA6iZ0VSywH_test-key');assert.ok(!calls[0].u.includes('AQ.'),'key not in the URL');
+assert.equal(M.geminiKey(),'AQ.Ab8RN6Jv18XdfLCkU65yUBA6iZ0VSywH_test-key');assert.equal(store['mfd-ai-gemini-model'],'gemini-3-flash');
+await assert.rejects(M.saveGeminiKey('my key is secret!'),e=>e.kind==='format');assert.equal(calls.length,1,'no call for junk');
+global.fetch=async()=>({ok:false,status:401,json:async()=>({error:{details:[{reason:'ACCESS_TOKEN_TYPE_UNSUPPORTED'}]}})});
+await assert.rejects(M.saveGeminiKey('AQ.Ab8RN6Jv18XdfLCkU65yUBA6iZ0VSywH'),e=>e.kind==='keytype'&&/limit it to the Gemini API/.test(M.geminiErrorText(e)));
+global.fetch=undefined;
+})().catch(e=>{console.error(e);process.exit(1)});
 
 // Add and Undo on the example diary.
 const food=M.resolveCard(M.parseAnswer({reply:'',items:[{kind:'food',meal:'breakfast',foods:[{name:'Eggs, boiled',qty:2,unit:'large',grams_per_unit:50,kcal_per_unit:77.5,protein_per_unit:6.3,carbs_per_unit:0.6,fat_per_unit:5.3},{name:'Rice',qty:150,unit:'g',grams_per_unit:1,kcal_per_unit:1.3}]}]},T).cards[0]);

@@ -15,13 +15,15 @@ export const maskedKey = (k: string) => (k.length > 10 ? `${k.slice(0, 4)}••
 export function forgetGeminiKey() { write(KEY, null); write(MODEL, null); }
 
 export class GeminiError extends Error {
-  constructor(public kind: 'key' | 'quota' | 'offline' | 'blocked' | 'other', message: string) { super(message); }
+  constructor(public kind: 'key' | 'format' | 'keytype' | 'quota' | 'offline' | 'blocked' | 'other', message: string) { super(message); }
 }
 
 /** What to tell the person for each failure. */
 export function geminiErrorText(e: unknown): string {
   const k = e instanceof GeminiError ? e.kind : 'other';
   return k === 'key' ? 'Google didn’t accept the key. Check it in AI Studio and paste it again.'
+    : k === 'format' ? 'That doesn’t look like a Gemini key. Copy the whole key from AI Studio and paste it again.'
+    : k === 'keytype' ? 'Google didn’t accept this new kind of key here. In AI Studio, open the key and limit it to the Gemini API, or create a new key, then try again.'
     : k === 'quota' ? 'Your free Gemini limit is used up for now. Try again in a minute, or tomorrow for the daily limit.'
     : k === 'offline' ? 'No connection to Google. Check your internet and try again.'
     : k === 'blocked' ? 'Google didn’t answer this one. Try saying it differently.'
@@ -38,6 +40,7 @@ async function call(path: string, key: string, body?: unknown, signal?: AbortSig
   if (res.ok) return data;
   const reason = JSON.stringify(data?.error ?? '');
   if (res.status === 429) throw new GeminiError('quota', reason);
+  if (/ACCESS_TOKEN_TYPE_UNSUPPORTED/.test(reason)) throw new GeminiError('keytype', reason);
   if (res.status === 401 || res.status === 403 || /API_KEY_INVALID|API key not valid/i.test(reason)) throw new GeminiError('key', reason);
   throw new GeminiError('other', `${res.status} ${reason}`.slice(0, 300));
 }
@@ -52,7 +55,8 @@ export function pickFlash(names: string[]): string | null {
 /** Checks the key with Google (lists its models), then saves the key and the chosen model on this device. */
 export async function saveGeminiKey(raw: string): Promise<void> {
   const key = raw.trim();
-  if (!/^[\w-]{20,200}$/.test(key)) throw new GeminiError('key', 'format');
+  // AI Studio keys: the old "AIza…" kind and the newer "AQ.…" kind (with dots).
+  if (!/^[\w.-]{20,300}$/.test(key)) throw new GeminiError('format', 'format');
   const list = await call('models?pageSize=200', key);
   const names: string[] = (list?.models ?? []).filter((m: any) => (m.supportedGenerationMethods ?? []).includes('generateContent')).map((m: any) => m.name);
   write(KEY, key); write(MODEL, pickFlash(names) ?? FALLBACK_MODEL);
