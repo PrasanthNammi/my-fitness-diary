@@ -3,7 +3,7 @@
 // each card (− / + amounts, meal, ✕ exercises, folder) and nothing is saved until "Add". Corrections can be typed
 // ("it was 3 eggs"). Trends and advice stay with ChatGPT or Claude (the MFD connector).
 import { useEffect, useRef, useState } from 'react';
-import { ArrowLeft, ArrowUp, Bot, Check, ChevronDown, Database, Droplet, Dumbbell, ExternalLink, Folder, Globe, KeyRound, ListChecks, Lock, Minus, Moon, Play, Plus, RotateCcw, Ruler, Scale, Send, Sparkles, Undo2, Utensils, X } from 'lucide-react';
+import { ArrowLeft, ArrowUp, Bot, Check, ChevronDown, Database, Droplet, Dumbbell, ExternalLink, Folder, Globe, KeyRound, ListChecks, Lock, Minus, Moon, Play, Plus, RotateCcw, Ruler, Scale, Send, Sparkles, Timer, Undo2, Utensils, X } from 'lucide-react';
 import { navigate } from '../../lib/router';
 import { useDB } from '../../data/store';
 import { Sheet, toast } from '../../components/ui';
@@ -38,11 +38,13 @@ export function MfdAi() {
   const settings = useDB((d) => d.settings);
   const [key, setKey] = useState<string | null>(demo ? (demo.key === false ? null : 'AIzaDemoKeyForThePreview00Qx4') : geminiKey());
   const [msgs, setMsgsState] = useState<Msg[]>(loadChat);
+  const [slow, setSlow] = useState(false);
   const [text, setText] = useState(''), [busy, setBusy] = useState(false), [keySheet, setKeySheet] = useState(false), [hint, setHint] = useState('');
   const input = useRef<HTMLTextAreaElement>(null), end = useRef<HTMLDivElement>(null), abort = useRef<AbortController | null>(null);
   const setMsgs = (fn: (m: Msg[]) => Msg[]) => setMsgsState((m) => { const n = fn(m); if (!demo) saveChat(n); return n; });
   useEffect(() => { end.current?.scrollIntoView({ block: 'end' }); }, [msgs.length, busy]);
   useEffect(() => () => abort.current?.abort(), []);
+  useEffect(() => { setSlow(false); if (!busy) return; const t = setTimeout(() => setSlow(true), 6000); return () => clearTimeout(t); }, [busy]);
   useEffect(() => { const t = input.current; if (t) { t.style.height = 'auto'; t.style.height = Math.min(t.scrollHeight, 120) + 'px'; } }, [text]);
 
   const patchCard = (mid: string, i: number, p: Partial<CardState>) => setMsgs((l) => l.map((m) => (m.id === mid && m.from === 'ai' && m.cards ? { ...m, cards: m.cards.map((c, j) => (j === i ? { ...c, ...p } : c)) } : m)));
@@ -106,7 +108,8 @@ export function MfdAi() {
             {m.cards?.map((c, i) => <CardView key={i} c={c} canUndo={undos.has(`${m.id}:${i}`)} onEdit={(card) => patchCard(m.id, i, { card })}
               onAdd={() => add(m.id, i, c)} onUndo={() => undo(m.id, i)} onChange={change} />)}
           </div>)}
-      {busy && <div className="mfdai-ai"><p className="mfdai-thinking" aria-label="MFD AI is thinking"><Sparkles className="mfdai-mark" aria-hidden="true" /><i /><i /><i /></p></div>}
+      {busy && <div className="mfdai-ai"><p className="mfdai-thinking" aria-label="MFD AI is thinking"><Sparkles className="mfdai-mark" aria-hidden="true" /><i /><i /><i /></p>
+        {slow && <small className="mfdai-slow">Gemini is slower right now. Free keys get about 20 fast answers a day; this can take up to a minute.</small>}</div>}
       <div ref={end} />
     </div>
 
@@ -242,6 +245,7 @@ function Facts() {
     <span><Lock aria-hidden="true" />Key stays on this device</span>
     <span><Send aria-hidden="true" />Only what you type goes to Google. Never your diary or Cycle & Health</span>
     <span><Globe aria-hidden="true" />EU, UK, CH: not used to train Google’s AI. Elsewhere it may be</span>
+    <span><Timer aria-hidden="true" />Free key: about 20 fast answers a day, then slower ones</span>
   </div>;
 }
 

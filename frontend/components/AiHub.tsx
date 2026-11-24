@@ -11,8 +11,8 @@ import { navigate } from '../lib/router';
 import { ConfirmSheet, Sheet, toast } from './ui';
 
 // The connector's own page: which assistants can use the diary, and removing their access.
-/** MFD AI (Gemini, the person's own key): built, hidden until Gemini answers reliably (503s on 2026-11-24). */
-export const MFD_AI = false;
+/** MFD AI (Gemini, the person's own key). Free tier: ~20 fast answers a day on 2.5 Flash, then slower models (owner's choice, 2026-11-24). */
+export const MFD_AI = true;
 const CONNECTIONS = 'https://mfd-connect.shanustylish777.workers.dev/oauth/mcp/connections';
 
 /**

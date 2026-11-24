@@ -117,8 +117,7 @@ function Routes({ route }: { route: string[] }) {
     case 'coach':
       return <AiAssistants />;
     case 'ai':
-      if (MFD_AI || (window as unknown as { __mfdAiDemo?: unknown }).__mfdAiDemo || /^(localhost|127\.0\.0\.1)$/.test(location.hostname)) return <MfdAi />;
-      return <TodayScreen />;
+      return MFD_AI ? <MfdAi /> : <TodayScreen />;
     case 'settings':
       return <SettingsLive section={b ?? null}/>;
     default:
