@@ -8,13 +8,13 @@ import { navigate } from '../../lib/router';
 import { useDB } from '../../data/store';
 import { Sheet, toast } from '../../components/ui';
 import { todayISO } from '../../lib/format';
-import { forgetGeminiKey, geminiErrorText, geminiJson, geminiKey, maskedKey, saveGeminiKey, type Turn } from '../../lib/gemini';
+import { forgetGeminiKey, geminiErrorDetail, geminiErrorText, geminiJson, geminiKey, maskedKey, saveGeminiKey, type Turn } from '../../lib/gemini';
 import { applyCard, folderNames, resolveCard, type Applied } from '../../lib/mfdAiApply';
 import { MEALS, MEAL_LABEL, RESPONSE_SCHEMA, addDays, cardSummary, parseAnswer, systemPrompt, type Card, type Ex, type FoodLine } from '../../domain/mfdAi';
 import type { ISODate, Meal } from '../../domain/types';
 
 type CardState = { card: Card; state: 'ask' | 'added' | 'replaced'; error?: string };
-type Msg = { id: string; from: 'me'; text: string } | { id: string; from: 'ai'; text: string; cards?: CardState[]; link?: boolean; error?: boolean; retry?: string };
+type Msg = { id: string; from: 'me'; text: string } | { id: string; from: 'ai'; text: string; cards?: CardState[]; link?: boolean; error?: boolean; retry?: string; detail?: string };
 
 const STORE = 'mfd-ai-chat', MAX = 40;
 const r = (x: number) => Math.round(x);
@@ -67,7 +67,8 @@ export function MfdAi() {
         { id: newId(), from: 'ai', text: p.reply, cards, link: !cards.length && /chatgpt|claude/i.test(p.reply) }]);
     } catch (e) {
       if ((e as Error).name === 'AbortError') return;
-      setMsgs((l) => [...l, { id: newId(), from: 'ai', text: geminiErrorText(e), error: true, retry: said }]);
+      console.warn('MFD AI', e);
+      setMsgs((l) => [...l, { id: newId(), from: 'ai', text: geminiErrorText(e), error: true, retry: said, detail: geminiErrorDetail(e) }]);
     } finally { setBusy(false); }
   }
 
@@ -99,6 +100,7 @@ export function MfdAi() {
         ? <div key={m.id} className="mfdai-me"><p>{m.text}</p></div>
         : <div key={m.id} className={`mfdai-ai${m.cards?.length && m.cards.every((c) => c.state === 'replaced') ? ' old' : ''}${m.error ? ' err' : ''}`}>
             <p><Sparkles className="mfdai-mark" aria-hidden="true" />{m.text}</p>
+            {m.error && m.detail && <small className="mfdai-errdetail">Google: {m.detail}</small>}
             {m.error && m.retry && <button className="mfdai-retry" onClick={() => void send(m.retry)}><RotateCcw aria-hidden="true" />Try again</button>}
             {m.link && <button className="mfdai-linkcard" onClick={() => navigate('/coach')}><Bot aria-hidden="true" /><span className="grow"><b>ChatGPT & Claude</b><span>Connected through MFD</span></span><ExternalLink className="mfdai-out" aria-hidden="true" /></button>}
             {m.cards?.map((c, i) => <CardView key={i} c={c} canUndo={undos.has(`${m.id}:${i}`)} onEdit={(card) => patchCard(m.id, i, { card })}

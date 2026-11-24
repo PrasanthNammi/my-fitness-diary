@@ -15,7 +15,8 @@ export const maskedKey = (k: string) => (k.length > 10 ? `${k.slice(0, 4)}••
 export function forgetGeminiKey() { write(KEY, null); write(MODEL, null); }
 
 export class GeminiError extends Error {
-  constructor(public kind: 'key' | 'format' | 'keytype' | 'quota' | 'offline' | 'blocked' | 'other', message: string) { super(message); }
+  /** status: Google's HTTP status; detail: Google's own reason (never contains the key). */
+  constructor(public kind: 'key' | 'format' | 'keytype' | 'quota' | 'offline' | 'blocked' | 'other', message: string, public status = 0, public detail = '') { super(message); }
 }
 
 /** What to tell the person for each failure. */
@@ -29,6 +30,8 @@ export function geminiErrorText(e: unknown): string {
     : k === 'blocked' ? 'Google didn’t answer this one. Try saying it differently.'
     : 'Something went wrong with Gemini. Try again.';
 }
+/** Google's short reason, shown small under the message so a problem can be reported. */
+export const geminiErrorDetail = (e: unknown) => (e instanceof GeminiError && e.kind !== 'offline' && e.kind !== 'quota' ? [e.status || '', e.detail].filter(Boolean).join(' · ').slice(0, 220) : '');
 
 async function call(path: string, key: string, body?: unknown, signal?: AbortSignal): Promise<any> {
   let res: Response;
@@ -38,11 +41,12 @@ async function call(path: string, key: string, body?: unknown, signal?: AbortSig
   } catch (e) { if ((e as Error).name === 'AbortError') throw e; throw new GeminiError('offline', 'offline'); }
   const data = await res.json().catch(() => ({}));
   if (res.ok) return data;
-  const reason = JSON.stringify(data?.error ?? '');
-  if (res.status === 429) throw new GeminiError('quota', reason);
-  if (/ACCESS_TOKEN_TYPE_UNSUPPORTED/.test(reason)) throw new GeminiError('keytype', reason);
-  if (res.status === 401 || res.status === 403 || /API_KEY_INVALID|API key not valid/i.test(reason)) throw new GeminiError('key', reason);
-  throw new GeminiError('other', `${res.status} ${reason}`.slice(0, 300));
+  const reason = JSON.stringify(data?.error ?? ''), said = String(data?.error?.message ?? '').replace(/\s+/g, ' ').replace(/(AIza|AQ\.)[\w.-]+/g, '…');
+  const fail = (kind: GeminiError['kind']) => new GeminiError(kind, reason.slice(0, 300), res.status, said);
+  if (res.status === 429) throw fail('quota');
+  if (/ACCESS_TOKEN_TYPE_UNSUPPORTED/.test(reason)) throw fail('keytype');
+  if (res.status === 401 || res.status === 403 || /API_KEY_INVALID|API key not valid/i.test(reason)) throw fail('key');
+  throw fail('other');
 }
 
 /** Picks the newest plain Flash model from the key's model list (no lite/image/audio/preview variants). */
@@ -64,16 +68,43 @@ export async function saveGeminiKey(raw: string): Promise<void> {
 
 export type Turn = { role: 'user' | 'model'; text: string };
 
-/** One structured answer: Gemini must reply with JSON matching `schema`. */
+/** Turns as Gemini wants them: starting with the person, alternating (two in a row are joined). */
+export function alternate(turns: Turn[]): Turn[] {
+  const out: Turn[] = [];
+  for (const t of turns) { if (!t.text.trim()) continue; const last = out[out.length - 1]; if (last && last.role === t.role) last.text += '\n' + t.text; else out.push({ ...t }); }
+  while (out.length && out[0].role !== 'user') out.shift();
+  return out;
+}
+/** The JSON inside Gemini's text (tolerates ```json fences or a sentence around it). */
+export function jsonIn(text: string): unknown {
+  try { return JSON.parse(text); } catch { /* look for the object */ }
+  const a = text.indexOf('{'), b = text.lastIndexOf('}');
+  if (a >= 0 && b > a) { try { return JSON.parse(text.slice(a, b + 1)); } catch { /* fall through */ } }
+  throw new GeminiError('other', 'not json', 200, 'The answer wasn’t in the expected format');
+}
+
+/**
+ * One structured answer: Gemini replies with JSON matching `schema`. If Google refuses the request (400), it is
+ * asked again without the schema (the instructions still describe the JSON); if the chosen model isn't available
+ * to this key (404), the standard Flash model is used and remembered.
+ */
 export async function geminiJson<T>(opts: { system: string; turns: Turn[]; schema: object; signal?: AbortSignal }): Promise<T> {
   const key = geminiKey();
   if (!key) throw new GeminiError('key', 'missing');
-  const data = await call(`models/${geminiModel()}:generateContent`, key, {
-    systemInstruction: { parts: [{ text: opts.system }] },
-    contents: opts.turns.map((t) => ({ role: t.role, parts: [{ text: t.text }] })),
-    generationConfig: { temperature: 0.2, responseMimeType: 'application/json', responseSchema: opts.schema },
+  const ask = (model: string, schema: boolean) => call(`models/${model}:generateContent`, key, {
+    systemInstruction: { parts: [{ text: opts.system + (schema ? '' : `\n\nAnswer with ONLY a JSON object matching this JSON schema (no other text):\n${JSON.stringify(opts.schema)}`) }] },
+    contents: alternate(opts.turns).map((t) => ({ role: t.role, parts: [{ text: t.text }] })),
+    generationConfig: { temperature: 0.2, responseMimeType: 'application/json', ...(schema ? { responseSchema: opts.schema } : {}) },
   }, opts.signal);
-  const text = data?.candidates?.[0]?.content?.parts?.map((p: any) => p.text ?? '').join('') ?? '';
-  if (!text) throw new GeminiError('blocked', JSON.stringify(data?.promptFeedback ?? data?.candidates?.[0]?.finishReason ?? ''));
-  try { return JSON.parse(text) as T; } catch { throw new GeminiError('other', 'not json'); }
+  let model = geminiModel(), data: any;
+  try { data = await ask(model, true); } catch (e) {
+    if (!(e instanceof GeminiError) || e.kind !== 'other') throw e;
+    if (e.status === 404 && model !== FALLBACK_MODEL) { model = FALLBACK_MODEL; write(MODEL, model); data = await ask(model, true).catch((e2) => { if (e2 instanceof GeminiError && e2.status === 400) return ask(model, false); throw e2; }); }
+    else if (e.status === 400) data = await ask(model, false);
+    else throw e;
+  }
+  const parts = data?.candidates?.[0]?.content?.parts ?? [];
+  const text = parts.filter((p: any) => !p.thought).map((p: any) => p.text ?? '').join('');
+  if (!text) throw new GeminiError('blocked', 'empty', 200, String(data?.promptFeedback?.blockReason ?? data?.candidates?.[0]?.finishReason ?? ''));
+  return jsonIn(text) as T;
 }
