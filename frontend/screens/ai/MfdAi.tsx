@@ -169,13 +169,13 @@ function ExerciseCard({ card, footer, ask }: { card: Extract<Card, { kind: 'work
   return <div className="mfdai-card">
     <div className="mfdai-cardtop">
       <span className={`mfdai-pill${routine ? ' rt' : ' wk'}`}>{routine ? <ListChecks aria-hidden="true" /> : <Dumbbell aria-hidden="true" />}{routine ? 'Routine' : 'Workout'}</span>
-      <span className="mfdai-pill plain">{routine ? <><Folder aria-hidden="true" />{card.folder}<ChevronDown aria-hidden="true" /></> : 'Today'}</span>
+      <span className="mfdai-pill plain">{routine ? <><Folder aria-hidden="true" />{card.folder}<ChevronDown aria-hidden="true" /></> : `Today${card.minutes ? ` · ${card.minutes} min` : ''}`}</span>
       {routine && card.suggested && <span className="badge ai mfdai-est">Draft</span>}
     </div>
     <div className="mfdai-wtitle">{card.kind === 'routine' ? card.name : card.title}</div>
     <div className="mfdai-stats tnum">
       <span><b>{card.exercises.length}</b>exercises</span><span><b>{sets}</b>sets</span>
-      {routine ? <span><b>~{Math.round(sets * 2.5)}</b>min</span> : card.minutes ? <span><b>{card.minutes}</b>min</span> : null}
+      {routine && <span><b>~{Math.round(sets * 2.5)}</b>min</span>}
       {!routine && vol > 0 && <span><b>{vol >= 1000 ? `${(vol / 1000).toFixed(1)}k` : vol}<small> kg</small></b>volume</span>}
     </div>
     <div className="mfdai-exlist">
