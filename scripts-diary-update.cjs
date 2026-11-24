@@ -124,12 +124,14 @@ do $same$ declare bad text; begin
     where md5(diary.full_payload(w.user_id, w.payload)::text) is distinct from b.h or md5(diary.as_envelope(w.user_id)::text) is distinct from b.e;
   if bad is not null then raise exception 'Not identical, nothing was changed: %', bad; end if;
 end $same$;
-select (select count(*) from diary._update10_before) as diaries, 'IDENTICAL' as rebuilt,
+-- The scratch table goes before the report: the Supabase SQL editor may run the last query again to show its result,
+-- so the report must only read permanent things (update 10's report failed this way on 2026-11-24, after applying).
+drop table diary._update10_before;
+select (select count(*) from public.forma_workspaces) as diaries, 'IDENTICAL' as rebuilt,
        (select count(*) from information_schema.tables where table_schema = 'diary' and table_name in ('cycle_settings', 'cycle_days', 'medications', 'medication_doses', 'lab_results', 'health_conditions')) as cycle_tables,
        (select count(*) from pg_class c join pg_namespace n on n.oid = c.relnamespace where n.nspname = 'diary' and c.relrowsecurity and c.relname in ('cycle_settings', 'cycle_days', 'medications', 'medication_doses', 'lab_results', 'health_conditions')) as with_row_security,
        (select count(*) from pg_proc where proname = 'mfd_mcp' and pg_get_functiondef(oid) like '%mfd_mcp.cycle(args)%') as ai_router_has_cycle,
-       (select count(*) from diary.fill_problems) as problems_left;
-drop table diary._update10_before;` },
+       (select count(*) from diary.fill_problems) as problems_left;` },
   11: { title: 'update 11 (2026-11-24): Delete account (Settings → Account), and the old safety copies from 8 Nov are removed',
        parts: ['database/account-delete.sql'], fills: [],
        after: `-- The old safety copies from the 8 Nov compaction (every diary is verified in the new tables; nightly encrypted
