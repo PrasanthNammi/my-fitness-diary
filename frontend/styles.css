@@ -2469,3 +2469,27 @@ input.switch:focus-visible { outline: 3px solid var(--accent); outline-offset: 2
 .mfdai-more svg { width: 16px; height: 16px; }
 .mfdai-stats b small { font-size: 13px; font-weight: 700; color: var(--ink-3); letter-spacing: 0; }
 .mfdai-stats b { white-space: nowrap; }
+/* MFD AI: live states */
+.mfdai-select { position: relative; cursor: pointer; }
+.mfdai-select select { position: absolute; inset: 0; opacity: 0; cursor: pointer; font-size: 16px; }
+.mfdai-pill.plain svg { width: 14px; height: 14px; }
+.mfdai-thinking { display: inline-flex; align-items: center; gap: 5px; }
+.mfdai-thinking i { width: 7px; height: 7px; border-radius: 50%; background: var(--ink-3); animation: mfdai-dot 1.2s infinite ease-in-out; }
+.mfdai-thinking i:nth-of-type(2) { animation-delay: .15s; } .mfdai-thinking i:nth-of-type(3) { animation-delay: .3s; }
+@keyframes mfdai-dot { 0%, 80%, 100% { opacity: .25; transform: translateY(0); } 40% { opacity: 1; transform: translateY(-3px); } }
+@media (prefers-reduced-motion: reduce) { .mfdai-thinking i { animation: none; opacity: .6; } }
+.mfdai-ai.err > p { color: var(--danger); }
+.mfdai-retry { align-self: flex-start; display: inline-flex; align-items: center; gap: 6px; min-height: 38px; padding: 0 14px; border: 1px solid var(--line); border-radius: 999px; background: var(--surface); color: var(--ink); font: inherit; font-size: 14px; font-weight: 700; cursor: pointer; }
+.mfdai-retry svg { width: 15px; height: 15px; }
+.mfdai-carderr { margin: 12px 0 0; padding: 10px 12px; border-radius: 12px; background: var(--danger-soft); color: var(--danger); font-size: 13px; font-weight: 600; line-height: 1.4; }
+.mfdai-carderr.soft { background: var(--warn-soft); color: var(--warn); }
+.mfdai-actions.one { grid-template-columns: 1fr; }
+.mfdai-setchips.big span { font-size: 14px; padding: 5px 10px; }
+.mfdai-ic.k-water { background: var(--water-soft); color: var(--water-text); }
+.mfdai-ic.k-measure, .mfdai-ic.k-checkin { background: var(--drop-soft); color: var(--drop-text); }
+.mfdai-sheetbtns { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.mfdai-setup .ai-steps a { color: var(--accent); text-decoration: none; display: inline-flex; align-items: center; gap: 6px; }
+.mfdai-setup .ai-steps a svg { width: 15px; height: 15px; }
+.mfdai-setup form { display: flex; flex-direction: column; gap: 10px; }
+.mfdai-setup form .mfdai-keyinput { margin: 0; }
+.mfdai-setup form .mfdai-carderr { margin: 0; }
