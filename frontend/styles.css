@@ -2400,6 +2400,51 @@ input.switch:focus-visible { outline: 3px solid var(--accent); outline-offset: 2
 .mfdai-keyrow b { font-family: ui-monospace, Menlo, monospace; font-size: 14px; }
 .mfdai-ok { display: inline-flex; align-items: center; gap: 4px; color: var(--success-text); font-weight: 700; font-size: 13px; }
 .mfdai-ok svg { width: 14px; height: 14px; }
+/* MFD AI v3: fewer words, more widgets */
+.mfdai-hello p { display: inline-flex; align-items: center; gap: 8px; font-weight: 600; }
+.mfdai-hello p svg { width: 16px; height: 16px; color: var(--success-text); }
+.mfdai-cardtop { justify-content: flex-start; flex-wrap: wrap; }
+.mfdai-pill { display: inline-flex; align-items: center; gap: 6px; height: 32px; padding: 0 12px; border-radius: 999px; background: var(--accent-soft); color: var(--accent); font-size: 13px; font-weight: 700; }
+.mfdai-pill svg { width: 14px; height: 14px; }
+.mfdai-pill.plain { background: var(--field); color: var(--ink-2); }
+.mfdai-est { margin-left: auto !important; }
+.mfdai-macbar { display: flex; gap: 3px; height: 8px; margin: 2px 0 10px; }
+.mfdai-macbar i { border-radius: 4px; min-width: 6px; }
+.mfdai-macbar .p, .mfdai-macros .p { background: var(--protein); }
+.mfdai-macbar .c, .mfdai-macros .c { background: var(--carbs); }
+.mfdai-macbar .f, .mfdai-macros .f { background: var(--fat); }
+.mfdai-macros { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.mfdai-macros span { display: grid; grid-template-columns: 8px auto; column-gap: 7px; align-items: center; font-size: 17px; font-weight: 800; color: var(--ink); }
+.mfdai-macros small { grid-column: 2; font-size: 12px; font-weight: 600; color: var(--ink-3); }
+.mfdai-line { padding: 10px 0; }
+.mfdai-line .grow > span { font-variant-numeric: tabular-nums; }
+.mfdai-src { width: 32px; height: 32px; flex: none; border-radius: 10px; display: grid; place-items: center; background: var(--field); color: var(--ink-3); }
+.mfdai-src svg { width: 15px; height: 15px; }
+.mfdai-src.s-estimate { background: var(--ai-soft); color: var(--ai-text); }
+.mfdai-step { display: inline-flex; align-items: center; gap: 2px; padding: 3px; border-radius: 999px; background: var(--field); }
+.mfdai-step button { width: 32px; height: 32px; border: 0; border-radius: 50%; display: grid; place-items: center; background: var(--surface); color: var(--ink); cursor: pointer; box-shadow: var(--shadow); }
+.mfdai-step button svg { width: 15px; height: 15px; }
+.mfdai-step b { min-width: 26px; text-align: center; font-size: 15px; font-weight: 800; }
+.mfdai-qty { font-size: 14px; font-weight: 700; color: var(--ink-2); white-space: nowrap; }
+.mfdai-actions .btn svg { width: 18px; height: 18px; }
+.mfdai-simple b small { font-size: 16px; font-weight: 600; color: var(--ink-3); letter-spacing: 0; }
+.mfdai-delta { display: grid; justify-items: end; gap: 2px; padding: 8px 12px; border-radius: 14px; background: var(--field); font-size: 15px; font-weight: 800; white-space: nowrap; }
+.mfdai-delta svg { display: none; }
+.mfdai-delta.down { background: var(--success-soft); color: var(--success-text); }
+.mfdai-delta small { font-size: 11px; font-weight: 600; color: var(--ink-3); }
+.mfdai-ex { font-size: 18px !important; letter-spacing: 0 !important; }
+.mfdai-sets { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
+.mfdai-sets span { display: inline-flex; align-items: center; gap: 8px; height: 36px; padding: 0 12px 0 6px; border-radius: 12px; background: var(--field); font-size: 14px; font-weight: 700; }
+.mfdai-sets small { width: 24px; height: 24px; border-radius: 8px; display: grid; place-items: center; background: var(--surface); font-size: 12px; color: var(--ink-3); }
+.mfdai-vol { margin-top: 10px; font-size: 13px; font-weight: 600; color: var(--ink-3); }
+.mfdai-linkcard { display: flex; align-items: center; gap: 12px; width: 100%; padding: 12px 14px; border: 1px solid var(--line); border-radius: 18px; background: var(--surface); color: var(--ink); font: inherit; text-align: left; cursor: pointer; }
+.mfdai-linkcard > svg { width: 22px; height: 22px; color: var(--ai-text); flex: none; }
+.mfdai-linkcard .grow { display: flex; flex-direction: column; }
+.mfdai-linkcard .grow span { font-size: 13px; color: var(--ink-3); }
+.mfdai-out { transform: rotate(45deg); color: var(--ink-3) !important; width: 18px !important; height: 18px !important; }
+.mfdai-facts { display: flex; flex-direction: column; gap: 10px; margin: 0 4px; }
+.mfdai-facts span { display: flex; align-items: flex-start; gap: 10px; font-size: 13px; line-height: 1.4; color: var(--ink-2); }
+.mfdai-facts svg { width: 16px; height: 16px; flex: none; margin-top: 1px; color: var(--ink-3); }
 .ai-hub-ask { display: flex; align-items: center; gap: 10px; width: 100%; min-height: 48px; padding: 0 8px 0 14px; border: 1px solid var(--line); border-radius: 999px; background: var(--field); color: var(--ink-3); font: inherit; font-size: 15px; text-align: left; cursor: pointer; }
 .ai-hub-ask > svg { width: 18px; height: 18px; color: var(--ai-text); flex: none; }
 .ai-hub-ask .grow { flex: 1; }
