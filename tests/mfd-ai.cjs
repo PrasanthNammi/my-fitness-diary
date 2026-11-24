@@ -3,7 +3,7 @@
 // weight, workout, routine with a new folder, start a routine), plus the CSP that lets the app reach Gemini.
 const assert=require('assert/strict'),esbuild=require('esbuild'),path=require('path'),os=require('os'),fs=require('fs');
 const out=path.join(os.tmpdir(),'mfd-ai-test.cjs');
-esbuild.buildSync({stdin:{contents:`export {parseAnswer,systemPrompt,RESPONSE_SCHEMA,cardSummary} from './frontend/domain/mfdAi';export {pickFlash,maskedKey,saveGeminiKey,geminiErrorText,geminiErrorDetail,geminiKey,geminiJson,alternate,jsonIn} from './frontend/lib/gemini';export {applyCard,resolveCard} from './frontend/lib/mfdAiApply';export {getDB} from './frontend/data/store';export {nutrientsFor} from './frontend/domain/nutrition';`,resolveDir:process.cwd(),loader:'ts'},bundle:true,platform:'node',format:'cjs',outfile:out,logLevel:'silent'});
+esbuild.buildSync({stdin:{contents:`export {parseAnswer,systemPrompt,RESPONSE_SCHEMA,cardSummary} from './frontend/domain/mfdAi';export {pickFlash,flashOrder,maskedKey,saveGeminiKey,geminiErrorText,geminiErrorDetail,geminiKey,geminiJson,alternate,jsonIn} from './frontend/lib/gemini';export {applyCard,resolveCard} from './frontend/lib/mfdAiApply';export {getDB} from './frontend/data/store';export {nutrientsFor} from './frontend/domain/nutrition';`,resolveDir:process.cwd(),loader:'ts'},bundle:true,platform:'node',format:'cjs',outfile:out,logLevel:'silent'});
 const ex=(id,name)=>({id,name,primaryMuscle:'Chest',secondaryMuscles:[],equipment:'Barbell',tracking:'weight_reps',source:'mfd',sourceRef:null,mediaUrl:null});
 let state={profile:{onboarded:true,name:'Test',sex:'male',height:180,activity:1.55,goal:'Maintain',days:3},sessions:[],meals:[],products:[],weights:[{id:'w1',date:'2026-11-19',kg:72.9}],checkins:[],water:{},active:null,folders:[],routines:[],
   mfdExercises:[ex('bench','Bench Press (Barbell)'),ex('pulldown','Lat Pulldown (Cable)')]},v=0,subs=[];
@@ -32,7 +32,9 @@ assert.match(M.systemPrompt({today:T,weekday:'Tuesday',time:'08:10',weightUnit:'
 assert.ok(M.RESPONSE_SCHEMA.properties.items.items.properties.kind.enum.includes('start_routine'));
 
 // Model pick and key display.
-assert.equal(M.pickFlash(['models/gemini-2.0-flash','models/gemini-2.5-flash','models/gemini-2.5-flash-lite','models/gemini-3.0-flash-preview','models/gemini-2.5-pro','models/gemini-3-flash']),'gemini-3-flash');
+assert.equal(M.pickFlash(['models/gemini-2.0-flash','models/gemini-2.5-flash','models/gemini-2.5-flash-lite','models/gemini-3.0-flash-preview','models/gemini-2.5-pro','models/gemini-3-flash']),'gemini-2.5-flash','stable 2.5 Flash first');
+assert.deepEqual(M.flashOrder(['models/gemini-2.0-flash','models/gemini-2.5-flash','models/gemini-2.5-flash-lite','models/gemini-3-flash','models/gemini-2.5-pro']),['gemini-2.5-flash','gemini-3-flash','gemini-2.0-flash','gemini-2.5-flash-lite']);
+assert.equal(M.pickFlash(['models/gemini-3-flash','models/gemini-2.0-flash']),'gemini-3-flash','newest when 2.5 is missing');
 assert.equal(M.pickFlash(['models/gemini-2.5-pro']),null);
 assert.equal(M.maskedKey('AIzaSyABCDEFGHIJKLMNOPQRSTUVWQx4'),'AIza••••••••Qx4');
 
@@ -42,23 +44,26 @@ const store={};global.localStorage={getItem:k=>store[k]??null,setItem:(k,v)=>{st
 const calls=[];global.fetch=async(u,o)=>{calls.push({u,o});return {ok:true,status:200,json:async()=>({models:[{name:'models/gemini-2.5-flash',supportedGenerationMethods:['generateContent']},{name:'models/gemini-3-flash',supportedGenerationMethods:['generateContent']}]})}};
 await M.saveGeminiKey('  AQ.Ab8RN6Jv18XdfLCkU65yUBA6iZ0VSywH_test-key  ');
 assert.equal(calls.length,1);assert.equal(calls[0].o.headers['x-goog-api-key'],'AQ.Ab8RN6Jv18XdfLCkU65yUBA6iZ0VSywH_test-key');assert.ok(!calls[0].u.includes('AQ.'),'key not in the URL');
-assert.equal(M.geminiKey(),'AQ.Ab8RN6Jv18XdfLCkU65yUBA6iZ0VSywH_test-key');assert.equal(store['mfd-ai-gemini-model'],'gemini-3-flash');
+assert.equal(M.geminiKey(),'AQ.Ab8RN6Jv18XdfLCkU65yUBA6iZ0VSywH_test-key');assert.equal(store['mfd-ai-gemini-model'],'gemini-2.5-flash');assert.equal(store['mfd-ai-gemini-models'],JSON.stringify(['gemini-2.5-flash','gemini-3-flash']));
 await assert.rejects(M.saveGeminiKey('my key is secret!'),e=>e.kind==='format');assert.equal(calls.length,1,'no call for junk');
 global.fetch=async()=>({ok:false,status:401,json:async()=>({error:{details:[{reason:'ACCESS_TOKEN_TYPE_UNSUPPORTED'}]}})});
 await assert.rejects(M.saveGeminiKey('AQ.Ab8RN6Jv18XdfLCkU65yUBA6iZ0VSywH'),e=>e.kind==='keytype'&&/limit it to the Gemini API/.test(M.geminiErrorText(e)));
-// Fallbacks: a 404 model → the standard Flash; a 400 (schema refused) → asked again without the schema; fenced JSON read.
+// Busy (503): one retry on the same model, then the next Flash model; a 400 (schema refused) → asked again without it; fenced JSON read.
 const seen=[];global.fetch=async(u,o)=>{const b=JSON.parse(o.body);seen.push({m:u.split('/models/')[1].split(':')[0],schema:!!b.generationConfig.responseSchema});
-  if(seen.length===1)return {ok:false,status:404,json:async()=>({error:{message:'models/gemini-3-flash is not found'}})};
-  if(seen.length===2)return {ok:false,status:400,json:async()=>({error:{message:'Invalid JSON payload received. Unknown name "responseSchema"'}})};
+  if(seen.length<=2)return {ok:false,status:503,json:async()=>({error:{message:'This model is currently experiencing high demand.'}})};
+  if(seen.length===3)return {ok:false,status:400,json:async()=>({error:{message:'Unknown name "responseSchema"'}})};
   return {ok:true,status:200,json:async()=>({candidates:[{content:{parts:[{text:'```json\n{"reply":"Hi","items":[]}\n```'}]}}]})}};
 const ans=await M.geminiJson({system:'s',schema:{type:'OBJECT'},turns:[{role:'model',text:'x'},{role:'user',text:'a'},{role:'user',text:'b'}]});
-assert.deepEqual(ans,{reply:'Hi',items:[]});assert.deepEqual(seen,[{m:'gemini-3-flash',schema:true},{m:'gemini-2.5-flash',schema:true},{m:'gemini-2.5-flash',schema:false}]);
-assert.equal(store['mfd-ai-gemini-model'],'gemini-2.5-flash','fallback model remembered');
+assert.deepEqual(ans,{reply:'Hi',items:[]});
+assert.deepEqual(seen,[{m:'gemini-2.5-flash',schema:true},{m:'gemini-2.5-flash',schema:true},{m:'gemini-3-flash',schema:true},{m:'gemini-3-flash',schema:false}]);
+assert.equal(store['mfd-ai-gemini-model'],'gemini-2.5-flash','a busy spike does not change the chosen model');
+global.fetch=async()=>({ok:false,status:503,json:async()=>({error:{message:'high demand'}})});
+await assert.rejects(M.geminiJson({system:'s',schema:{},turns:[{role:'user',text:'a'}]}),e=>e.kind==='busy'&&/very busy/.test(M.geminiErrorText(e))&&M.geminiErrorDetail(e)==='');
 assert.deepEqual(M.alternate([{role:'model',text:'x'},{role:'user',text:'a'},{role:'user',text:'b'},{role:'model',text:''}]),[{role:'user',text:'a\nb'}]);
 global.fetch=async()=>({ok:false,status:500,json:async()=>({error:{message:'Internal error for key AQ.Ab8secret123'}})});
 await assert.rejects(M.geminiJson({system:'s',schema:{},turns:[{role:'user',text:'a'}]}),e=>{const d=M.geminiErrorDetail(e);assert.equal(d,'500 · Internal error for key …');return true});
 global.fetch=undefined;
-console.log('PASS MFD AI keys: AQ. keys, header only, clear errors, fallbacks (404 model, 400 schema), fenced JSON, alternating turns, no key in error details');
+console.log('PASS MFD AI keys: AQ. keys, header only, clear errors, busy models (retry, next Flash), 400 schema, fenced JSON, alternating turns, no key in error details');
 })().catch(e=>{console.error(e);process.exit(1)});
 
 // Add and Undo on the example diary.

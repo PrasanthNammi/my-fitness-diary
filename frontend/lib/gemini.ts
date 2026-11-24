@@ -1,9 +1,10 @@
 // Google Gemini with the person's OWN key (MFD AI). The key is kept on this device only (localStorage) and every
 // request goes from the device straight to Google: MFD's server never sees the key or the messages.
-// The model is the newest plain "Flash" model the key can use, found once when the key is saved.
+// The model is Gemini 2.5 Flash (stable, like Sparky's default) when the key has it; busy models (503) are retried
+// once, then the other Flash models the key can use are tried, so a demand spike on one model doesn't stop logging.
 
 const API = 'https://generativelanguage.googleapis.com/v1beta';
-const KEY = 'mfd-ai-gemini-key', MODEL = 'mfd-ai-gemini-model';
+const KEY = 'mfd-ai-gemini-key', MODEL = 'mfd-ai-gemini-model', MODELS = 'mfd-ai-gemini-models';
 export const FALLBACK_MODEL = 'gemini-2.5-flash';
 
 const read = (k: string) => { try { return localStorage.getItem(k); } catch { return null; } };
@@ -12,11 +13,11 @@ const write = (k: string, v: string | null) => { try { if (v === null) localStor
 export const geminiKey = () => read(KEY);
 export const geminiModel = () => read(MODEL) || FALLBACK_MODEL;
 export const maskedKey = (k: string) => (k.length > 10 ? `${k.slice(0, 4)}••••••••${k.slice(-3)}` : '••••');
-export function forgetGeminiKey() { write(KEY, null); write(MODEL, null); }
+export function forgetGeminiKey() { write(KEY, null); write(MODEL, null); write(MODELS, null); }
 
 export class GeminiError extends Error {
   /** status: Google's HTTP status; detail: Google's own reason (never contains the key). */
-  constructor(public kind: 'key' | 'format' | 'keytype' | 'quota' | 'offline' | 'blocked' | 'other', message: string, public status = 0, public detail = '') { super(message); }
+  constructor(public kind: 'key' | 'format' | 'keytype' | 'busy' | 'quota' | 'offline' | 'blocked' | 'other', message: string, public status = 0, public detail = '') { super(message); }
 }
 
 /** What to tell the person for each failure. */
@@ -27,11 +28,12 @@ export function geminiErrorText(e: unknown): string {
     : k === 'keytype' ? 'Google didn’t accept this new kind of key here. In AI Studio, open the key and limit it to the Gemini API, or create a new key, then try again.'
     : k === 'quota' ? 'Your free Gemini limit is used up for now. Try again in a minute, or tomorrow for the daily limit.'
     : k === 'offline' ? 'No connection to Google. Check your internet and try again.'
+    : k === 'busy' ? 'Gemini is very busy right now. Try again in a minute.'
     : k === 'blocked' ? 'Google didn’t answer this one. Try saying it differently.'
     : 'Something went wrong with Gemini. Try again.';
 }
 /** Google's short reason, shown small under the message so a problem can be reported. */
-export const geminiErrorDetail = (e: unknown) => (e instanceof GeminiError && e.kind !== 'offline' && e.kind !== 'quota' ? [e.status || '', e.detail].filter(Boolean).join(' · ').slice(0, 220) : '');
+export const geminiErrorDetail = (e: unknown) => (e instanceof GeminiError && e.kind !== 'offline' && e.kind !== 'quota' && e.kind !== 'busy' ? [e.status || '', e.detail].filter(Boolean).join(' · ').slice(0, 220) : '');
 
 async function call(path: string, key: string, body?: unknown, signal?: AbortSignal): Promise<any> {
   let res: Response;
@@ -49,12 +51,17 @@ async function call(path: string, key: string, body?: unknown, signal?: AbortSig
   throw fail('other');
 }
 
-/** Picks the newest plain Flash model from the key's model list (no lite/image/audio/preview variants). */
-export function pickFlash(names: string[]): string | null {
-  const plain = names.map((n) => n.replace(/^models\//, '')).filter((n) => /^gemini-\d+(\.\d+)?-flash$/.test(n));
-  const version = (n: string) => parseFloat(n.slice(7));
-  return plain.sort((a, b) => version(b) - version(a))[0] ?? null;
+const FLASH = /^gemini-\d+(\.\d+)?-flash(-lite)?$/;
+const version = (n: string) => parseFloat(n.slice(7));
+/** The Flash models to use, best first: 2.5 Flash (stable), then other plain Flash models (newest first), then Lite. */
+export function flashOrder(names: string[]): string[] {
+  const all = [...new Set(names.map((n) => n.replace(/^models\//, '')).filter((n) => FLASH.test(n)))];
+  const rank = (n: string) => (n === FALLBACK_MODEL ? 0 : n.endsWith('-lite') ? 2 : 1);
+  return all.sort((a, b) => rank(a) - rank(b) || version(b) - version(a));
 }
+/** The first choice from flashOrder (null when the key has no Flash model). */
+export const pickFlash = (names: string[]): string | null => flashOrder(names)[0] ?? null;
+const savedOrder = (): string[] => { try { const l = JSON.parse(read(MODELS) || '[]'); return Array.isArray(l) ? l : []; } catch { return []; } };
 
 /** Checks the key with Google (lists its models), then saves the key and the chosen model on this device. */
 export async function saveGeminiKey(raw: string): Promise<void> {
@@ -63,7 +70,8 @@ export async function saveGeminiKey(raw: string): Promise<void> {
   if (!/^[\w.-]{20,300}$/.test(key)) throw new GeminiError('format', 'format');
   const list = await call('models?pageSize=200', key);
   const names: string[] = (list?.models ?? []).filter((m: any) => (m.supportedGenerationMethods ?? []).includes('generateContent')).map((m: any) => m.name);
-  write(KEY, key); write(MODEL, pickFlash(names) ?? FALLBACK_MODEL);
+  const order = flashOrder(names);
+  write(KEY, key); write(MODEL, order[0] ?? FALLBACK_MODEL); write(MODELS, JSON.stringify(order.slice(0, 4)));
 }
 
 export type Turn = { role: 'user' | 'model'; text: string };
@@ -85,8 +93,8 @@ export function jsonIn(text: string): unknown {
 
 /**
  * One structured answer: Gemini replies with JSON matching `schema`. If Google refuses the request (400), it is
- * asked again without the schema (the instructions still describe the JSON); if the chosen model isn't available
- * to this key (404), the standard Flash model is used and remembered.
+ * asked again without the schema (the instructions still describe the JSON). A busy model (503, once retried) or one
+ * not available to the key (404, then remembered) hands over to the next Flash model.
  */
 export async function geminiJson<T>(opts: { system: string; turns: Turn[]; schema: object; signal?: AbortSignal }): Promise<T> {
   const key = geminiKey();
@@ -96,13 +104,25 @@ export async function geminiJson<T>(opts: { system: string; turns: Turn[]; schem
     contents: alternate(opts.turns).map((t) => ({ role: t.role, parts: [{ text: t.text }] })),
     generationConfig: { temperature: 0.2, responseMimeType: 'application/json', ...(schema ? { responseSchema: opts.schema } : {}) },
   }, opts.signal);
-  let model = geminiModel(), data: any;
-  try { data = await ask(model, true); } catch (e) {
-    if (!(e instanceof GeminiError) || e.kind !== 'other') throw e;
-    if (e.status === 404 && model !== FALLBACK_MODEL) { model = FALLBACK_MODEL; write(MODEL, model); data = await ask(model, true).catch((e2) => { if (e2 instanceof GeminiError && e2.status === 400) return ask(model, false); throw e2; }); }
-    else if (e.status === 400) data = await ask(model, false);
-    else throw e;
+  const once = async (model: string): Promise<any> => {
+    try { return await ask(model, true); } catch (e) { if (e instanceof GeminiError && e.status === 400) return ask(model, false); throw e; }
+  };
+  const busy = (e: unknown) => e instanceof GeminiError && (e.status === 503 || e.status === 500 || e.status === 404);
+  // Keys saved before the model list was kept start with the stable model.
+  const saved = savedOrder(), models = [...new Set(saved.length ? [geminiModel(), ...saved, FALLBACK_MODEL] : [FALLBACK_MODEL, geminiModel()])];
+  let data: any, last: unknown;
+  for (let i = 0; i < models.length && data === undefined; i++) {
+    try { data = await once(models[i]); if (i > 0 && (last as GeminiError).status === 404) write(MODEL, models[i]); }
+    catch (e) {
+      if (!busy(e)) throw e;
+      last = e;
+      if (i === 0 && (e as GeminiError).status === 503) {   // a short spike: one more try on the same model
+        await new Promise((r) => setTimeout(r, 1200));
+        try { data = await once(models[0]); } catch (e2) { if (!busy(e2)) throw e2; last = e2; }
+      }
+    }
   }
+  if (data === undefined) { const e = last as GeminiError; throw e.status === 503 ? new GeminiError('busy', e.message, e.status, e.detail) : e; }
   const parts = data?.candidates?.[0]?.content?.parts ?? [];
   const text = parts.filter((p: any) => !p.thought).map((p: any) => p.text ?? '').join('');
   if (!text) throw new GeminiError('blocked', 'empty', 200, String(data?.promptFeedback?.blockReason ?? data?.candidates?.[0]?.finishReason ?? ''));
