@@ -7,7 +7,7 @@
   "condition": "C",
   "for": "0s",
   "noDataState": "OK",
-  "execErrState": "Alerting",
+  "execErrState": "KeepLast",
   "labels": {
    "severity": "warning",
    "app": "mfd"
@@ -104,7 +104,7 @@
   "condition": "C",
   "for": "0s",
   "noDataState": "OK",
-  "execErrState": "Alerting",
+  "execErrState": "KeepLast",
   "labels": {
    "severity": "warning",
    "app": "mfd"
@@ -201,7 +201,7 @@
   "condition": "C",
   "for": "0s",
   "noDataState": "OK",
-  "execErrState": "Alerting",
+  "execErrState": "KeepLast",
   "labels": {
    "severity": "info",
    "app": "mfd"
@@ -298,7 +298,7 @@
   "condition": "C",
   "for": "0s",
   "noDataState": "OK",
-  "execErrState": "Alerting",
+  "execErrState": "KeepLast",
   "labels": {
    "severity": "info",
    "app": "mfd"
@@ -386,5 +386,199 @@
    }
   ],
   "isPaused": true
+ },
+ {
+  "uid": "mfdconnectorrefused",
+  "title": "AI connector refusing requests",
+  "folderUID": "fdwrsn",
+  "ruleGroup": "mfd-connector",
+  "condition": "C",
+  "for": "0s",
+  "noDataState": "OK",
+  "execErrState": "KeepLast",
+  "labels": {
+   "severity": "warning",
+   "app": "mfd"
+  },
+  "annotations": {
+   "summary": "AI connector refusing requests",
+   "description": "More than 10 connector requests in the last hour were answered \"Rate limited\" (429) or \"unavailable\" (503). If one user: a looping AI app. If many: limits too tight or the limit counter (Durable Object) slow; see hosting/independent/coordinator.ts. Strangers flooding the connector also show here."
+  },
+  "data": [
+   {
+    "refId": "A",
+    "relativeTimeRange": {
+     "from": 3600,
+     "to": 0
+    },
+    "datasourceUid": "CLOUDFLARE_INFINITY_UID",
+    "model": {
+     "refId": "A",
+     "type": "graphql",
+     "source": "url",
+     "parser": "backend",
+     "format": "table",
+     "url": "https://api.cloudflare.com/client/v4/graphql",
+     "url_options": {
+      "method": "POST",
+      "body_type": "graphql",
+      "body_content_type": "application/json",
+      "body_graphql_query": "query($a:string!,$w:[string!]){viewer{accounts(filter:{accountTag:$a}){workersInvocationsAdaptive(limit:2000,filter:{scriptName_in:$w,datetime_geq:\"${__timeFrom:date:iso}\",datetime_leq:\"${__timeTo:date:iso}\",httpResponseStatus_in:[429,503]}){sum{requests} dimensions{scriptName}}}}}",
+      "body_graphql_variables": "{\"a\": \"fa8205077c4bc4d2bb38ee035e74a156\", \"w\": [\"mfd-connect-staging\", \"mfd-connect\"]}"
+     },
+     "root_selector": "data.viewer.accounts[0].workersInvocationsAdaptive",
+     "columns": [
+      {
+       "selector": "dimensions.scriptName",
+       "text": "worker",
+       "type": "string"
+      },
+      {
+       "selector": "sum.requests",
+       "text": "value",
+       "type": "number"
+      }
+     ]
+    }
+   },
+   {
+    "refId": "B",
+    "relativeTimeRange": {
+     "from": 0,
+     "to": 0
+    },
+    "datasourceUid": "__expr__",
+    "model": {
+     "refId": "B",
+     "type": "reduce",
+     "expression": "A",
+     "reducer": "sum",
+     "settings": {
+      "mode": "dropNN"
+     }
+    }
+   },
+   {
+    "refId": "C",
+    "relativeTimeRange": {
+     "from": 0,
+     "to": 0
+    },
+    "datasourceUid": "__expr__",
+    "model": {
+     "refId": "C",
+     "type": "threshold",
+     "expression": "B",
+     "conditions": [
+      {
+       "evaluator": {
+        "type": "gt",
+        "params": [
+         10
+        ]
+       }
+      }
+     ]
+    }
+   }
+  ],
+  "isPaused": false
+ },
+ {
+  "uid": "mfdconnectormonitoring",
+  "title": "Connector monitoring cannot read Cloudflare",
+  "folderUID": "fdwrsn",
+  "ruleGroup": "mfd-connector",
+  "condition": "C",
+  "for": "15m",
+  "noDataState": "OK",
+  "execErrState": "Alerting",
+  "labels": {
+   "severity": "info",
+   "app": "mfd"
+  },
+  "annotations": {
+   "summary": "Connector monitoring cannot read Cloudflare",
+   "description": "Grafana has not been able to read Cloudflare's statistics for 15 minutes, so the other connector alerts are blind. This says nothing about the connector itself. Usually a short Cloudflare or Grafana outage that fixes itself; if it lasts, check the \"Cloudflare analytics\" data source token."
+  },
+  "data": [
+   {
+    "refId": "A",
+    "relativeTimeRange": {
+     "from": 3600,
+     "to": 0
+    },
+    "datasourceUid": "CLOUDFLARE_INFINITY_UID",
+    "model": {
+     "refId": "A",
+     "type": "graphql",
+     "source": "url",
+     "parser": "backend",
+     "format": "table",
+     "url": "https://api.cloudflare.com/client/v4/graphql",
+     "url_options": {
+      "method": "POST",
+      "body_type": "graphql",
+      "body_content_type": "application/json",
+      "body_graphql_query": "query($a:string!,$w:[string!]){viewer{accounts(filter:{accountTag:$a}){workersInvocationsAdaptive(limit:2000,filter:{scriptName_in:$w,datetime_geq:\"${__timeFrom:date:iso}\",datetime_leq:\"${__timeTo:date:iso}\",status_in:[\"scriptThrewException\",\"internalError\"]}){sum{requests} dimensions{scriptName}}}}}",
+      "body_graphql_variables": "{\"a\": \"fa8205077c4bc4d2bb38ee035e74a156\", \"w\": [\"mfd-connect-staging\", \"mfd-connect\"]}"
+     },
+     "root_selector": "data.viewer.accounts[0].workersInvocationsAdaptive",
+     "columns": [
+      {
+       "selector": "dimensions.scriptName",
+       "text": "worker",
+       "type": "string"
+      },
+      {
+       "selector": "sum.requests",
+       "text": "value",
+       "type": "number"
+      }
+     ]
+    }
+   },
+   {
+    "refId": "B",
+    "relativeTimeRange": {
+     "from": 0,
+     "to": 0
+    },
+    "datasourceUid": "__expr__",
+    "model": {
+     "refId": "B",
+     "type": "reduce",
+     "expression": "A",
+     "reducer": "sum",
+     "settings": {
+      "mode": "dropNN"
+     }
+    }
+   },
+   {
+    "refId": "C",
+    "relativeTimeRange": {
+     "from": 0,
+     "to": 0
+    },
+    "datasourceUid": "__expr__",
+    "model": {
+     "refId": "C",
+     "type": "threshold",
+     "expression": "B",
+     "conditions": [
+      {
+       "evaluator": {
+        "type": "lt",
+        "params": [
+         0
+        ]
+       }
+      }
+     ]
+    }
+   }
+  ],
+  "isPaused": false
  }
 ]

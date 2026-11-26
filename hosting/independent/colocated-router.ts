@@ -4,13 +4,23 @@ import type {IntegrationConfig} from './config';
 import {createAuthService} from './auth';
 import {createConnectorMcpService, createMcpService, privateJson, type OnWrite} from './service';
 import {AUTHORIZE, UPSTREAM_CALLBACK, TOKEN, REGISTER} from './connector';
-import {localRateGate, type RateGate} from './limits';
+import {localRateGate, tokenKey, type RateGate} from './limits';
 
 export interface CoordinatorNamespace {
   idFromName(name: string): unknown;
-  get(id: unknown): {consume(kind: string): Promise<boolean>; createGoogle?(browser:string,flow:GoogleTransaction):Promise<boolean>; takeGoogle?(browser:string,id:string):Promise<GoogleTransaction|null>};
+  get(id: unknown): {consume(kind: string, address?: string, connection?: string): Promise<boolean>; failed?(address: string): Promise<void>; createGoogle?(browser:string,flow:GoogleTransaction):Promise<boolean>; takeGoogle?(browser:string,id:string):Promise<GoogleTransaction|null>};
 }
-const localMcp = localRateGate(), localAuth = localRateGate(30);
+// Per-isolate backstops only; the coordinator holds the real limits (coordinator.ts).
+const localMcp = localRateGate(600), localAuth = localRateGate(300);
+const COORDINATOR_TIMEOUT = 5000;
+/** Who is asking: hashed address, and for a connector token its hashed user+grant (never the secret). */
+export async function callerKeys(request: Request) {
+  const address = await tokenKey('ip ' + (request.headers.get('cf-connecting-ip') || 'unknown'));
+  const bearer = /^Bearer (\S{1,8192})$/i.exec(request.headers.get('authorization') || '')?.[1];
+  if (!bearer) return {address};
+  const parts = bearer.split(':');
+  return {address, connection: await tokenKey('conn ' + (parts.length === 3 ? parts[0] + ':' + parts[1] : bearer))};
+}
 export function createColocatedService(config: IntegrationConfig, namespace: CoordinatorNamespace | undefined, fetcher: typeof fetch, gates: {mcp: RateGate; auth: RateGate} = {mcp: localMcp, auth: localAuth}, onWrite?: OnWrite) {
   const stub=()=>{if(!namespace) throw Error('Missing transaction coordinator');return namespace.get(namespace.idFromName('mfd-staging-shared-v1'));};
   async function timed<T>(operation:Promise<T>) {let timer:ReturnType<typeof setTimeout>|undefined;try{return await Promise.race([operation,new Promise<never>((_,reject)=>{timer=setTimeout(()=>reject(Error('Transaction timeout')),2000);})]);}finally{if(timer!==undefined)clearTimeout(timer);}}
@@ -36,7 +46,9 @@ export function createColocatedService(config: IntegrationConfig, namespace: Coo
       let timer: ReturnType<typeof setTimeout> | undefined;
       let allowed: boolean;
       try {
-        allowed = await Promise.race([stub.consume(discovery?'discovery':authPath?'auth':'mcp'),new Promise<never>((_,reject)=>{timer=setTimeout(()=>reject(Error('Coordinator timeout')),2000);})]);
+        const keys = await callerKeys(request);
+        const kind = discovery?'discovery':authPath?'auth':keys.connection?'mcp':'anon';
+        allowed = await Promise.race([stub.consume(kind,keys.address,keys.connection),new Promise<never>((_,reject)=>{timer=setTimeout(()=>reject(Error('Coordinator timeout')),COORDINATOR_TIMEOUT);})]);
       } finally {if (timer !== undefined) clearTimeout(timer);}
       if (allowed !== true) return privateJson({error:'Rate limited'},429,{'Retry-After':'60'});
       return null;
@@ -48,5 +60,13 @@ export function createColocatedService(config: IntegrationConfig, namespace: Coo
     const path = new URL(request.url).pathname;
     return path === '/mcp' || path.startsWith('/.well-known/') ? mcp(request) : auth(request);
   };
-  return Object.assign(service, {guard, auth, connectorMcp});
+  /** After the OAuth server refused a token at /mcp: count it against the sender's address. */
+  async function refused(request: Request) {
+    try {
+      const keys = await callerKeys(request);
+      if (!keys.connection || !namespace) return;
+      await namespace.get(namespace.idFromName('mfd-staging-shared-v1')).failed?.(keys.address);
+    } catch {/* best effort */}
+  }
+  return Object.assign(service, {guard, auth, connectorMcp, refused});
 }

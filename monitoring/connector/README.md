@@ -14,7 +14,7 @@ charge. Alert evaluation adds a few API reads per minute, far below Cloudflare's
 
 - `grafana-dashboard.json`: "MFD AI Connector Health". Requests per hour by outcome, CPU p50/p99
   against the 10 ms free limit, failed requests by reason, requests vs the free 100,000/day.
-- `grafana-alert-rules.json`: four Grafana-managed rules, group `mfd-connector`, folder `fdwrsn`,
+- `grafana-alert-rules.json`: six Grafana-managed rules, group `mfd-connector`, folder `fdwrsn`,
   label `app=mfd` (so they reach the existing `MFD Email` contact point):
 
 | Rule | Fires when | Severity |
@@ -23,9 +23,17 @@ charge. Alert evaluation adds a few API reads per minute, far below Cloudflare's
 | AI connector crashed | any `scriptThrewException` or `internalError` in the last hour | warning |
 | AI connector above half the free daily requests | more than 50,000 requests in 24 h | info |
 | AI connector worst-case CPU above 10 ms for 6 h | p99 CPU above 10,000 µs over 6 h | info, **paused**: cold starts keep p99 near 20 ms; use the CPU panel |
+| AI connector refusing requests | more than 10 answers of 429 (rate limited) or 503 (unavailable) in the last hour | warning |
+| Connector monitoring cannot read Cloudflare | Grafana's Cloudflare query has failed for 15 minutes | info |
 
-No data means no requests, so the error rules use `noDataState: OK`; a broken data source
-still alerts through `execErrState: Alerting`.
+No data means no requests, so the error rules use `noDataState: OK`. A failed read of Cloudflare
+keeps each rule's last state (`execErrState: KeepLast`) and is reported only by the separate
+"monitoring cannot read Cloudflare" rule. Before 26 Nov 2026 a failed read fired every rule at once
+("crashed", "stopped for CPU" and "above half the daily requests" together, with zero traffic).
+
+The 429/503 rule exists because the connector's limits once shared 30 requests/minute among all
+users, which refused a real chat (26 Nov 2026) without any alert; limits are now per connection
+and per address (`hosting/independent/coordinator.ts`).
 
 Dates in alert queries: Grafana's `${__from:date:iso}` is not filled in when alerts evaluate,
 and Infinity fills only the first macro inside the GraphQL variables. The rules therefore put
