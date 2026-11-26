@@ -56,7 +56,7 @@ export function connectorWorker(configOf: (env: Record<string, unknown>) => Inte
       const denied=await entry.service.guard(request,true);
       if(denied) return denied;
       const response=await entry.provider.fetch(request,env,ctx);
-      if(response.status===401&&url.pathname==='/mcp') ctx.waitUntil(entry.service.refused(request));
+      if(response.status===401&&url.pathname==='/mcp') ctx?.waitUntil(entry.service.refused(request));
       return response;
     } catch {return privateJson({error:'Invalid staging service configuration'},503);}
   }};
