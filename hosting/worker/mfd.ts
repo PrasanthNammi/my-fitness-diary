@@ -28,6 +28,10 @@ export async function handleMfd(request:Request,deps:Deps){
  function saveSession(data:any){if(!data?.access_token||!data.refresh_token||!data.user?.id)throw new HttpError(502,'Invalid authentication response');setCookies.push(cookie(ACCESS,data.access_token),cookie(REFRESH,data.refresh_token));return data.access_token as string}
  async function upstream(path:string,options:RequestInit={},token?:string){const headers=new Headers(options.headers);headers.set('apikey',KEY);headers.set('Authorization','Bearer '+(token||KEY));const response=await deps.fetch(SUPABASE+path,{...options,headers,redirect:'manual',signal:AbortSignal.timeout(20000)});return response}
  async function authCall(path:string,body?:any,token?:string){const r=await upstream('/auth/v1/'+path,{method:body===undefined?'GET':'POST',headers:{'Content-Type':'application/json'},...(body===undefined?{}:{body:JSON.stringify(body)})},token);const data=await r.json() as any;if(!r.ok)throw new HttpError(r.status, data.msg||data.message||data.error_description||'Authentication failed');return data}
+ // Calls that make Supabase send an email (sign-up confirmation, password reset, resend). When the email can't be sent
+ // (26 Nov 2026: Gmail refused the app password and every email sign-up failed unnoticed) the failure is counted for
+ // Grafana (database/auth-email-alert.sql) and people get a clear message instead of Supabase's raw error.
+ async function emailCall(path:string,body:any){try{return await authCall(path,body)}catch(e){if(!(e instanceof HttpError)||e.status<500)throw e;try{await upstream('/rest/v1/rpc/mfd_note_auth_email_failure',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'})}catch{/* counting is best effort */}throw new HttpError(503,"We couldn't send the email right now. Please try again later, or continue with Google.")}}
  let result:Response;
  try{
   const jar=cookies(request);
@@ -63,12 +67,12 @@ export async function handleMfd(request:Request,deps:Deps){
   }else if(url.pathname==='/api/auth/signup'&&request.method==='POST'){if(jar.has(RESET))setCookies.push(cookie(RESET,'',0));
    const {email,password}=await readJSON(request);if(typeof email!=='string'||typeof password!=='string'||email.length>254||password.length<12||password.length>4096)throw new HttpError(400,'Use a valid email and a password of at least 12 characters');
    const verifier=b64(crypto.getRandomValues(new Uint8Array(32))),challenge=b64(new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(verifier))));
-   const data=await authCall('signup?redirect_to='+encodeURIComponent(origin+'/'),{email,password,code_challenge:challenge,code_challenge_method:'s256'});setCookies.push(cookie(PKCE,verifier,3600));if(data.access_token)saveSession(data);result=json({session:data.access_token?{user:safeUser(data.user)}:null});
+   const data=await emailCall('signup?redirect_to='+encodeURIComponent(origin+'/'),{email,password,code_challenge:challenge,code_challenge_method:'s256'});setCookies.push(cookie(PKCE,verifier,3600));if(data.access_token)saveSession(data);result=json({session:data.access_token?{user:safeUser(data.user)}:null});
   }else if(url.pathname==='/api/auth/recover'&&request.method==='POST'){
    // Forgot password: emails a reset link. The answer is the same whether or not the account exists.
    const {email}=await readJSON(request);if(typeof email!=='string'||email.length>254||!email.includes('@'))throw new HttpError(400,'Use a valid email');
    const verifier=b64(crypto.getRandomValues(new Uint8Array(32))),challenge=b64(new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(verifier))));
-   await authCall('recover?redirect_to='+encodeURIComponent(origin+'/'),{email,code_challenge:challenge,code_challenge_method:'s256'});setCookies.push(cookie(PKCE,verifier,3600),cookie(RESET,'1',3600));result=json({sent:true});
+   await emailCall('recover?redirect_to='+encodeURIComponent(origin+'/'),{email,code_challenge:challenge,code_challenge_method:'s256'});setCookies.push(cookie(PKCE,verifier,3600),cookie(RESET,'1',3600));result=json({sent:true});
   }else if(url.pathname==='/api/auth/password'&&request.method==='POST'){
    // Sets a new password for the signed-in account (after a reset link).
    const {password}=await readJSON(request);if(typeof password!=='string'||password.length<12||password.length>4096)throw new HttpError(400,'Use a password of at least 12 characters');
@@ -79,7 +83,7 @@ export async function handleMfd(request:Request,deps:Deps){
    // Sends the sign-up confirmation link again, with a fresh sign-in check for this browser.
    const {email}=await readJSON(request);if(typeof email!=='string'||email.length>254||!email.includes('@'))throw new HttpError(400,'Use a valid email');
    const verifier=b64(crypto.getRandomValues(new Uint8Array(32))),challenge=b64(new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(verifier))));
-   await authCall('resend?redirect_to='+encodeURIComponent(origin+'/'),{type:'signup',email,code_challenge:challenge,code_challenge_method:'s256'});setCookies.push(cookie(PKCE,verifier,3600));result=json({sent:true});
+   await emailCall('resend?redirect_to='+encodeURIComponent(origin+'/'),{type:'signup',email,code_challenge:challenge,code_challenge_method:'s256'});setCookies.push(cookie(PKCE,verifier,3600));result=json({sent:true});
   }else if(url.pathname==='/api/auth/oauth'&&request.method==='POST'){if(jar.has(RESET))setCookies.push(cookie(RESET,'',0));
    const verifier=b64(crypto.getRandomValues(new Uint8Array(32))),challenge=b64(new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(verifier))));setCookies.push(cookie(PKCE,verifier,600));
    const dest=new URL('/auth/v1/authorize',SUPABASE);dest.search=new URLSearchParams({provider:'google',redirect_to:origin+'/',code_challenge:challenge,code_challenge_method:'s256'}).toString();result=json({url:dest.href});
