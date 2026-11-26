@@ -13,7 +13,7 @@ function namespace(allow){return{idFromName(name){assert.equal(name,'mfd-staging
  r=await app(new Request(origin+'/.well-known/oauth-protected-resource/mcp'));assert.equal(r.status,200);assert.equal((await r.json()).resource,origin+'/mcp');
  r=await app(new Request(origin+'/login'));assert.equal(r.status,200);
  r=await app(new Request(origin+'/mcp',{method:'POST',body:'{}'}));assert.equal(r.status,401);
- assert.deepEqual(consumed,['discovery','auth','mcp']);assert.equal(upstream,0);
+ assert.deepEqual(consumed,['discovery','auth','anon']);assert.equal(upstream,0);
  r=await app(new Request(origin+'/internal/limiter'));assert.equal(r.status,404);assert.equal(consumed.length,3);
  r=await app(new Request('https://evil.invalid/mcp',{headers:{'X-Forwarded-Host':origin}}));assert.equal(r.status,421);
  r=await app(new Request(origin+'/mcp',{headers:{Origin:'https://evil.invalid'}}));assert.equal(r.status,403);

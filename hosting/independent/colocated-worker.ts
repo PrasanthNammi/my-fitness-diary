@@ -55,7 +55,9 @@ export function connectorWorker(configOf: (env: Record<string, unknown>) => Inte
       if(url.pathname.startsWith('/push/')) return url.origin===entry.config.authOrigin ? await handlePush(request,env,entry.config,fetcher.bind(globalThis),localPush) : privateJson({error:'Wrong service origin'},421);
       const denied=await entry.service.guard(request,true);
       if(denied) return denied;
-      return await entry.provider.fetch(request,env,ctx);
+      const response=await entry.provider.fetch(request,env,ctx);
+      if(response.status===401&&url.pathname==='/mcp') ctx.waitUntil(entry.service.refused(request));
+      return response;
     } catch {return privateJson({error:'Invalid staging service configuration'},503);}
   }};
 }
