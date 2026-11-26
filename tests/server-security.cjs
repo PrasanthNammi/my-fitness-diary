@@ -54,6 +54,18 @@ const jar='__Host-mfd-access='+token+'; __Host-mfd-refresh=refresh-private';
  calls=[];reply=()=>Response.json({});r=await handle(req('/api/auth/recover','POST',{email:'a@b.c'}),deps);assert.equal(r.status,200);assert.deepEqual(await r.json(),{sent:true});
  assert(String(calls[0].url).startsWith('https://djyozltkmbzhwuvemxuy.supabase.co/auth/v1/recover?redirect_to='));assert.equal(JSON.parse(calls[0].init.body).code_challenge_method,'s256');
  {const ck=r.headers.getSetCookie();assert.equal(ck.length,2);assert(ck.some(v=>v.startsWith('__Host-mfd-reset=1')));for(const v of ck)assert(v.includes('HttpOnly; Secure; SameSite=Lax'))}
+ // Supabase could not send the email (Gmail refused the app password, 26 Nov 2026): counted once for Grafana, clear
+ // message, no Supabase/Gmail detail passed on. Ordinary 4xx answers (e.g. too many requests) are not counted.
+ for(const [path,body] of [['/api/auth/signup',{email:'new@example.invalid',password:'a-long-password-1'}],['/api/auth/recover',{email:'a@b.c'}],['/api/auth/resend',{email:'new@example.invalid'}]]){
+  calls=[];reply=(url)=>url.includes('/rpc/mfd_note_auth_email_failure')?new Response(null,{status:204}):Response.json({code:500,error_code:'unexpected_failure',msg:'Error sending confirmation email: 535 5.7.8 Username and Password not accepted'},{status:500});
+  r=await handle(req(path,'POST',body),deps);assert.equal(r.status,503,path);const text=await r.text();assert(text.includes("couldn't send the email"),path);assert(!/535|Username|Password not/.test(text),path);
+  const notes=calls.filter(c=>c.url.includes('/rest/v1/rpc/mfd_note_auth_email_failure'));assert.equal(notes.length,1,path);assert.equal(notes[0].init.method,'POST');assert(!(notes[0].init.body||'').includes('example'),path);
+  // The count failing must not change the answer.
+  calls=[];reply=(url)=>url.includes('/rpc/')?Promise.reject(Error('down')):Response.json({msg:'Error sending recovery email'},{status:500});
+  r=await handle(req(path,'POST',body),deps);assert.equal(r.status,503,path);
+  calls=[];reply=(url)=>url.includes('/rpc/')?new Response(null,{status:204}):Response.json({msg:'For security purposes, you can only request this after 30 seconds.'},{status:429});
+  r=await handle(req(path,'POST',body),deps);assert.equal(r.status,429,path);assert.equal(calls.filter(c=>c.url.includes('/rpc/')).length,0,path);
+ }
  reply=()=>Response.json(issued);
  r=await handle(new Request(origin+'/?code=abc',{headers:{Cookie:'__Host-mfd-pkce=verifier; __Host-mfd-reset=1'}}),deps);assert.equal(r.status,303);assert.equal(r.headers.get('Location'),origin+'/#/set-password');assert(r.headers.getSetCookie().some(v=>v.startsWith('__Host-mfd-reset=;')));
  r=await handle(new Request(origin+'/?code=abc',{headers:{Cookie:'__Host-mfd-pkce=verifier'}}),deps);assert.equal(r.headers.get('Location'),origin+'/','ordinary sign-in link goes home');

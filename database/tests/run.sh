@@ -11,7 +11,7 @@ docker run -d --name $DBC --network $NET -e POSTGRES_PASSWORD=test postgres:17 >
 until docker exec $DBC pg_isready -U postgres >/dev/null 2>&1; do sleep 1; done; sleep 2
 run_sql(){ docker exec -i $DBC psql -U postgres -X -v ON_ERROR_STOP=1 -q -At "$@"; }
 run_sql < database/tests/supabase-stubs.sql >/dev/null
-for f in schema shared-catalogue catalogue-photos social social-photos private-exercises private-photo-metadata sync-observability; do grep -v "create extension if not exists pg_cron" database/$f.sql | run_sql >/dev/null; done
+for f in schema shared-catalogue catalogue-photos social social-photos private-exercises private-photo-metadata sync-observability auth-email-alert; do grep -v "create extension if not exists pg_cron" database/$f.sql | run_sql >/dev/null; done
 # Production-shaped diaries written before the new SQL, to rehearse the compaction migration.
 node tests/fixtures/prod-shape-seed.cjs | run_sql >/dev/null
 for f in social-incremental social-comments workspace-delta social-push social-push-friends; do run_sql < database/$f.sql >/dev/null 2>&1 || { run_sql < database/$f.sql; exit 1; }; done
